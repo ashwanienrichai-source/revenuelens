@@ -1,5 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { buffer } from 'micro'
 import Stripe from 'stripe'
 import { stripe } from '../../../lib/stripe'
 import { createClient } from '@supabase/supabase-js'
@@ -11,11 +10,20 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+async function getRawBody(req: NextApiRequest): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    req.on('end', () => resolve(Buffer.concat(chunks)))
+    req.on('error', reject)
+  })
+}
+
 type SubscriptionStatus = 'free' | 'starter' | 'pro' | 'enterprise'
 
 function planFromPriceId(priceId: string): SubscriptionStatus {
   if (priceId === process.env.STRIPE_STARTER_PRICE_ID) return 'starter'
-  if (priceId === process.env.STRIPE_PRO_PRICE_ID)     return 'pro'
+  if (priceId === process.env.STRIPE_PRO_PRICE_ID) return 'pro'
   return 'starter'
 }
 
@@ -30,10 +38,7 @@ async function updateUserSubscription(
     .eq('stripe_customer_id', customerId)
     .single()
 
-  if (!profile) {
-    console.error('[Webhook] No profile found for customer', customerId)
-    return
-  }
+  if (!profile) return
 
   await supabaseAdmin
     .from('profiles')
@@ -43,50 +48,46 @@ async function updateUserSubscription(
       updated_at: new Date().toISOString(),
     })
     .eq('id', profile.id)
-
-  console.log(`[Webhook] Updated user ${profile.id} → ${status}`)
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const buf = await buffer(req)
+  const rawBody = await getRawBody(req)
   const sig = req.headers['stripe-signature']!
 
   let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET!)
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET || 'placeholder'
+    )
   } catch (err: any) {
-    console.error('[Webhook] Signature verification failed:', err.message)
     return res.status(400).json({ error: `Webhook Error: ${err.message}` })
   }
 
   try {
     switch (event.type) {
-
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
         if (session.mode !== 'subscription') break
-
-        const subscription = await stripe.subscriptions.retrieve(session.subscription as string)
+        const subscription = await stripe.subscriptions.retrieve(
+          session.subscription as string
+        )
         const priceId = subscription.items.data[0]?.price?.id
-        const plan = planFromPriceId(priceId)
-
         await updateUserSubscription(
           session.customer as string,
-          plan,
+          planFromPriceId(priceId),
           subscription.id
         )
         break
       }
-
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription
         const priceId = subscription.items.data[0]?.price?.id
-        const plan = subscription.status === 'active'
-          ? planFromPriceId(priceId)
-          : 'free'
-
+        const plan =
+          subscription.status === 'active' ? planFromPriceId(priceId) : 'free'
         await updateUserSubscription(
           subscription.customer as string,
           plan,
@@ -94,28 +95,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         )
         break
       }
-
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription
-        await updateUserSubscription(
-          subscription.customer as string,
-          'free'
-        )
+        await updateUserSubscription(subscription.customer as string, 'free')
         break
       }
-
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice
-        console.warn('[Webhook] Payment failed for customer', invoice.customer)
-        // Could send email notification here
-        break
-      }
-
-      default:
-        console.log(`[Webhook] Unhandled event: ${event.type}`)
     }
   } catch (err: any) {
-    console.error('[Webhook] Handler error:', err)
     return res.status(500).json({ error: 'Webhook handler failed' })
   }
 
