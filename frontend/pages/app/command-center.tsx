@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import axios from 'axios'
 import {
@@ -9,7 +9,8 @@ import {
   Upload, Play, Download, Loader2, CheckCircle, AlertCircle,
   BarChart3, TrendingUp, Users, DollarSign, Layers, Target,
   ChevronRight, Filter, RefreshCw, Lock, Settings, ArrowUp,
-  ArrowDown, Minus, Package, FileText, Eye, X, Plus, AlertTriangle
+  ArrowDown, Minus, Package, FileText, Eye, X, Plus, AlertTriangle,
+  Home, ChevronDown, ChevronUp, Zap, Clock
 } from 'lucide-react'
 import { supabase, UserProfile, canDownload } from '../../lib/supabase'
 
@@ -49,14 +50,174 @@ const fmt = (v?: number | null) => {
 const fmtPct = (v?: number | null) => v != null ? `${v.toFixed(1)}%` : '—'
 const fmtK   = (v?: number | null) => v != null ? v.toLocaleString() : '—'
 
+// ── Engine config — drives dynamic field mapping ───────────────────────
+const ENGINE_CONFIG = {
+  mrr: {
+    id:    'mrr',
+    label: 'MRR / ARR Analytics',
+    desc:  'Bridge waterfall from Alteryx MRR output',
+    icon:  TrendingUp,
+    required: [
+      { key: 'customer', label: 'Customer / Account',    kw: ['customer_id','customer','client','account'] },
+      { key: 'date',     label: 'Activity Date',         kw: ['date','activity_date','period','month'] },
+      { key: 'metric',   label: 'Bridge Value / MRR',    kw: ['bridge value','amount','mrr','arr','revenue'] },
+      { key: 'lookback', label: 'Month Lookback',        kw: ['month lookback','month_lookback','lookback'] },
+      { key: 'classify', label: 'Bridge Classification', kw: ['classification','bridge classification','bridge_classification'] },
+    ],
+    optional: [
+      { key: 'product',  label: 'Product',   kw: ['product','sku','service'] },
+      { key: 'region',   label: 'Region',    kw: ['region','geo','geography','country'] },
+      { key: 'channel',  label: 'Channel',   kw: ['channel','segment'] },
+      { key: 'vintage',  label: 'Vintage',   kw: ['vintage','cohort'] },
+    ],
+    kpiLens: [
+      { key: 'industry', label: 'Industry',  kw: ['industry','sector','vertical'] },
+      { key: 'market',   label: 'Market',    kw: ['market','territory'] },
+      { key: 'country',  label: 'Country',   kw: ['country','nation'] },
+      { key: 'state',    label: 'State',     kw: ['state','province'] },
+    ],
+    toolType: 'MRR',
+  },
+  acv: {
+    id:    'acv',
+    label: 'ACV / Contract Analytics',
+    desc:  'Contract-based bridge with renewal rates',
+    icon:  FileText,
+    required: [
+      { key: 'customer',      label: 'Customer / Account',  kw: ['customer_id','customer','client','account'] },
+      { key: 'contractStart', label: 'Contract Start Date', kw: ['contract_start','start_date','start date'] },
+      { key: 'contractEnd',   label: 'Contract End Date',   kw: ['contract_end','end_date','end date','expiry'] },
+      { key: 'acv',           label: 'ACV / TCV',          kw: ['acv','tcv','annual contract','contract value'] },
+    ],
+    optional: [
+      { key: 'product',  label: 'Product',        kw: ['product','sku'] },
+      { key: 'region',   label: 'Region',         kw: ['region','geo','country'] },
+      { key: 'channel',  label: 'Channel',        kw: ['channel','segment'] },
+      { key: 'quantity', label: 'Quantity / Seats',kw: ['qty','quantity','units','seats'] },
+    ],
+    kpiLens: [
+      { key: 'industry', label: 'Industry', kw: ['industry','sector','vertical'] },
+      { key: 'market',   label: 'Market',   kw: ['market','territory'] },
+      { key: 'country',  label: 'Country',  kw: ['country','nation'] },
+      { key: 'state',    label: 'State',    kw: ['state','province'] },
+    ],
+    toolType: 'ACV',
+  },
+  cohort: {
+    id:    'cohort',
+    label: 'Cohort Analytics',
+    desc:  'Size, Percentile & Revenue cohorts',
+    icon:  Layers,
+    required: [
+      { key: 'customer', label: 'Customer / Account', kw: ['customer_id','customer','client','account'] },
+      { key: 'date',     label: 'Date / Period',      kw: ['date','activity_date','period','month'] },
+      { key: 'revenue',  label: 'Revenue / MRR',      kw: ['mrr','arr','revenue','amount','value'] },
+    ],
+    optional: [
+      { key: 'fiscal',  label: 'Fiscal Year', kw: ['fiscal','fy','fiscal_year'] },
+      { key: 'product', label: 'Product',     kw: ['product','sku'] },
+      { key: 'region',  label: 'Region',      kw: ['region','geo'] },
+    ],
+    kpiLens: [
+      { key: 'industry', label: 'Industry', kw: ['industry','sector'] },
+      { key: 'market',   label: 'Market',   kw: ['market','territory'] },
+      { key: 'country',  label: 'Country',  kw: ['country','nation'] },
+      { key: 'state',    label: 'State',    kw: ['state','province'] },
+    ],
+    toolType: 'MRR',
+  },
+} as const
+
+type EngineId = keyof typeof ENGINE_CONFIG
+
+// ── Auto-detect column helper ─────────────────────────────────────────
+function autoDetect(columns: string[], keywords: string[]): string {
+  const cols = columns.map(c => c.toLowerCase().replace(/[^a-z0-9]/g, ''))
+  const kws  = keywords.map(k => k.toLowerCase().replace(/[^a-z0-9]/g, ''))
+  // Exact match first
+  const exact = columns.find((_, i) => kws.includes(cols[i]))
+  if (exact) return exact
+  // Partial match
+  const partial = columns.find((_, i) => kws.some(k => cols[i].includes(k) || k.includes(cols[i])))
+  return partial || ''
+}
+
 // ── Module definitions ────────────────────────────────────────────────
 const MODULES = [
-  { id: 'bridge',       label: 'Revenue Bridge', icon: TrendingUp, desc: 'Waterfall bridge with classifications' },
-  { id: 'top_movers',   label: 'Top Movers',      icon: Target,     desc: 'Biggest churners, new logos, upsells' },
-  { id: 'top_customers',label: 'Top Customers',   icon: Users,      desc: 'Top N customers by ending ARR' },
-  { id: 'kpi_matrix',   label: 'KPI Matrix',      icon: BarChart3,  desc: 'NRR, GRR, and rate metrics' },
-  { id: 'output',       label: 'Output Table',    icon: FileText,   desc: 'Full bridge output export' },
+  { id: 'bridge',        label: 'Revenue Bridge', icon: TrendingUp, desc: 'Waterfall bridge' },
+  { id: 'top_movers',    label: 'Top Movers',      icon: Target,     desc: 'Biggest movers' },
+  { id: 'top_customers', label: 'Top Customers',   icon: Users,      desc: 'Top N by ARR' },
+  { id: 'kpi_matrix',    label: 'KPI Matrix',      icon: BarChart3,  desc: 'NRR, GRR, rates' },
+  { id: 'output',        label: 'Output Table',    icon: FileText,   desc: 'Export output' },
 ]
+
+// ── Upload timer component ────────────────────────────────────────────
+function UploadTimer({ active }: { active: boolean }) {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    if (!active) { setElapsed(0); return }
+    const t = setInterval(() => setElapsed(s => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [active])
+  if (!active) return null
+  const pct = Math.min((elapsed / 90) * 100, 99)
+  return (
+    <div className="mt-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] text-ink-500">{elapsed < 10 ? 'Connecting...' : elapsed < 30 ? 'API waking up...' : elapsed < 60 ? 'Processing file...' : 'Almost ready...'}</span>
+        <span className="text-[10px] font-700 text-brand-600">{elapsed}s</span>
+      </div>
+      <div className="h-1 bg-ink-200 rounded-full overflow-hidden">
+        <div className="h-full bg-brand-500 rounded-full transition-all duration-1000" style={{ width: `${pct}%` }}/>
+      </div>
+      {elapsed > 5 && elapsed < 90 && (
+        <div className="text-[9px] text-ink-400 mt-1">
+          {elapsed < 30 ? '⏳ Engine waking from sleep — happens once per session' :
+           elapsed < 60 ? '🔄 Reading and processing your dataset...' :
+           '⚡ Almost done — large files take up to 90s'}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Step indicator ────────────────────────────────────────────────────
+function StepBadge({ n, label, done, active }: { n: number; label: string; done: boolean; active: boolean }) {
+  return (
+    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+      active ? 'bg-brand-50 border border-brand-200' : done ? 'opacity-60' : 'opacity-30'
+    }`}>
+      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-700 flex-shrink-0 ${
+        done ? 'bg-green-500 text-white' : active ? 'bg-brand-600 text-white' : 'bg-ink-200 text-ink-500'
+      }`}>
+        {done ? '✓' : n}
+      </div>
+      <span className={`text-[11px] font-600 ${active ? 'text-brand-700' : done ? 'text-ink-600' : 'text-ink-400'}`}>{label}</span>
+    </div>
+  )
+}
+
+// ── Field map row ─────────────────────────────────────────────────────
+function FieldRow({ label, required, value, columns, onChange, error }: any) {
+  return (
+    <div className="grid grid-cols-2 gap-2 px-3 py-2 border-b border-ink-50 last:border-0">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[11px] text-ink-700 font-500 leading-tight">{label}</span>
+        {required && <span className="text-red-400 text-[10px] font-700">*</span>}
+      </div>
+      <div>
+        <select value={value} onChange={e => onChange(e.target.value)}
+          className={`w-full text-[10px] border rounded px-1.5 py-1 bg-white text-ink-700 outline-none transition-colors ${
+            error ? 'border-red-300 bg-red-50' : value ? 'border-green-300 bg-green-50/30' : 'border-ink-200'
+          }`}>
+          <option value="">— Select —</option>
+          {columns.map((c: string) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        {error && <div className="text-[9px] text-red-500 mt-0.5">{error}</div>}
+      </div>
+    </div>
+  )
+}
 
 // ── KPI Card ──────────────────────────────────────────────────────────
 function KpiCard({ label, value, sub, delta, good, icon: Icon, accent }: any) {
@@ -82,7 +243,7 @@ function KpiCard({ label, value, sub, delta, good, icon: Icon, accent }: any) {
   )
 }
 
-// ── Retention pill ────────────────────────────────────────────────────
+// ── Retention card ────────────────────────────────────────────────────
 function RetentionCard({ label, value, good, sub }: any) {
   return (
     <div className={`p-4 rounded-xl border ${good ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
@@ -93,7 +254,7 @@ function RetentionCard({ label, value, good, sub }: any) {
   )
 }
 
-// ── Bridge waterfall chart ─────────────────────────────────────────────
+// ── Bridge waterfall ──────────────────────────────────────────────────
 function WaterfallChart({ data }: { data: any[] }) {
   if (!data?.length) return <div className="h-56 flex items-center justify-center text-ink-400 text-sm">No bridge data</div>
   const sorted = [...data].filter(d => d.category !== 'Beginning MRR' && d.category !== 'Ending MRR' && d.category !== 'Prior ACV' && d.category !== 'Ending ACV')
@@ -124,37 +285,61 @@ export default function CommandCenter() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Upload state
-  const [file, setFile]         = useState<File | null>(null)
-  const [columns, setColumns]   = useState<string[]>([])
-  const [rowCount, setRowCount] = useState(0)
-  const [isBridgeOutput, setIsBridgeOutput] = useState(false)
-  const [isACV, setIsACV]       = useState(false)
+  const [file, setFile]           = useState<File | null>(null)
+  const [columns, setColumns]     = useState<string[]>([])
+  const [rowCount, setRowCount]   = useState(0)
   const [loadingCols, setLoadingCols] = useState(false)
-  const [apiWaking, setApiWaking]     = useState(false)
+  const [uploadError, setUploadError] = useState('')
 
-  // Config state
-  const [toolType, setToolType]     = useState<'MRR' | 'ACV'>('MRR')
-  const [revenueUnit, setRevenueUnit] = useState('raw')
+  // Engine selection
+  const [selectedEngine, setSelectedEngine] = useState<EngineId | null>(null)
+  const [showOptional, setShowOptional]     = useState(false)
+  const [showKpiLens, setShowKpiLens]       = useState(false)
+
+  // Field mapping — keyed by field.key
+  const [fieldMap, setFieldMap] = useState<Record<string, string>>({})
+
+  // Config state (preserved from original)
+  const [revenueUnit, setRevenueUnit]     = useState('raw')
   const [selectedModules, setSelectedModules] = useState<string[]>(['bridge', 'top_movers', 'top_customers', 'kpi_matrix'])
-  const [lookbacks, setLookbacks]   = useState<number[]>([1, 3, 12])
-  const [dimensions, setDimensions] = useState<string[]>([])
-  const [customerCol, setCustomerCol] = useState('Customer_ID')
-  const [nMovers, setNMovers]       = useState(30)
-  const [nCustomers, setNCustomers] = useState(10)
-  const [periodType, setPeriodType] = useState('Annual')
+  const [lookbacks, setLookbacks]         = useState<number[]>([1, 3, 12])
+  const [dimensions, setDimensions]       = useState<string[]>([])
+  const [nMovers, setNMovers]             = useState(30)
+  const [nCustomers, setNCustomers]       = useState(10)
+  const [periodType, setPeriodType]       = useState('Annual')
 
-  // Results state
+  // Results state (preserved)
   const [results, setResults]     = useState<any>(null)
   const [running, setRunning]     = useState(false)
   const [error, setError]         = useState('')
 
-  // Filter state
+  // Filter state (preserved)
   const [selectedLookback, setSelectedLookback] = useState(12)
-  const [yearFilter, setYearFilter] = useState('All')
-  const [activeTab, setActiveTab] = useState('summary')
+  const [yearFilter, setYearFilter]   = useState('All')
+  const [activeTab, setActiveTab]     = useState('summary')
   const [activeMoverCat, setActiveMoverCat] = useState('')
 
   const isAdmin = canDownload(profile)
+
+  // ── Derived state ──────────────────────────────────────────────────
+  const engineCfg = selectedEngine ? ENGINE_CONFIG[selectedEngine] : null
+
+  // Step completion flags
+  const step1Done = columns.length > 0
+  const step2Done = step1Done && selectedEngine !== null
+  const step3Done = step2Done && engineCfg?.required.every(f => !!fieldMap[f.key])
+
+  // Validate required fields
+  const fieldErrors = useMemo(() => {
+    if (!engineCfg) return {}
+    const errs: Record<string, string> = {}
+    engineCfg.required.forEach(f => {
+      if (!fieldMap[f.key]) errs[f.key] = 'Required'
+    })
+    return errs
+  }, [engineCfg, fieldMap])
+
+  const canAnalyze = step3Done && selectedModules.length > 0 && !running
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -165,56 +350,75 @@ export default function CommandCenter() {
     fetch(`${API}/health`).catch(() => {})
   }, [router])
 
+  // Auto-detect fields when engine or columns change
+  useEffect(() => {
+    if (!engineCfg || !columns.length) return
+    const detected: Record<string, string> = {}
+    const allFields = [...engineCfg.required, ...engineCfg.optional, ...engineCfg.kpiLens]
+    allFields.forEach(f => {
+      const found = autoDetect(columns, f.kw)
+      if (found) detected[f.key] = found
+    })
+    setFieldMap(detected)
+
+    // Set dimensions from optional fields
+    const dims = engineCfg.optional
+      .map(f => detected[f.key])
+      .filter(Boolean) as string[]
+    setDimensions([...new Set(dims)])
+  }, [selectedEngine, columns])
+
   async function readColumns(f: File) {
-    setFile(f); setLoadingCols(true); setApiWaking(false); setError(''); setColumns([])
-    const wakeTimer = setTimeout(() => setApiWaking(true), 5000)
+    setFile(f); setLoadingCols(true); setUploadError(''); setColumns([])
     try {
       const fd = new FormData(); fd.append('file', f)
-      const { data } = await axios.post(`${API}/api/columns`, fd, { timeout: 60000 })
-      clearTimeout(wakeTimer); setApiWaking(false)
+      const { data } = await axios.post(`${API}/api/columns`, fd, { timeout: 90000 })
       setColumns(data.columns); setRowCount(data.row_count)
-      setIsBridgeOutput(data.is_bridge_output)
-      setIsACV(data.is_acv)
-      if (data.is_acv) setToolType('ACV')
-
-      // Auto-detect customer column
-      const cols = data.columns.map((c: string) => c.toLowerCase())
-      const find = (kw: string[]) => data.columns.find((_: string, i: number) => kw.some(k => cols[i].includes(k))) || ''
-      const cust = find(['customer_id', 'customer id', 'customer', 'client'])
-      if (cust) setCustomerCol(cust)
-
-      // Auto-detect dimensions
-      const dimCandidates = data.columns.filter((c: string) => {
-        const cl = c.toLowerCase()
-        return ['product', 'region', 'channel', 'vertical', 'vintage', 'segment'].some(k => cl.includes(k))
-      })
-      setDimensions(dimCandidates.slice(0, 3))
-
+      // Auto-suggest engine
+      if (data.is_acv) setSelectedEngine('acv')
+      else if (data.is_bridge_output) setSelectedEngine('mrr')
     } catch (e: any) {
-      clearTimeout(wakeTimer); setApiWaking(false)
-      setError(e.code === 'ECONNABORTED' ? 'API is starting — please try again in 10 seconds.' : `Could not read file: ${e?.response?.data?.detail || e.message}`)
+      setUploadError(e.code === 'ECONNABORTED'
+        ? 'Request timed out. Please try again — the engine may still be waking up.'
+        : `Could not read file: ${e?.response?.data?.detail || e.message}`)
     }
     setLoadingCols(false)
   }
 
   async function runAnalysis() {
-    if (!file) { setError('Please upload a file first.'); return }
+    if (!file || !engineCfg) return
     setRunning(true); setError('')
+
     try {
+      let endpoint = `${API}/api/bridge/analyze`
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('tool_type',      toolType)
-      fd.append('revenue_unit',   revenueUnit)
-      fd.append('lookbacks',      JSON.stringify(lookbacks))
-      fd.append('dimension_cols', JSON.stringify(dimensions))
-      fd.append('modules',        JSON.stringify([...selectedModules, 'output']))
-      fd.append('year_filter',    yearFilter !== 'All' ? yearFilter : '')
-      fd.append('period_type',    periodType)
-      fd.append('customer_col',   customerCol)
-      fd.append('n_movers',       String(nMovers))
-      fd.append('n_customers',    String(nCustomers))
 
-      const { data } = await axios.post(`${API}/api/bridge/analyze`, fd, { timeout: 120000 })
+      if (selectedEngine === 'cohort') {
+        endpoint = `${API}/api/cohort/analyze`
+        fd.append('metric',       fieldMap.revenue || fieldMap.metric || '')
+        fd.append('customer_col', fieldMap.customer || '')
+        fd.append('date_col',     fieldMap.date || '')
+        fd.append('fiscal_col',   fieldMap.fiscal || 'None')
+        fd.append('cohort_types', JSON.stringify(['SG', 'PC', 'RC']))
+        fd.append('individual_cols', JSON.stringify(dimensions.filter(Boolean)))
+        fd.append('hierarchies',  JSON.stringify([]))
+        fd.append('period_filter','all')
+        fd.append('selected_fiscal_year', '')
+      } else {
+        fd.append('tool_type',      engineCfg.toolType)
+        fd.append('revenue_unit',   revenueUnit)
+        fd.append('lookbacks',      JSON.stringify(lookbacks))
+        fd.append('dimension_cols', JSON.stringify(dimensions.filter(Boolean)))
+        fd.append('modules',        JSON.stringify([...selectedModules, 'output']))
+        fd.append('year_filter',    yearFilter !== 'All' ? yearFilter : '')
+        fd.append('period_type',    periodType)
+        fd.append('customer_col',   fieldMap.customer || 'Customer_ID')
+        fd.append('n_movers',       String(nMovers))
+        fd.append('n_customers',    String(nCustomers))
+      }
+
+      const { data } = await axios.post(endpoint, fd, { timeout: 120000 })
       setResults(data)
       setActiveTab('summary')
       if (lookbacks.length) setSelectedLookback(lookbacks[lookbacks.length - 1])
@@ -232,12 +436,12 @@ export default function CommandCenter() {
     const csv  = [keys.join(','), ...results.output.map((r: any) => keys.map((k: string) => `"${r[k] ?? ''}"`).join(','))].join('\n')
     const a    = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    a.download = `revenuelens_bridge_${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `revenuelens_${selectedEngine}_${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
   }
 
-  // Derived data
-  const lb_str = String(selectedLookback)
+  // Derived result data (preserved)
+  const lb_str       = String(selectedLookback)
   const bridgeData   = results?.bridge?.[lb_str]
   const retention    = bridgeData?.retention
   const waterfall    = bridgeData?.waterfall || []
@@ -246,8 +450,7 @@ export default function CommandCenter() {
   const topMovers    = results?.top_movers || {}
   const topCustomers = results?.top_customers || []
   const fySummary    = results?.fy_summary || []
-
-  const filteredFY = yearFilter === 'All' ? fySummary : fySummary.filter((r: any) => String(r.fiscal_year) === yearFilter)
+  const filteredFY   = yearFilter === 'All' ? fySummary : fySummary.filter((r: any) => String(r.fiscal_year) === yearFilter)
 
   const TABS = [
     { id: 'summary',       label: 'Summary' },
@@ -265,168 +468,238 @@ export default function CommandCenter() {
       {/* ── Left sidebar ── */}
       <aside className="w-72 bg-white border-r border-ink-200 flex flex-col overflow-hidden flex-shrink-0">
 
-        {/* Logo */}
-        <div className="h-14 flex items-center gap-2.5 px-5 border-b border-ink-100">
+        {/* Logo + Home */}
+        <div className="h-14 flex items-center gap-2.5 px-4 border-b border-ink-100">
           <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
             <BarChart3 size={14} className="text-white"/>
           </div>
-          <div>
+          <div className="flex-1">
             <div className="font-display font-800 text-ink-900 text-[13px] leading-none">RevenueLens</div>
             <div className="text-[9px] text-ink-400 font-600 uppercase tracking-wider mt-0.5">Command Center</div>
+          </div>
+          <button onClick={() => router.push('/dashboard')}
+            className="flex items-center gap-1 text-[10px] text-ink-400 hover:text-ink-700 px-2 py-1 rounded-lg hover:bg-ink-50 transition-all">
+            <Home size={11}/> Home
+          </button>
+        </div>
+
+        {/* Step progress */}
+        <div className="px-3 py-2.5 border-b border-ink-100 bg-ink-50/50">
+          <div className="space-y-0.5">
+            <StepBadge n={1} label="Upload Data"     done={step1Done} active={!step1Done}/>
+            <StepBadge n={2} label="Select Engine"   done={step2Done} active={step1Done && !step2Done}/>
+            <StepBadge n={3} label="Map Fields"      done={step3Done} active={step2Done && !step3Done}/>
+            <StepBadge n={4} label="Analyze Metrics" done={!!results} active={step3Done && !results}/>
           </div>
         </div>
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* Upload section */}
+          {/* ── STEP 1: Upload ── */}
           <div className="p-4 border-b border-ink-100">
-            <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-3">1. Upload & Map Data</div>
-            <div className="text-[10px] text-ink-500 mb-2">Ingest bridge output from Alteryx or cohort engine.</div>
+            <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-2">1. Upload Data</div>
 
-            {error && (
-              <div className="mb-3 p-2.5 bg-red-50 border border-red-200 rounded-lg text-red-700 text-[11px] flex items-start gap-1.5">
-                <AlertCircle size={11} className="flex-shrink-0 mt-0.5"/> {error}
+            {uploadError && (
+              <div className="mb-2 p-2.5 bg-red-50 border border-red-200 rounded-lg text-red-700 text-[11px] flex items-start gap-1.5">
+                <AlertCircle size={11} className="flex-shrink-0 mt-0.5"/>
+                <div>
+                  {uploadError}
+                  {uploadError.includes('timed out') && (
+                    <button onClick={() => file && readColumns(file)}
+                      className="block mt-1 text-red-600 font-700 underline text-[10px]">
+                      Retry upload →
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
-            {/* Drop zone */}
-            <div className={`rounded-xl border-2 border-dashed p-5 text-center cursor-pointer transition-all ${
-              file && columns.length > 0 ? 'border-green-400 bg-green-50' : 'border-ink-200 hover:border-brand-300 bg-ink-50/30'
-            }`} onClick={() => fileRef.current?.click()}>
-              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) readColumns(f) }}/>
+            <div className={`rounded-xl border-2 border-dashed p-4 text-center cursor-pointer transition-all ${
+              file && columns.length > 0 ? 'border-green-400 bg-green-50' :
+              loadingCols ? 'border-brand-300 bg-brand-50/30' :
+              'border-ink-200 hover:border-brand-300 bg-ink-50/30'
+            }`} onClick={() => !loadingCols && fileRef.current?.click()}>
+              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) readColumns(f) }}/>
               {loadingCols ? (
                 <div>
-                  <Loader2 size={20} className="text-brand-500 animate-spin mx-auto mb-1.5"/>
-                  <div className="text-[11px] text-ink-600 font-600">{apiWaking ? 'API waking up...' : 'Reading file...'}</div>
+                  <Loader2 size={18} className="text-brand-500 animate-spin mx-auto mb-1"/>
+                  <div className="text-[11px] text-brand-700 font-600">Reading file...</div>
                 </div>
               ) : file && columns.length > 0 ? (
                 <div>
-                  <CheckCircle size={20} className="text-green-500 mx-auto mb-1.5"/>
+                  <CheckCircle size={18} className="text-green-500 mx-auto mb-1"/>
                   <div className="text-[11px] font-700 text-ink-900 truncate">{file.name}</div>
-                  <div className="text-[10px] text-ink-400">{rowCount.toLocaleString()} rows · {columns.length} cols</div>
+                  <div className="text-[10px] text-ink-500">{rowCount.toLocaleString()} rows · {columns.length} cols detected</div>
                 </div>
               ) : (
                 <div>
-                  <Upload size={20} className="text-ink-300 mx-auto mb-1.5"/>
-                  <div className="text-[11px] text-ink-600 font-600">Drag CSV or Excel, or click</div>
+                  <Upload size={18} className="text-ink-300 mx-auto mb-1"/>
+                  <div className="text-[11px] text-ink-600 font-600">Click or drag CSV / Excel</div>
+                  <div className="text-[10px] text-ink-400 mt-0.5">Alteryx output or raw revenue data</div>
                 </div>
               )}
             </div>
-
-            {/* Dataset type chips */}
-            {columns.length > 0 && (
-              <div className="flex gap-1.5 mt-2">
-                {(['MRR', 'ACV'] as const).map(t => (
-                  <button key={t} onClick={() => setToolType(t)}
-                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-700 border transition-all ${
-                      toolType === t ? 'bg-brand-600 text-white border-brand-600' : 'border-ink-200 text-ink-500 hover:border-ink-300'
-                    }`}>{t}</button>
-                ))}
-              </div>
-            )}
+            <UploadTimer active={loadingCols}/>
           </div>
 
-          {/* Select data section */}
-          {columns.length > 0 && (
+          {/* ── STEP 2: Select Engine ── */}
+          {step1Done && (
             <div className="p-4 border-b border-ink-100">
-              <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-3">2. Select Data</div>
-
-              {/* Dimensions */}
-              <div className="mb-3">
-                <div className="text-[10px] font-600 text-ink-600 mb-1.5">Dimensions (optional)</div>
-                {columns.filter(c => {
-                  const cl = c.toLowerCase()
-                  return ['product','region','channel','vertical','vintage','segment','geo'].some(k => cl.includes(k))
-                }).map(col => (
-                  <label key={col} className="flex items-center gap-2 py-1 cursor-pointer">
-                    <input type="checkbox" checked={dimensions.includes(col)} className="accent-brand-600"
-                      onChange={e => setDimensions(prev => e.target.checked ? [...prev, col] : prev.filter(d => d !== col))}/>
-                    <span className="text-[11px] text-ink-700">{col}</span>
-                  </label>
-                ))}
-              </div>
-
-              {/* Revenue units */}
-              <div className="mb-3">
-                <div className="text-[10px] font-600 text-ink-600 mb-1.5">Revenue Units</div>
-                <div className="grid grid-cols-3 gap-1">
-                  {[['raw', 'As-is'], ['thousands', '÷ 1K'], ['millions', '÷ 1M']].map(([val, lbl]) => (
-                    <button key={val} onClick={() => setRevenueUnit(val)}
-                      className={`py-1 rounded text-[10px] font-600 border transition-all ${
-                        revenueUnit === val ? 'bg-brand-600 text-white border-brand-600' : 'border-ink-200 text-ink-500'
-                      }`}>{lbl}</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Lookbacks */}
-              <div>
-                <div className="text-[10px] font-600 text-ink-600 mb-1.5">Lookback Windows</div>
-                <div className="flex gap-1">
-                  {[1, 3, 6, 12].map(lb => (
-                    <button key={lb} onClick={() => setLookbacks(prev => prev.includes(lb) ? prev.filter(x => x !== lb) : [...prev, lb])}
-                      className={`flex-1 py-1.5 rounded text-[10px] font-700 border transition-all ${
-                        lookbacks.includes(lb) ? 'bg-brand-600 text-white border-brand-600' : 'border-ink-200 text-ink-500'
-                      }`}>{lb}M</button>
-                  ))}
-                </div>
+              <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-2">2. Select Engine</div>
+              <div className="space-y-1.5">
+                {(Object.values(ENGINE_CONFIG) as typeof ENGINE_CONFIG[EngineId][]).map(eng => {
+                  const Icon = eng.icon
+                  const active = selectedEngine === eng.id
+                  return (
+                    <button key={eng.id} onClick={() => setSelectedEngine(eng.id as EngineId)}
+                      className={`w-full flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-all ${
+                        active ? 'border-brand-400 bg-brand-50' : 'border-ink-200 hover:border-ink-300 bg-white'
+                      }`}>
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${active ? 'bg-brand-600' : 'bg-ink-100'}`}>
+                        <Icon size={12} className={active ? 'text-white' : 'text-ink-500'}/>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-[12px] font-700 ${active ? 'text-brand-700' : 'text-ink-900'}`}>{eng.label}</div>
+                        <div className="text-[10px] text-ink-400 mt-0.5">{eng.desc}</div>
+                      </div>
+                      {active && <div className="w-4 h-4 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0 mt-1">
+                        <CheckCircle size={10} className="text-white"/>
+                      </div>}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
 
-          {/* Map columns / Modules */}
-          {columns.length > 0 && (
+          {/* ── STEP 3: Dynamic Field Mapping ── */}
+          {step2Done && engineCfg && (
             <div className="p-4 border-b border-ink-100">
-              <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-3">3. Map Columns</div>
+              <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-2">3. Map Fields</div>
 
-              {/* Provided data table */}
-              <div className="rounded-xl border border-ink-200 overflow-hidden mb-3">
-                <div className="px-3 py-2 bg-ink-50 border-b border-ink-200">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest">Uploaded Columns</div>
-                    <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest">Map To</div>
-                  </div>
+              {/* Required fields */}
+              <div className="rounded-xl border border-ink-200 overflow-hidden mb-2">
+                <div className="px-3 py-1.5 bg-ink-50 border-b border-ink-100 flex items-center justify-between">
+                  <span className="text-[9px] font-700 text-ink-400 uppercase tracking-widest">Required</span>
+                  <span className="text-[9px] text-ink-400">{engineCfg.required.filter(f => !!fieldMap[f.key]).length}/{engineCfg.required.length} mapped</span>
                 </div>
-                {[
-                  { src: 'customer', dst: 'Customer ID', setter: setCustomerCol, val: customerCol },
-                ].map(f => (
-                  <div key={f.src} className="grid grid-cols-2 gap-2 px-3 py-1.5 border-b border-ink-50">
-                    <div className="text-[10px] text-ink-600 flex items-center">{f.val || '—'}</div>
-                    <select value={f.val} onChange={e => f.setter(e.target.value)}
-                      className="text-[10px] border border-ink-200 rounded px-1.5 py-1 bg-white text-ink-700 outline-none">
-                      {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
+                {engineCfg.required.map(f => (
+                  <FieldRow key={f.key} label={f.label} required
+                    value={fieldMap[f.key] || ''} columns={columns}
+                    onChange={(v: string) => setFieldMap(m => ({ ...m, [f.key]: v }))}
+                    error={!fieldMap[f.key] && step2Done ? fieldErrors[f.key] : undefined}
+                  />
                 ))}
               </div>
+
+              {/* Optional fields — collapsible */}
+              <div className="rounded-xl border border-ink-200 overflow-hidden mb-2">
+                <button onClick={() => setShowOptional(v => !v)}
+                  className="w-full px-3 py-1.5 bg-ink-50 border-b border-ink-100 flex items-center justify-between hover:bg-ink-100 transition-colors">
+                  <span className="text-[9px] font-700 text-ink-400 uppercase tracking-widest">Optional Fields</span>
+                  {showOptional ? <ChevronUp size={12} className="text-ink-400"/> : <ChevronDown size={12} className="text-ink-400"/>}
+                </button>
+                {showOptional && engineCfg.optional.map(f => (
+                  <FieldRow key={f.key} label={f.label}
+                    value={fieldMap[f.key] || ''} columns={columns}
+                    onChange={(v: string) => {
+                      setFieldMap(m => ({ ...m, [f.key]: v }))
+                      if (v) setDimensions(prev => prev.includes(v) ? prev : [...prev, v])
+                      else setDimensions(prev => prev.filter(d => d !== fieldMap[f.key]))
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* KPI Lens — collapsible advanced */}
+              <div className="rounded-xl border border-ink-200 overflow-hidden">
+                <button onClick={() => setShowKpiLens(v => !v)}
+                  className="w-full px-3 py-1.5 bg-ink-50 border-b border-ink-100 flex items-center justify-between hover:bg-ink-100 transition-colors">
+                  <span className="text-[9px] font-700 text-ink-400 uppercase tracking-widest">KPI Lens (Advanced)</span>
+                  {showKpiLens ? <ChevronUp size={12} className="text-ink-400"/> : <ChevronDown size={12} className="text-ink-400"/>}
+                </button>
+                {showKpiLens && engineCfg.kpiLens.map(f => (
+                  <FieldRow key={f.key} label={f.label}
+                    value={fieldMap[f.key] || ''} columns={columns}
+                    onChange={(v: string) => setFieldMap(m => ({ ...m, [f.key]: v }))}
+                  />
+                ))}
+              </div>
+
+              {/* Validation summary */}
+              {Object.keys(fieldErrors).length > 0 && (
+                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="text-[10px] text-amber-700 font-600">
+                    {Object.keys(fieldErrors).length} required field{Object.keys(fieldErrors).length > 1 ? 's' : ''} not mapped
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── STEP 4: Modules + Config ── */}
+          {step3Done && (
+            <div className="p-4">
+              <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-2">4. Analyse Metrics</div>
+
+              {/* Lookback windows */}
+              {selectedEngine !== 'cohort' && (
+                <div className="mb-3">
+                  <div className="text-[10px] font-600 text-ink-600 mb-1.5">Lookback Windows</div>
+                  <div className="flex gap-1">
+                    {[1, 3, 6, 12].map(lb => (
+                      <button key={lb} onClick={() => setLookbacks(prev => prev.includes(lb) ? prev.filter(x => x !== lb) : [...prev, lb])}
+                        className={`flex-1 py-1 rounded text-[10px] font-700 border transition-all ${
+                          lookbacks.includes(lb) ? 'bg-brand-600 text-white border-brand-600' : 'border-ink-200 text-ink-500'
+                        }`}>{lb}M</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Revenue units */}
+              {selectedEngine !== 'cohort' && (
+                <div className="mb-3">
+                  <div className="text-[10px] font-600 text-ink-600 mb-1.5">Revenue Units</div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[['raw','As-is'],['thousands','÷ 1K'],['millions','÷ 1M']].map(([val,lbl]) => (
+                      <button key={val} onClick={() => setRevenueUnit(val)}
+                        className={`py-1 rounded text-[10px] font-600 border transition-all ${
+                          revenueUnit === val ? 'bg-brand-600 text-white border-brand-600' : 'border-ink-200 text-ink-500'
+                        }`}>{lbl}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Module checkboxes — only for bridge/mrr/acv engines */}
+              {selectedEngine !== 'cohort' && (
+                <div className="mb-2">
+                  <div className="text-[10px] font-600 text-ink-600 mb-1.5">Output Modules</div>
+                  <div className="space-y-1">
+                    {MODULES.map(m => (
+                      <label key={m.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
+                        selectedModules.includes(m.id) ? 'border-brand-300 bg-brand-50' : 'border-ink-200 hover:border-ink-300'
+                      }`}>
+                        <input type="checkbox" checked={selectedModules.includes(m.id)} className="accent-brand-600"
+                          onChange={e => setSelectedModules(prev => e.target.checked ? [...prev, m.id] : prev.filter(x => x !== m.id))}/>
+                        <m.icon size={11} className={selectedModules.includes(m.id) ? 'text-brand-600' : 'text-ink-400'}/>
+                        <span className="text-[11px] font-600 text-ink-900">{m.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Period type */}
               <div className="flex gap-1">
                 {['Annual', 'Quarter'].map(p => (
                   <button key={p} onClick={() => setPeriodType(p)}
-                    className={`flex-1 py-1.5 rounded text-[10px] font-700 border transition-all ${
+                    className={`flex-1 py-1 rounded text-[10px] font-700 border transition-all ${
                       periodType === p ? 'bg-brand-600 text-white border-brand-600' : 'border-ink-200 text-ink-500'
                     }`}>{p}</button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Module selection */}
-          {columns.length > 0 && (
-            <div className="p-4">
-              <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-3">4. Analyse Metrics</div>
-              <div className="space-y-1">
-                {MODULES.map(m => (
-                  <label key={m.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
-                    selectedModules.includes(m.id) ? 'border-brand-300 bg-brand-50' : 'border-ink-200 hover:border-ink-300'
-                  }`}>
-                    <input type="checkbox" checked={selectedModules.includes(m.id)} className="accent-brand-600"
-                      onChange={e => setSelectedModules(prev => e.target.checked ? [...prev, m.id] : prev.filter(x => x !== m.id))}/>
-                    <m.icon size={12} className={selectedModules.includes(m.id) ? 'text-brand-600' : 'text-ink-400'}/>
-                    <span className="text-[11px] font-600 text-ink-900">{m.label}</span>
-                  </label>
                 ))}
               </div>
             </div>
@@ -434,27 +707,38 @@ export default function CommandCenter() {
         </div>
 
         {/* Analyze button */}
-        {columns.length > 0 && (
-          <div className="p-4 border-t border-ink-100">
-            <button onClick={runAnalysis} disabled={running || selectedModules.length === 0}
-              className="w-full flex items-center justify-center gap-2 bg-brand-600 text-white font-700 text-sm py-3 rounded-xl hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-              {running ? <Loader2 size={15} className="animate-spin"/> : <Play size={15}/>}
-              {running ? 'Analysing...' : 'Analyze Metrics'}
-            </button>
-            {running && <div className="text-[10px] text-ink-400 text-center mt-1.5">First run may take 30-60s (API waking up)</div>}
-          </div>
-        )}
+        <div className="p-4 border-t border-ink-100">
+          {error && (
+            <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-[10px] flex items-start gap-1.5">
+              <AlertCircle size={10} className="flex-shrink-0 mt-0.5"/> {error}
+            </div>
+          )}
 
-        {!columns.length && (
-          <div className="p-4 mt-auto border-t border-ink-100">
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-2">
-              <AlertTriangle size={12} className="text-blue-500 mt-0.5 flex-shrink-0"/>
-              <div className="text-[10px] text-blue-700">
-                <strong>First upload may take 30-60s.</strong> The analytics engine wakes up on first use.
+          <button onClick={runAnalysis} disabled={!canAnalyze}
+            title={!step1Done ? 'Upload a file first' : !step2Done ? 'Select an engine' : !step3Done ? 'Map all required fields' : ''}
+            className="w-full flex items-center justify-center gap-2 bg-brand-600 text-white font-700 text-sm py-3 rounded-xl hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+            {running ? <Loader2 size={15} className="animate-spin"/> : <Play size={15}/>}
+            {running ? 'Analysing...' : 'Analyze Metrics'}
+          </button>
+
+          {running && <UploadTimer active={running}/>}
+
+          {/* Premium export placeholder */}
+          <button disabled title="Premium Feature — Upgrade to export"
+            className="w-full mt-2 flex items-center justify-center gap-2 border border-ink-200 text-ink-400 font-600 text-[11px] py-2 rounded-xl cursor-not-allowed opacity-60 hover:opacity-80 transition-all">
+            <Lock size={12}/> Download / Export
+            <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-700">Premium</span>
+          </button>
+
+          {!step1Done && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-1.5">
+              <AlertTriangle size={10} className="text-blue-500 mt-0.5 flex-shrink-0"/>
+              <div className="text-[9px] text-blue-700">
+                <strong>First upload takes 30-90s</strong> — engine wakes on first use
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </aside>
 
       {/* ── Main content ── */}
