@@ -2,19 +2,20 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
   BarChart3, LayoutDashboard, Users, TrendingUp, DollarSign,
-  FileText, Upload, Settings, LogOut, Crown, Layers, Clock
+  FileText, Upload, Settings, LogOut, Crown, Layers, Clock, Zap
 } from 'lucide-react'
 import { supabase, UserProfile, canDownload } from '../../lib/supabase'
 
 const NAV = [
-  { href: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard',         live: true  },
-  { href: '/dashboard/upload',   icon: Upload,          label: 'Upload Dataset',    live: true  },
-  { href: '/app/cohort',         icon: Layers,          label: 'Cohort Analytics',  live: true  },
-  { href: '/app/customer',       icon: Users,           label: 'Customer Analytics',live: false },
-  { href: '/app/bridge',         icon: TrendingUp,      label: 'Revenue Bridge',    live: false },
-  { href: '/app/pricing',        icon: DollarSign,      label: 'Pricing',           live: false },
-  { href: '/dashboard/reports',  icon: FileText,        label: 'Reports',           live: true  },
-  { href: '/dashboard/settings', icon: Settings,        label: 'Settings',          live: true  },
+  { href: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard',         live: true,  badge: null   },
+  { href: '/dashboard/upload',   icon: Upload,          label: 'Upload Dataset',    live: true,  badge: null   },
+  { href: '/app/command-center', icon: Zap,             label: 'Command Center',    live: true,  badge: 'NEW'  },
+  { href: '/app/cohort',         icon: Layers,          label: 'Cohort Analytics',  live: true,  badge: null   },
+  { href: '/app/customer',       icon: Users,           label: 'Customer Analytics',live: false, badge: null   },
+  { href: '/app/bridge',         icon: TrendingUp,      label: 'Revenue Bridge',    live: false, badge: null   },
+  { href: '/app/pricing',        icon: DollarSign,      label: 'Pricing',           live: false, badge: null   },
+  { href: '/dashboard/reports',  icon: FileText,        label: 'Reports',           live: true,  badge: null   },
+  { href: '/dashboard/settings', icon: Settings,        label: 'Settings',          live: true,  badge: null   },
 ]
 
 interface Props { children: React.ReactNode; profile?: UserProfile | null; title?: string }
@@ -31,6 +32,8 @@ export default function DashboardLayout({ children, profile, title }: Props) {
   return (
     <div className="flex h-screen bg-ink-50 overflow-hidden">
       <aside className="w-52 flex flex-col bg-white border-r border-ink-200 flex-shrink-0">
+
+        {/* Logo */}
         <div className="h-14 flex items-center gap-2.5 px-4 border-b border-ink-100">
           <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
             <BarChart3 size={13} className="text-white" />
@@ -41,8 +44,10 @@ export default function DashboardLayout({ children, profile, title }: Props) {
           </div>
         </div>
 
+        {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
           <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest px-2 mb-2">Platform</div>
+
           {NAV.map(item => {
             const active = router.pathname === item.href
             if (!item.live) {
@@ -60,15 +65,23 @@ export default function DashboardLayout({ children, profile, title }: Props) {
             return (
               <Link key={item.href} href={item.href}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-500 mb-0.5 transition-all ${
-                  active ? 'bg-brand-50 text-brand-700 font-600' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'
+                  active
+                    ? 'bg-brand-50 text-brand-700 font-600'
+                    : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'
                 }`}>
-                <item.icon size={14} />
-                {item.label}
+                <item.icon size={14} className={item.badge === 'NEW' ? 'text-brand-500' : ''} />
+                <span className="flex-1">{item.label}</span>
+                {item.badge === 'NEW' && (
+                  <span className="text-[8px] bg-brand-600 text-white px-1.5 py-0.5 rounded-full font-700 uppercase">
+                    New
+                  </span>
+                )}
               </Link>
             )
           })}
         </nav>
 
+        {/* Plan badge */}
         {profile && (
           <div className="px-3 pb-2">
             {isAdmin ? (
@@ -87,6 +100,7 @@ export default function DashboardLayout({ children, profile, title }: Props) {
           </div>
         )}
 
+        {/* User */}
         <div className="border-t border-ink-100 p-3">
           <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-ink-50 cursor-pointer group">
             <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
@@ -98,13 +112,15 @@ export default function DashboardLayout({ children, profile, title }: Props) {
               <div className="text-[11px] font-600 text-ink-900 truncate">{profile?.full_name || 'User'}</div>
               <div className="text-[10px] text-ink-400 truncate">{profile?.email}</div>
             </div>
-            <button onClick={signOut} className="opacity-0 group-hover:opacity-100 transition-opacity text-ink-400 hover:text-red-500">
+            <button onClick={signOut}
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-ink-400 hover:text-red-500">
               <LogOut size={13} />
             </button>
           </div>
         </div>
       </aside>
 
+      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-14 bg-white border-b border-ink-200 flex items-center px-6 flex-shrink-0">
           {title && <h1 className="font-display font-700 text-ink-900 text-[15px]">{title}</h1>}
