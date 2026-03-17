@@ -131,7 +131,7 @@ const ENGINE_CONFIG = {
 type EngineId = keyof typeof ENGINE_CONFIG
 
 // ── Auto-detect column helper ─────────────────────────────────────────
-function autoDetect(columns: string[], keywords: string[]): string {
+function autoDetect(columns: string[], keywords: readonly string[]): string {
   const cols = columns.map(c => c.toLowerCase().replace(/[^a-z0-9]/g, ''))
   const kws  = keywords.map(k => k.toLowerCase().replace(/[^a-z0-9]/g, ''))
   // Exact match first
