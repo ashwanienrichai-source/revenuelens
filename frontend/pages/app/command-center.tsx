@@ -51,7 +51,14 @@ const fmtPct = (v?: number | null) => v != null ? `${v.toFixed(1)}%` : '—'
 const fmtK   = (v?: number | null) => v != null ? v.toLocaleString() : '—'
 
 // ── Engine config — drives dynamic field mapping ───────────────────────
-const ENGINE_CONFIG = {
+interface EngineField { key: string; label: string; kw: string[] }
+interface EngineDefinition {
+  id: string; label: string; desc: string; icon: any
+  required: EngineField[]; optional: EngineField[]; kpiLens: EngineField[]
+  toolType: string
+}
+type EngineId = 'mrr' | 'acv' | 'cohort'
+const ENGINE_CONFIG: Record<EngineId, EngineDefinition> = {
   mrr: {
     id:    'mrr',
     label: 'MRR / ARR Analytics',
@@ -126,9 +133,8 @@ const ENGINE_CONFIG = {
     ],
     toolType: 'MRR',
   },
-} as const
+}
 
-type EngineId = keyof typeof ENGINE_CONFIG
 
 // ── Auto-detect column helper ─────────────────────────────────────────
 function autoDetect(columns: string[], keywords: readonly string[]): string {
@@ -549,7 +555,7 @@ export default function CommandCenter() {
             <div className="p-4 border-b border-ink-100">
               <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-2">2. Select Engine</div>
               <div className="space-y-1.5">
-                {(Object.values(ENGINE_CONFIG) as typeof ENGINE_CONFIG[EngineId][]).map(eng => {
+                {Object.values(ENGINE_CONFIG).map(eng => {
                   const Icon = eng.icon
                   const active = selectedEngine === eng.id
                   return (
