@@ -1,17 +1,20 @@
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { BarChart3, LayoutDashboard, Users, TrendingUp, DollarSign, FileText, Upload, Settings, LogOut, Crown, Layers } from 'lucide-react'
+import {
+  BarChart3, LayoutDashboard, Users, TrendingUp, DollarSign,
+  FileText, Upload, Settings, LogOut, Crown, Layers, Clock
+} from 'lucide-react'
 import { supabase, UserProfile, canDownload } from '../../lib/supabase'
 
 const NAV = [
-  { href: '/dashboard',         icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/dashboard/upload',  icon: Upload,          label: 'Upload Dataset' },
-  { href: '/app/cohort',        icon: Layers,          label: 'Cohort Analytics' },
-  { href: '/app/customer',      icon: Users,           label: 'Customer Analytics' },
-  { href: '/app/bridge',        icon: TrendingUp,      label: 'Revenue Bridge' },
-  { href: '/app/pricing',       icon: DollarSign,      label: 'Pricing' },
-  { href: '/dashboard/reports', icon: FileText,        label: 'Reports' },
-  { href: '/dashboard/settings',icon: Settings,        label: 'Settings' },
+  { href: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard',         live: true  },
+  { href: '/dashboard/upload',   icon: Upload,          label: 'Upload Dataset',    live: true  },
+  { href: '/app/cohort',         icon: Layers,          label: 'Cohort Analytics',  live: true  },
+  { href: '/app/customer',       icon: Users,           label: 'Customer Analytics',live: false },
+  { href: '/app/bridge',         icon: TrendingUp,      label: 'Revenue Bridge',    live: false },
+  { href: '/app/pricing',        icon: DollarSign,      label: 'Pricing',           live: false },
+  { href: '/dashboard/reports',  icon: FileText,        label: 'Reports',           live: true  },
+  { href: '/dashboard/settings', icon: Settings,        label: 'Settings',          live: true  },
 ]
 
 interface Props { children: React.ReactNode; profile?: UserProfile | null; title?: string }
@@ -39,8 +42,21 @@ export default function DashboardLayout({ children, profile, title }: Props) {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-3 px-2">
+          <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest px-2 mb-2">Platform</div>
           {NAV.map(item => {
             const active = router.pathname === item.href
+            if (!item.live) {
+              return (
+                <div key={item.href}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-500 mb-0.5 text-ink-300 cursor-not-allowed">
+                  <item.icon size={14} />
+                  <span>{item.label}</span>
+                  <span className="ml-auto flex items-center gap-0.5 text-[9px] bg-ink-100 text-ink-400 px-1.5 py-0.5 rounded-full font-600">
+                    <Clock size={8} /> Soon
+                  </span>
+                </div>
+              )
+            }
             return (
               <Link key={item.href} href={item.href}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-500 mb-0.5 transition-all ${
@@ -53,27 +69,30 @@ export default function DashboardLayout({ children, profile, title }: Props) {
           })}
         </nav>
 
-        {profile && !isAdmin && (
+        {profile && (
           <div className="px-3 pb-2">
-            <div className="rounded-lg p-3 bg-ink-50 border border-ink-200">
-              <div className="text-xs font-600 text-ink-700 mb-1">Free plan</div>
-              <Link href="/dashboard/upgrade" className="text-[11px] text-brand-600 font-600 hover:underline">Upgrade to download →</Link>
-            </div>
-          </div>
-        )}
-        {profile && isAdmin && (
-          <div className="px-3 pb-2">
-            <div className="rounded-lg p-3 bg-amber-50 border border-amber-200 flex items-center gap-2">
-              <Crown size={12} className="text-amber-500" />
-              <span className="text-xs font-700 text-amber-700">Premium Access</span>
-            </div>
+            {isAdmin ? (
+              <div className="rounded-lg p-3 bg-amber-50 border border-amber-200 flex items-center gap-2">
+                <Crown size={12} className="text-amber-500" />
+                <span className="text-xs font-700 text-amber-700">Premium Access</span>
+              </div>
+            ) : (
+              <div className="rounded-lg p-3 bg-ink-50 border border-ink-200">
+                <div className="text-xs font-600 text-ink-700 mb-1">Free plan</div>
+                <Link href="/dashboard/upgrade" className="text-[11px] text-brand-600 font-600 hover:underline">
+                  Upgrade to download →
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
         <div className="border-t border-ink-100 p-3">
           <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-ink-50 cursor-pointer group">
             <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-brand-700 text-xs font-700">{profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}</span>
+              <span className="text-brand-700 text-xs font-700">
+                {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
+              </span>
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[11px] font-600 text-ink-900 truncate">{profile?.full_name || 'User'}</div>
