@@ -736,7 +736,11 @@ export default function CommandCenter() {
                 Upload your Alteryx bridge output or revenue CSV on the left panel, select your modules, and click Analyze Metrics to see your full revenue intelligence dashboard.
               </p>
               <div className="grid grid-cols-3 gap-3">
-                {MODULES.slice(0, 3).map(m => (
+                {[
+                  {id:'bridge',       label:'Revenue Bridge', icon:TrendingUp, desc:'Waterfall bridge with classifications'},
+                  {id:'top_movers',   label:'Top Movers',     icon:Target,     desc:'Biggest churners, new logos, upsells'},
+                  {id:'top_customers',label:'Top Customers',  icon:Users,      desc:'Top N customers by ending ARR'},
+                ].map(m => (
                   <div key={m.id} className="bg-white rounded-xl border border-ink-200 p-4 text-left shadow-sm">
                     <m.icon size={16} className="text-brand-500 mb-2"/>
                     <div className="text-xs font-700 text-ink-900 mb-1">{m.label}</div>
@@ -993,7 +997,7 @@ export default function CommandCenter() {
                 <div className="bg-white rounded-xl border border-ink-200 overflow-hidden">
                   <div className="px-5 py-3 border-b border-ink-100 bg-ink-50/50">
                     <div className="text-[10px] font-700 text-ink-400 uppercase tracking-widest">
-                      Top {nCustomers} Customers by Ending ARR
+                      Top 10 Customers by Ending ARR
                     </div>
                   </div>
                   {topCustomers.length > 0 ? (
