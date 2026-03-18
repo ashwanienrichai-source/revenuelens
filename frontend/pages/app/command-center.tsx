@@ -4,98 +4,69 @@ import { useRouter } from 'next/router'
 import axios from 'axios'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart, Legend
+  ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, Legend
 } from 'recharts'
 import {
   Upload, Play, Download, Loader2, CheckCircle, AlertCircle,
   BarChart3, TrendingUp, Users, DollarSign, Layers, Target,
-  ChevronRight, Filter, RefreshCw, Lock, Settings, ArrowUp,
-  ArrowDown, Minus, Package, FileText, Eye, X, Plus, AlertTriangle,
-  Home, ChevronDown, ChevronUp, Zap, Clock
+  ChevronRight, RefreshCw, Lock, ArrowUp, ArrowDown, Minus,
+  FileText, AlertTriangle, Home, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { supabase, UserProfile, canDownload } from '../../lib/supabase'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
 
-// ── Bridge colors ─────────────────────────────────────────────────────
-const BRIDGE_COLORS: Record<string, string> = {
-  'New Logo':       '#10B981',
-  'Cross-sell':     '#3B82F6',
-  'Other In':       '#22C55E',
-  'Returning':      '#F59E0B',
-  'Upsell':         '#6366F1',
-  'Downsell':       '#F97316',
-  'Add on':         '#8B5CF6',
-  'Add-on':         '#8B5CF6',
-  'Churn':          '#EF4444',
-  'Churn Partial':  '#FCA5A5',
-  'Churn-Partial':  '#FCA5A5',
-  'Other Out':      '#94A3B8',
-  'Lapsed':         '#CBD5E1',
-  'Beginning MRR':  '#1E293B',
-  'Ending MRR':     '#1E293B',
-  'Prior ACV':      '#1E293B',
-  'Ending ACV':     '#1E293B',
-  'RoB':            '#A78BFA',
-  'Expiry Pool':    '#374151',
+const BRIDGE_COLORS = {
+  'New Logo':'#10B981','Cross-sell':'#3B82F6','Other In':'#22C55E','Returning':'#F59E0B',
+  'Upsell':'#6366F1','Downsell':'#F97316','Add on':'#8B5CF6','Add-on':'#8B5CF6',
+  'Churn':'#EF4444','Churn Partial':'#FCA5A5','Churn-Partial':'#FCA5A5',
+  'Other Out':'#94A3B8','Lapsed':'#CBD5E1','Beginning MRR':'#1E293B','Ending MRR':'#1E293B',
+  'Prior ACV':'#1E293B','Ending ACV':'#1E293B','RoB':'#A78BFA','Expiry Pool':'#374151',
 }
-
 const CHART_COLORS = ['#1A3CF5','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316']
+const fmt = (v) => { if(v==null)return'—'; if(Math.abs(v)>=1e6)return`$${(v/1e6).toFixed(1)}M`; if(Math.abs(v)>=1e3)return`$${(v/1e3).toFixed(0)}K`; return`$${v.toFixed(0)}` }
+const fmtPct = (v) => v!=null?`${v.toFixed(1)}%`:'—'
+const fmtK = (v) => v!=null?v.toLocaleString():'—'
 
-const fmt = (v?: number | null) => {
-  if (v == null) return '—'
-  if (Math.abs(v) >= 1_000_000) return `$${(v/1_000_000).toFixed(1)}M`
-  if (Math.abs(v) >= 1_000)     return `$${(v/1_000).toFixed(0)}K`
-  return `$${v.toFixed(0)}`
-}
-const fmtPct = (v?: number | null) => v != null ? `${v.toFixed(1)}%` : '—'
-const fmtK   = (v?: number | null) => v != null ? v.toLocaleString() : '—'
-
-// ── Engine config — drives dynamic field mapping ───────────────────────
-interface EngineField { key: string; label: string; kw: string[] }
-interface EngineDefinition {
-  id: string; label: string; desc: string; icon: any
-  required: EngineField[]; optional: EngineField[]; kpiLens: EngineField[]
-  toolType: string
-}
-type EngineId = 'mrr' | 'acv' | 'cohort'
-const ENGINE_CONFIG: Record<EngineId, EngineDefinition> = {
+// ── Engine config — single source of truth ────────────────────────────
+const ENGINE_CONFIG = {
   mrr: {
-    id:    'mrr',
     label: 'MRR / ARR Analytics',
-    desc:  'Bridge waterfall from Alteryx MRR output',
+    desc:  'Alteryx bridge output — waterfall, retention, movers',
     icon:  TrendingUp,
+    color: 'brand',
+    endpoint: 'bridge',
     required: [
       { key: 'customer', label: 'Customer / Account',    kw: ['customer_id','customer','client','account'] },
-      { key: 'date',     label: 'Activity Date',         kw: ['date','activity_date','period','month'] },
+      { key: 'date',     label: 'Activity Date',         kw: ['activity_date','date','period','month'] },
       { key: 'metric',   label: 'Bridge Value / MRR',    kw: ['bridge value','amount','mrr','arr','revenue'] },
-      { key: 'lookback', label: 'Month Lookback',        kw: ['month lookback','month_lookback','lookback'] },
-      { key: 'classify', label: 'Bridge Classification', kw: ['classification','bridge classification','bridge_classification'] },
+      { key: 'lookback', label: 'Month Lookback',        kw: ['month_lookback','month lookback','lookback'] },
+      { key: 'classify', label: 'Bridge Classification', kw: ['bridge classification','classification','bridge_classification'] },
     ],
     optional: [
-      { key: 'product',  label: 'Product',   kw: ['product','sku','service'] },
-      { key: 'region',   label: 'Region',    kw: ['region','geo','geography','country'] },
-      { key: 'channel',  label: 'Channel',   kw: ['channel','segment'] },
-      { key: 'vintage',  label: 'Vintage',   kw: ['vintage','cohort'] },
+      { key: 'product', label: 'Product',  kw: ['product','sku','service'] },
+      { key: 'region',  label: 'Region',   kw: ['region','geo','geography','country'] },
+      { key: 'channel', label: 'Channel',  kw: ['channel','segment'] },
+      { key: 'vintage', label: 'Vintage',  kw: ['vintage','cohort_year'] },
     ],
     kpiLens: [
-      { key: 'industry', label: 'Industry',  kw: ['industry','sector','vertical'] },
-      { key: 'market',   label: 'Market',    kw: ['market','territory'] },
-      { key: 'country',  label: 'Country',   kw: ['country','nation'] },
-      { key: 'state',    label: 'State',     kw: ['state','province'] },
+      { key: 'industry', label: 'Industry', kw: ['industry','sector','vertical'] },
+      { key: 'market',   label: 'Market',   kw: ['market','territory'] },
+      { key: 'country',  label: 'Country',  kw: ['country','nation'] },
+      { key: 'state',    label: 'State',    kw: ['state','province'] },
     ],
-    toolType: 'MRR',
   },
   acv: {
-    id:    'acv',
     label: 'ACV / Contract Analytics',
     desc:  'Contract-based bridge with renewal rates',
     icon:  FileText,
+    color: 'purple',
+    endpoint: 'bridge',
     required: [
       { key: 'customer',      label: 'Customer / Account',  kw: ['customer_id','customer','client','account'] },
-      { key: 'contractStart', label: 'Contract Start Date', kw: ['contract_start','start_date','start date'] },
-      { key: 'contractEnd',   label: 'Contract End Date',   kw: ['contract_end','end_date','end date','expiry'] },
-      { key: 'acv',           label: 'ACV / TCV',          kw: ['acv','tcv','annual contract','contract value'] },
+      { key: 'contractStart', label: 'Contract Start Date', kw: ['contract_start','start_date','start date','startdate'] },
+      { key: 'contractEnd',   label: 'Contract End Date',   kw: ['contract_end','end_date','end date','expiry','enddate'] },
+      { key: 'acv',           label: 'ACV / TCV',           kw: ['acv','tcv','annual_contract','contract_value'] },
     ],
     optional: [
       { key: 'product',  label: 'Product',        kw: ['product','sku'] },
@@ -109,13 +80,13 @@ const ENGINE_CONFIG: Record<EngineId, EngineDefinition> = {
       { key: 'country',  label: 'Country',  kw: ['country','nation'] },
       { key: 'state',    label: 'State',    kw: ['state','province'] },
     ],
-    toolType: 'ACV',
   },
   cohort: {
-    id:    'cohort',
     label: 'Cohort Analytics',
-    desc:  'Size, Percentile & Revenue cohorts',
+    desc:  'Size, Percentile & Revenue cohort segmentation',
     icon:  Layers,
+    color: 'green',
+    endpoint: 'cohort',
     required: [
       { key: 'customer', label: 'Customer / Account', kw: ['customer_id','customer','client','account'] },
       { key: 'date',     label: 'Date / Period',      kw: ['date','activity_date','period','month'] },
@@ -125,6 +96,7 @@ const ENGINE_CONFIG: Record<EngineId, EngineDefinition> = {
       { key: 'fiscal',  label: 'Fiscal Year', kw: ['fiscal','fy','fiscal_year'] },
       { key: 'product', label: 'Product',     kw: ['product','sku'] },
       { key: 'region',  label: 'Region',      kw: ['region','geo'] },
+      { key: 'channel', label: 'Channel',     kw: ['channel','segment'] },
     ],
     kpiLens: [
       { key: 'industry', label: 'Industry', kw: ['industry','sector'] },
@@ -132,152 +104,134 @@ const ENGINE_CONFIG: Record<EngineId, EngineDefinition> = {
       { key: 'country',  label: 'Country',  kw: ['country','nation'] },
       { key: 'state',    label: 'State',    kw: ['state','province'] },
     ],
-    toolType: 'MRR',
   },
 }
 
-
-// ── Auto-detect column helper ─────────────────────────────────────────
-function autoDetect(columns: string[], keywords: readonly string[]): string {
-  const cols = columns.map(c => c.toLowerCase().replace(/[^a-z0-9]/g, ''))
-  const kws  = keywords.map(k => k.toLowerCase().replace(/[^a-z0-9]/g, ''))
-  // Exact match first
-  const exact = columns.find((_, i) => kws.includes(cols[i]))
-  if (exact) return exact
-  // Partial match
-  const partial = columns.find((_, i) => kws.some(k => cols[i].includes(k) || k.includes(cols[i])))
-  return partial || ''
+// ── Auto-detect: fuzzy match column names to field keywords ───────────
+function autoDetect(columns, keywords) {
+  const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g,'')
+  const kws  = keywords.map(norm)
+  return columns.find(c => kws.includes(norm(c)))
+      || columns.find(c => kws.some(k => norm(c).includes(k) || k.includes(norm(c))))
+      || ''
 }
 
-// ── Module definitions ────────────────────────────────────────────────
-const MODULES = [
-  { id: 'bridge',        label: 'Revenue Bridge', icon: TrendingUp, desc: 'Waterfall bridge' },
-  { id: 'top_movers',    label: 'Top Movers',      icon: Target,     desc: 'Biggest movers' },
-  { id: 'top_customers', label: 'Top Customers',   icon: Users,      desc: 'Top N by ARR' },
-  { id: 'kpi_matrix',    label: 'KPI Matrix',      icon: BarChart3,  desc: 'NRR, GRR, rates' },
-  { id: 'output',        label: 'Output Table',    icon: FileText,   desc: 'Export output' },
-]
+// ── Apply auto-detection for all fields of an engine ─────────────────
+function buildAutoMap(engine, columns) {
+  const map = {}
+  const cfg = ENGINE_CONFIG[engine]
+  if (!cfg) return map
+  ;[...cfg.required, ...cfg.optional, ...cfg.kpiLens].forEach(f => {
+    const found = autoDetect(columns, f.kw)
+    if (found) map[f.key] = found
+  })
+  return map
+}
 
-// ── Upload timer component ────────────────────────────────────────────
-function UploadTimer({ active }: { active: boolean }) {
-  const [elapsed, setElapsed] = useState(0)
+// ── Validation ────────────────────────────────────────────────────────
+function validate(engine, fieldMap) {
+  const errors = {}
+  if (!engine) return errors
+  ENGINE_CONFIG[engine].required.forEach(f => {
+    if (!fieldMap[f.key]) errors[f.key] = 'Required'
+  })
+  return errors
+}
+
+// ── Upload progress timer ─────────────────────────────────────────────
+function UploadTimer({ active }) {
+  const [s, setS] = useState(0)
   useEffect(() => {
-    if (!active) { setElapsed(0); return }
-    const t = setInterval(() => setElapsed(s => s + 1), 1000)
+    if (!active) { setS(0); return }
+    const t = setInterval(() => setS(n => n+1), 1000)
     return () => clearInterval(t)
   }, [active])
   if (!active) return null
-  const pct = Math.min((elapsed / 90) * 100, 99)
+  const pct = Math.min((s/90)*100, 98)
+  const msg = s<8?'Connecting to engine...' : s<25?'API waking from sleep...' : s<55?'Processing your file...' : 'Almost ready...'
   return (
-    <div className="mt-2">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] text-ink-500">{elapsed < 10 ? 'Connecting...' : elapsed < 30 ? 'API waking up...' : elapsed < 60 ? 'Processing file...' : 'Almost ready...'}</span>
-        <span className="text-[10px] font-700 text-brand-600">{elapsed}s</span>
+    <div className="mt-2 px-1">
+      <div className="flex justify-between mb-1">
+        <span className="text-[10px] text-ink-500">{msg}</span>
+        <span className="text-[10px] font-700 text-brand-600">{s}s</span>
       </div>
       <div className="h-1 bg-ink-200 rounded-full overflow-hidden">
-        <div className="h-full bg-brand-500 rounded-full transition-all duration-1000" style={{ width: `${pct}%` }}/>
+        <div className="h-full bg-brand-500 rounded-full transition-all duration-1000" style={{width:`${pct}%`}}/>
       </div>
-      {elapsed > 5 && elapsed < 90 && (
-        <div className="text-[9px] text-ink-400 mt-1">
-          {elapsed < 30 ? '⏳ Engine waking from sleep — happens once per session' :
-           elapsed < 60 ? '🔄 Reading and processing your dataset...' :
-           '⚡ Almost done — large files take up to 90s'}
-        </div>
-      )}
+      {s>6 && <div className="text-[9px] text-ink-400 mt-1">⏳ First use each session takes 30-90s</div>}
     </div>
   )
 }
 
-// ── Step indicator ────────────────────────────────────────────────────
-function StepBadge({ n, label, done, active }: { n: number; label: string; done: boolean; active: boolean }) {
+// ── Step number badge ─────────────────────────────────────────────────
+function Step({ n, label, done, active, locked }) {
   return (
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-      active ? 'bg-brand-50 border border-brand-200' : done ? 'opacity-60' : 'opacity-30'
+      active ? 'bg-brand-50 border border-brand-200' : locked ? 'opacity-30' : ''
     }`}>
       <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-700 flex-shrink-0 ${
         done ? 'bg-green-500 text-white' : active ? 'bg-brand-600 text-white' : 'bg-ink-200 text-ink-500'
-      }`}>
-        {done ? '✓' : n}
-      </div>
-      <span className={`text-[11px] font-600 ${active ? 'text-brand-700' : done ? 'text-ink-600' : 'text-ink-400'}`}>{label}</span>
+      }`}>{done ? '✓' : n}</div>
+      <span className={`text-[11px] font-600 ${active?'text-brand-700':done?'text-ink-600':'text-ink-400'}`}>{label}</span>
     </div>
   )
 }
 
-// ── Field map row ─────────────────────────────────────────────────────
-function FieldRow({ label, required, value, columns, onChange, error }: any) {
+// ── Single field mapping row ──────────────────────────────────────────
+function FieldRow({ label, required, value, columns, onChange, showError }) {
+  const hasValue = !!value
   return (
     <div className="grid grid-cols-2 gap-2 px-3 py-2 border-b border-ink-50 last:border-0">
-      <div className="flex items-center gap-1.5">
-        <span className="text-[11px] text-ink-700 font-500 leading-tight">{label}</span>
-        {required && <span className="text-red-400 text-[10px] font-700">*</span>}
+      <div className="flex items-center gap-1 min-w-0">
+        <span className="text-[11px] text-ink-700 truncate">{label}</span>
+        {required && <span className="text-red-400 text-[10px] flex-shrink-0">*</span>}
       </div>
-      <div>
-        <select value={value} onChange={e => onChange(e.target.value)}
-          className={`w-full text-[10px] border rounded px-1.5 py-1 bg-white text-ink-700 outline-none transition-colors ${
-            error ? 'border-red-300 bg-red-50' : value ? 'border-green-300 bg-green-50/30' : 'border-ink-200'
-          }`}>
-          <option value="">— Select —</option>
-          {columns.map((c: string) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        {error && <div className="text-[9px] text-red-500 mt-0.5">{error}</div>}
-      </div>
+      <select value={value} onChange={e => onChange(e.target.value)}
+        className={`text-[10px] border rounded px-1.5 py-1 bg-white text-ink-800 outline-none w-full transition-colors ${
+          showError && !hasValue ? 'border-red-300 bg-red-50' :
+          hasValue ? 'border-green-300' : 'border-ink-200'
+        }`}>
+        <option value="">— Select —</option>
+        {columns.map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
     </div>
   )
 }
 
-// ── KPI Card ──────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, delta, good, icon: Icon, accent }: any) {
-  const isPos = delta != null && delta > 0
-  const isNeg = delta != null && delta < 0
+// ── KPI / Retention cards ──────────────────────────────────────────────
+function KpiCard({ label, value, good, icon: Icon, accent }) {
   return (
-    <div className={`bg-white rounded-xl border p-4 ${accent ? 'border-t-2 border-t-brand-600' : 'border-ink-200'}`}>
-      <div className="flex items-center justify-between mb-3">
-        {Icon && <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-          good === true ? 'bg-green-50' : good === false ? 'bg-red-50' : 'bg-brand-50'
-        }`}><Icon size={15} className={good === true ? 'text-green-600' : good === false ? 'text-red-500' : 'text-brand-600'}/></div>}
-        {delta != null && (
-          <span className={`flex items-center gap-0.5 text-[10px] font-700 ${isPos ? 'text-green-600' : isNeg ? 'text-red-500' : 'text-ink-400'}`}>
-            {isPos ? <ArrowUp size={9}/> : isNeg ? <ArrowDown size={9}/> : <Minus size={9}/>}
-            {Math.abs(delta).toFixed(1)}% YOY
-          </span>
-        )}
-      </div>
+    <div className={`bg-white rounded-xl border p-4 ${accent?'border-t-2 border-t-brand-600':'border-ink-200'}`}>
+      {Icon && <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${good===true?'bg-green-50':good===false?'bg-red-50':'bg-brand-50'}`}>
+        <Icon size={15} className={good===true?'text-green-600':good===false?'text-red-500':'text-brand-600'}/>
+      </div>}
       <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-1">{label}</div>
-      <div className={`font-display text-xl font-800 leading-none ${accent ? 'text-brand-600' : 'text-ink-900'}`}>{value}</div>
-      {sub && <div className="text-[10px] text-ink-400 mt-1">{sub}</div>}
+      <div className={`font-display text-xl font-800 ${accent?'text-brand-600':'text-ink-900'}`}>{value}</div>
     </div>
   )
 }
-
-// ── Retention card ────────────────────────────────────────────────────
-function RetentionCard({ label, value, good, sub }: any) {
+function RetentionCard({ label, value, good }) {
   return (
-    <div className={`p-4 rounded-xl border ${good ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+    <div className={`p-4 rounded-xl border ${good?'bg-green-50 border-green-200':'bg-red-50 border-red-200'}`}>
       <div className="text-[9px] font-700 uppercase tracking-widest mb-1 text-ink-500">{label}</div>
-      <div className={`font-display text-2xl font-800 ${good ? 'text-green-700' : 'text-red-600'}`}>{value}</div>
-      {sub && <div className="text-[10px] text-ink-400 mt-1">{sub}</div>}
+      <div className={`font-display text-2xl font-800 ${good?'text-green-700':'text-red-600'}`}>{value}</div>
     </div>
   )
 }
-
-// ── Bridge waterfall ──────────────────────────────────────────────────
-function WaterfallChart({ data }: { data: any[] }) {
+function WaterfallChart({ data }) {
   if (!data?.length) return <div className="h-56 flex items-center justify-center text-ink-400 text-sm">No bridge data</div>
-  const sorted = [...data].filter(d => d.category !== 'Beginning MRR' && d.category !== 'Ending MRR' && d.category !== 'Prior ACV' && d.category !== 'Ending ACV')
-    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+  const sorted = [...data].filter(d=>!['Beginning MRR','Ending MRR','Prior ACV','Ending ACV'].includes(d.category))
+    .sort((a,b)=>Math.abs(b.value)-Math.abs(a.value))
   return (
     <div className="h-56">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={sorted} margin={{ top: 5, right: 5, bottom: 50, left: 10 }}>
+        <BarChart data={sorted} margin={{top:5,right:5,bottom:50,left:10}}>
           <CartesianGrid strokeDasharray="3 3" stroke="#F0F2F8" vertical={false}/>
-          <XAxis dataKey="category" tick={{ fontSize: 10, fill: '#8C95A6' }} angle={-35} textAnchor="end" interval={0}/>
-          <YAxis tickFormatter={v => fmt(v)} tick={{ fontSize: 10, fill: '#8C95A6' }} width={50}/>
-          <Tooltip formatter={(v: any, _: any, p: any) => [fmt(Number(v)), p.payload.category]} contentStyle={{ fontSize: 12 }}/>
-          <Bar dataKey="value" radius={[3, 3, 0, 0]}>
-            {sorted.map((entry: any, i: number) => (
-              <Cell key={i} fill={BRIDGE_COLORS[entry.category] || '#CBD5E1'}/>
-            ))}
+          <XAxis dataKey="category" tick={{fontSize:10,fill:'#8C95A6'}} angle={-35} textAnchor="end" interval={0}/>
+          <YAxis tickFormatter={fmt} tick={{fontSize:10,fill:'#8C95A6'}} width={50}/>
+          <Tooltip formatter={(v,_,p)=>[fmt(Number(v)),p.payload.category]} contentStyle={{fontSize:12}}/>
+          <Bar dataKey="value" radius={[3,3,0,0]}>
+            {sorted.map((e,i)=><Cell key={i} fill={BRIDGE_COLORS[e.category]||'#CBD5E1'}/>)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -285,154 +239,135 @@ function WaterfallChart({ data }: { data: any[] }) {
   )
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// MAIN PAGE
+// ═══════════════════════════════════════════════════════════════════════
 export default function CommandCenter() {
-  const router = useRouter()
-  const [profile, setProfile]   = useState<UserProfile | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const router  = useRouter()
+  const fileRef = useRef(null)
+  const [profile, setProfile] = useState(null)
 
-  // Upload state
-  const [file, setFile]           = useState<File | null>(null)
-  const [columns, setColumns]     = useState<string[]>([])
+  // Step 1 — Upload
+  const [file, setFile]           = useState(null)
+  const [columns, setColumns]     = useState([])
   const [rowCount, setRowCount]   = useState(0)
-  const [loadingCols, setLoadingCols] = useState(false)
-  const [uploadError, setUploadError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadErr, setUploadErr] = useState('')
 
-  // Engine selection
-  const [selectedEngine, setSelectedEngine] = useState<EngineId | null>(null)
-  const [showOptional, setShowOptional]     = useState(false)
-  const [showKpiLens, setShowKpiLens]       = useState(false)
+  // Step 2 — Engine
+  const [engine, setEngine] = useState(null)   // 'mrr' | 'acv' | 'cohort'
 
-  // Field mapping — keyed by field.key
-  const [fieldMap, setFieldMap] = useState<Record<string, string>>({})
+  // Step 3 — Field mapping (persisted across engine changes per session)
+  const [fieldMap, setFieldMap]     = useState({})
+  const [showOptional, setShowOpt]  = useState(false)
+  const [showKpi, setShowKpi]       = useState(false)
+  const [validated, setValidated]   = useState(false)  // show errors only after first analyze attempt
 
-  // Config state (preserved from original)
-  const [revenueUnit, setRevenueUnit]     = useState('raw')
-  const [selectedModules, setSelectedModules] = useState<string[]>(['bridge', 'top_movers', 'top_customers', 'kpi_matrix'])
-  const [lookbacks, setLookbacks]         = useState<number[]>([1, 3, 12])
-  const [dimensions, setDimensions]       = useState<string[]>([])
-  const [nMovers, setNMovers]             = useState(30)
-  const [nCustomers, setNCustomers]       = useState(10)
-  const [periodType, setPeriodType]       = useState('Annual')
+  // Step 4 — Analysis config
+  const [lookbacks, setLookbacks]   = useState([1,3,12])
+  const [revenueUnit, setRevUnit]   = useState('raw')
+  const [periodType, setPeriod]     = useState('Annual')
+  const [modules, setModules]       = useState(['bridge','top_movers','top_customers','kpi_matrix'])
 
-  // Results state (preserved)
-  const [results, setResults]     = useState<any>(null)
-  const [running, setRunning]     = useState(false)
-  const [error, setError]         = useState('')
+  // Results
+  const [results, setResults]       = useState(null)
+  const [running, setRunning]       = useState(false)
+  const [runErr, setRunErr]         = useState('')
 
-  // Filter state (preserved)
-  const [selectedLookback, setSelectedLookback] = useState(12)
-  const [yearFilter, setYearFilter]   = useState('All')
-  const [activeTab, setActiveTab]     = useState('summary')
-  const [activeMoverCat, setActiveMoverCat] = useState('')
+  // Right panel filters
+  const [selLookback, setSelLb]     = useState(12)
+  const [yearFilter, setYearFilter] = useState('All')
+  const [activeTab, setActiveTab]   = useState('summary')
+  const [moverCat, setMoverCat]     = useState('')
 
   const isAdmin = canDownload(profile)
+  const cfg     = engine ? ENGINE_CONFIG[engine] : null
+  const errors  = useMemo(() => validate(engine, fieldMap), [engine, fieldMap])
 
-  // ── Derived state ──────────────────────────────────────────────────
-  const engineCfg = selectedEngine ? ENGINE_CONFIG[selectedEngine] : null
-
-  // Step completion flags
-  const step1Done = columns.length > 0
-  const step2Done = step1Done && selectedEngine !== null
-  const step3Done = step2Done && engineCfg?.required.every(f => !!fieldMap[f.key])
-
-  // Validate required fields
-  const fieldErrors = useMemo(() => {
-    if (!engineCfg) return {}
-    const errs: Record<string, string> = {}
-    engineCfg.required.forEach(f => {
-      if (!fieldMap[f.key]) errs[f.key] = 'Required'
-    })
-    return errs
-  }, [engineCfg, fieldMap])
-
-  const canAnalyze = step3Done && selectedModules.length > 0 && !running
+  // Step completion
+  const step1 = columns.length > 0
+  const step2 = step1 && !!engine
+  const step3 = step2 && Object.keys(errors).length === 0
+  const canRun = step3 && !running
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({data:{session}}) => {
       if (!session) { router.push('/auth/login'); return }
-      supabase.from('profiles').select('*').eq('id', session.user.id).single()
-        .then(({ data }) => { if (data) setProfile(data) })
+      supabase.from('profiles').select('*').eq('id',session.user.id).single()
+        .then(({data}) => { if(data) setProfile(data) })
     })
-    fetch(`${API}/health`).catch(() => {})
+    fetch(`${API}/health`).catch(()=>{})
   }, [router])
 
-  // Auto-detect fields when engine or columns change
+  // Auto-detect fields whenever engine or columns change
   useEffect(() => {
-    if (!engineCfg || !columns.length) return
-    const detected: Record<string, string> = {}
-    const allFields = [...engineCfg.required, ...engineCfg.optional, ...engineCfg.kpiLens]
-    allFields.forEach(f => {
-      const found = autoDetect(columns, [...f.kw])
-      if (found) detected[f.key] = found
-    })
-    setFieldMap(detected)
+    if (!engine || !columns.length) return
+    setFieldMap(buildAutoMap(engine, columns))
+    setShowOpt(false)
+    setShowKpi(false)
+    setValidated(false)
+  }, [engine, columns])
 
-    // Set dimensions from optional fields
-    const dims = engineCfg.optional
-      .map(f => detected[f.key])
-      .filter(Boolean) as string[]
-    setDimensions([...new Set(dims)])
-  }, [selectedEngine, columns])
-
-  async function readColumns(f: File) {
-    setFile(f); setLoadingCols(true); setUploadError(''); setColumns([])
+  async function uploadFile(f) {
+    setFile(f); setUploading(true); setUploadErr(''); setColumns([])
+    setEngine(null); setFieldMap({}); setResults(null)
     try {
       const fd = new FormData(); fd.append('file', f)
-      const { data } = await axios.post(`${API}/api/columns`, fd, { timeout: 90000 })
+      const {data} = await axios.post(`${API}/api/columns`, fd, {timeout:90000})
       setColumns(data.columns); setRowCount(data.row_count)
-      // Auto-suggest engine
-      if (data.is_acv) setSelectedEngine('acv')
-      else if (data.is_bridge_output) setSelectedEngine('mrr')
-    } catch (e: any) {
-      setUploadError(e.code === 'ECONNABORTED'
-        ? 'Request timed out. Please try again — the engine may still be waking up.'
-        : `Could not read file: ${e?.response?.data?.detail || e.message}`)
+      // Auto-suggest engine based on file type
+      if (data.is_acv)           setEngine('acv')
+      else if (data.is_bridge_output) setEngine('mrr')
+    } catch(e) {
+      setUploadErr(e.code==='ECONNABORTED'
+        ? 'Timed out — engine waking up. Try again in 10s.'
+        : `Could not read file: ${e?.response?.data?.detail||e.message}`)
     }
-    setLoadingCols(false)
+    setUploading(false)
   }
 
   async function runAnalysis() {
-    if (!file || !engineCfg) return
-    setRunning(true); setError('')
-
+    setValidated(true)
+    if (!canRun) return
+    setRunning(true); setRunErr('')
     try {
-      let endpoint = `${API}/api/bridge/analyze`
       const fd = new FormData()
       fd.append('file', file)
 
-      if (selectedEngine === 'cohort') {
-        endpoint = `${API}/api/cohort/analyze`
-        fd.append('metric',       fieldMap.revenue || fieldMap.metric || '')
-        fd.append('customer_col', fieldMap.customer || '')
-        fd.append('date_col',     fieldMap.date || '')
-        fd.append('fiscal_col',   fieldMap.fiscal || 'None')
-        fd.append('cohort_types', JSON.stringify(['SG', 'PC', 'RC']))
-        fd.append('individual_cols', JSON.stringify(dimensions.filter(Boolean)))
-        fd.append('hierarchies',  JSON.stringify([]))
-        fd.append('period_filter','all')
-        fd.append('selected_fiscal_year', '')
+      if (engine === 'cohort') {
+        fd.append('metric',       fieldMap.revenue||'')
+        fd.append('customer_col', fieldMap.customer||'')
+        fd.append('date_col',     fieldMap.date||'')
+        fd.append('fiscal_col',   fieldMap.fiscal||'None')
+        fd.append('cohort_types', JSON.stringify(['SG','PC','RC']))
+        const dims = ['product','region','channel'].map(k=>fieldMap[k]).filter(Boolean)
+        fd.append('individual_cols', JSON.stringify(dims))
+        fd.append('hierarchies',     JSON.stringify([]))
+        fd.append('period_filter',   'all')
+        fd.append('selected_fiscal_year','')
+        const {data} = await axios.post(`${API}/api/cohort/analyze`, fd, {timeout:120000})
+        setResults({...data, _engine:'cohort'}); setActiveTab('summary')
       } else {
-        fd.append('tool_type',      engineCfg.toolType)
+        fd.append('tool_type',      engine==='acv'?'ACV':'MRR')
         fd.append('revenue_unit',   revenueUnit)
         fd.append('lookbacks',      JSON.stringify(lookbacks))
-        fd.append('dimension_cols', JSON.stringify(dimensions.filter(Boolean)))
-        fd.append('modules',        JSON.stringify([...selectedModules, 'output']))
-        fd.append('year_filter',    yearFilter !== 'All' ? yearFilter : '')
+        const dims = ['product','region','channel','vintage'].map(k=>fieldMap[k]).filter(Boolean)
+        fd.append('dimension_cols', JSON.stringify(dims))
+        fd.append('modules',        JSON.stringify([...modules,'output']))
+        fd.append('year_filter',    yearFilter!=='All'?yearFilter:'')
         fd.append('period_type',    periodType)
-        fd.append('customer_col',   fieldMap.customer || 'Customer_ID')
-        fd.append('n_movers',       String(nMovers))
-        fd.append('n_customers',    String(nCustomers))
+        fd.append('customer_col',   fieldMap.customer||'Customer_ID')
+        fd.append('n_movers',       '30')
+        fd.append('n_customers',    '10')
+        const {data} = await axios.post(`${API}/api/bridge/analyze`, fd, {timeout:120000})
+        setResults({...data, _engine:engine})
+        setActiveTab('summary')
+        if (lookbacks.length) setSelLb(lookbacks[lookbacks.length-1])
+        const cats = Object.keys(data.top_movers||{})
+        if (cats.length) setMoverCat(cats[0])
       }
-
-      const { data } = await axios.post(endpoint, fd, { timeout: 120000 })
-      setResults(data)
-      setActiveTab('summary')
-      if (lookbacks.length) setSelectedLookback(lookbacks[lookbacks.length - 1])
-      const cats = Object.keys(data.top_movers || {})
-      if (cats.length) setActiveMoverCat(cats[0])
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Analysis failed. Please try again.')
+    } catch(e) {
+      setRunErr(e?.response?.data?.detail||'Analysis failed. Please try again.')
     }
     setRunning(false)
   }
@@ -440,140 +375,129 @@ export default function CommandCenter() {
   function downloadCSV() {
     if (!results?.output?.length) return
     const keys = Object.keys(results.output[0])
-    const csv  = [keys.join(','), ...results.output.map((r: any) => keys.map((k: string) => `"${r[k] ?? ''}"`).join(','))].join('\n')
-    const a    = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    a.download = `revenuelens_${selectedEngine}_${new Date().toISOString().slice(0, 10)}.csv`
+    const csv  = [keys.join(','),...results.output.map(r=>keys.map(k=>`"${r[k]??''}"`).join(','))].join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}))
+    a.download = `revenuelens_${engine}_${new Date().toISOString().slice(0,10)}.csv`
     a.click()
   }
 
-  // Derived result data (preserved)
-  const lb_str       = String(selectedLookback)
-  const bridgeData   = results?.bridge?.[lb_str]
-  const retention    = bridgeData?.retention
-  const waterfall    = bridgeData?.waterfall || []
-  const fiscalYears  = results?.metadata?.fiscal_years || []
-  const kpiRows      = results?.kpi_matrix || []
-  const topMovers    = results?.top_movers || {}
-  const topCustomers = results?.top_customers || []
-  const fySummary    = results?.fy_summary || []
-  const filteredFY   = yearFilter === 'All' ? fySummary : fySummary.filter((r: any) => String(r.fiscal_year) === yearFilter)
+  // Derived results
+  const lb       = String(selLookback)
+  const bdg      = results?.bridge?.[lb]
+  const ret      = bdg?.retention
+  const wfall    = bdg?.waterfall||[]
+  const fyYears  = results?.metadata?.fiscal_years||[]
+  const kpiRows  = results?.kpi_matrix||[]
+  const movers   = results?.top_movers||{}
+  const topCusts = results?.top_customers||[]
+  const fySumm   = results?.fy_summary||[]
+  const filtFY   = yearFilter==='All'?fySumm:fySumm.filter(r=>String(r.fiscal_year)===yearFilter)
 
   const TABS = [
-    { id: 'summary',       label: 'Summary' },
-    { id: 'bridge',        label: 'Revenue Bridge' },
-    { id: 'retention',     label: 'Retention Trends' },
-    { id: 'top_movers',    label: 'Top Movers' },
-    { id: 'top_customers', label: 'Top Customers' },
-    { id: 'kpi_matrix',    label: 'KPI Matrix' },
-    { id: 'output',        label: 'Output Table' },
+    {id:'summary',label:'Summary'},{id:'bridge',label:'Revenue Bridge'},
+    {id:'retention',label:'Retention'},{id:'top_movers',label:'Top Movers'},
+    {id:'top_customers',label:'Top Customers'},{id:'kpi_matrix',label:'KPI Matrix'},
+    {id:'output',label:'Output Table'},
   ]
 
   return (
-    <div className="flex h-screen bg-[#F6F7F9] overflow-hidden" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+    <div className="flex h-screen bg-[#F6F7F9] overflow-hidden" style={{fontFamily:"'DM Sans',sans-serif"}}>
 
-      {/* ── Left sidebar ── */}
+      {/* ══ LEFT SIDEBAR ══════════════════════════════════════════════ */}
       <aside className="w-72 bg-white border-r border-ink-200 flex flex-col overflow-hidden flex-shrink-0">
 
-        {/* Logo + Home */}
-        <div className="h-14 flex items-center gap-2.5 px-4 border-b border-ink-100">
+        {/* Header */}
+        <div className="h-14 flex items-center gap-2.5 px-4 border-b border-ink-100 flex-shrink-0">
           <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
             <BarChart3 size={14} className="text-white"/>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="font-display font-800 text-ink-900 text-[13px] leading-none">RevenueLens</div>
             <div className="text-[9px] text-ink-400 font-600 uppercase tracking-wider mt-0.5">Command Center</div>
           </div>
-          <button onClick={() => router.push('/dashboard')}
-            className="flex items-center gap-1 text-[10px] text-ink-400 hover:text-ink-700 px-2 py-1 rounded-lg hover:bg-ink-50 transition-all">
+          <button onClick={()=>router.push('/dashboard')}
+            className="flex items-center gap-1 text-[10px] text-ink-400 hover:text-ink-800 px-2 py-1 rounded-lg hover:bg-ink-50 transition-all flex-shrink-0">
             <Home size={11}/> Home
           </button>
         </div>
 
-        {/* Step progress */}
-        <div className="px-3 py-2.5 border-b border-ink-100 bg-ink-50/50">
+        {/* Step tracker */}
+        <div className="px-3 py-2 border-b border-ink-100 bg-ink-50/50 flex-shrink-0">
           <div className="space-y-0.5">
-            <StepBadge n={1} label="Upload Data"     done={step1Done} active={!step1Done}/>
-            <StepBadge n={2} label="Select Engine"   done={step2Done} active={step1Done && !step2Done}/>
-            <StepBadge n={3} label="Map Fields"      done={step3Done} active={step2Done && !step3Done}/>
-            <StepBadge n={4} label="Analyze Metrics" done={!!results} active={step3Done && !results}/>
+            <Step n={1} label="Upload Data"     done={step1}  active={!step1}            locked={false}/>
+            <Step n={2} label="Select Engine"   done={step2}  active={step1&&!step2}     locked={!step1}/>
+            <Step n={3} label="Map Fields"      done={step3}  active={step2&&!step3}     locked={!step2}/>
+            <Step n={4} label="Analyze Metrics" done={!!results} active={step3&&!results} locked={!step3}/>
           </div>
         </div>
 
-        {/* Scrollable content */}
+        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto">
 
           {/* ── STEP 1: Upload ── */}
           <div className="p-4 border-b border-ink-100">
             <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-2">1. Upload Data</div>
 
-            {uploadError && (
-              <div className="mb-2 p-2.5 bg-red-50 border border-red-200 rounded-lg text-red-700 text-[11px] flex items-start gap-1.5">
-                <AlertCircle size={11} className="flex-shrink-0 mt-0.5"/>
-                <div>
-                  {uploadError}
-                  {uploadError.includes('timed out') && (
-                    <button onClick={() => file && readColumns(file)}
-                      className="block mt-1 text-red-600 font-700 underline text-[10px]">
-                      Retry upload →
-                    </button>
-                  )}
-                </div>
+            {uploadErr && (
+              <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-[10px] flex items-start gap-1.5">
+                <AlertCircle size={11} className="mt-0.5 flex-shrink-0"/>
+                <span>{uploadErr} {uploadErr.includes('Try again') && (
+                  <button onClick={()=>file&&uploadFile(file)} className="underline font-700 ml-1">Retry</button>
+                )}</span>
               </div>
             )}
 
-            <div className={`rounded-xl border-2 border-dashed p-4 text-center cursor-pointer transition-all ${
-              file && columns.length > 0 ? 'border-green-400 bg-green-50' :
-              loadingCols ? 'border-brand-300 bg-brand-50/30' :
-              'border-ink-200 hover:border-brand-300 bg-ink-50/30'
-            }`} onClick={() => !loadingCols && fileRef.current?.click()}>
+            <div
+              onClick={()=>!uploading&&fileRef.current?.click()}
+              className={`rounded-xl border-2 border-dashed p-4 text-center cursor-pointer transition-all ${
+                file&&columns.length ? 'border-green-400 bg-green-50' :
+                uploading ? 'border-brand-300 bg-brand-50/30' :
+                'border-ink-200 hover:border-brand-300 bg-ink-50/30'
+              }`}>
               <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) readColumns(f) }}/>
-              {loadingCols ? (
-                <div>
-                  <Loader2 size={18} className="text-brand-500 animate-spin mx-auto mb-1"/>
-                  <div className="text-[11px] text-brand-700 font-600">Reading file...</div>
-                </div>
-              ) : file && columns.length > 0 ? (
-                <div>
-                  <CheckCircle size={18} className="text-green-500 mx-auto mb-1"/>
+                onChange={e=>{const f=e.target.files?.[0];if(f)uploadFile(f)}}/>
+              {uploading ? (
+                <div><Loader2 size={18} className="text-brand-500 animate-spin mx-auto mb-1"/>
+                  <div className="text-[11px] text-brand-700 font-600">Reading file...</div></div>
+              ) : file&&columns.length ? (
+                <div><CheckCircle size={18} className="text-green-500 mx-auto mb-1"/>
                   <div className="text-[11px] font-700 text-ink-900 truncate">{file.name}</div>
-                  <div className="text-[10px] text-ink-500">{rowCount.toLocaleString()} rows · {columns.length} cols detected</div>
+                  <div className="text-[10px] text-ink-500">{rowCount.toLocaleString()} rows · {columns.length} cols</div>
+                  <button onClick={e=>{e.stopPropagation();fileRef.current?.click()}}
+                    className="text-[9px] text-brand-600 hover:underline mt-1 font-600">Change file</button>
                 </div>
               ) : (
-                <div>
-                  <Upload size={18} className="text-ink-300 mx-auto mb-1"/>
+                <div><Upload size={18} className="text-ink-300 mx-auto mb-1"/>
                   <div className="text-[11px] text-ink-600 font-600">Click or drag CSV / Excel</div>
                   <div className="text-[10px] text-ink-400 mt-0.5">Alteryx output or raw revenue data</div>
                 </div>
               )}
             </div>
-            <UploadTimer active={loadingCols}/>
+            <UploadTimer active={uploading}/>
           </div>
 
           {/* ── STEP 2: Select Engine ── */}
-          {step1Done && (
+          {step1 && (
             <div className="p-4 border-b border-ink-100">
               <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-2">2. Select Engine</div>
               <div className="space-y-1.5">
-                {Object.values(ENGINE_CONFIG).map(eng => {
-                  const Icon = eng.icon
-                  const active = selectedEngine === eng.id
+                {Object.entries(ENGINE_CONFIG).map(([id, ec]) => {
+                  const Icon = ec.icon
+                  const active = engine===id
                   return (
-                    <button key={eng.id} onClick={() => setSelectedEngine(eng.id as EngineId)}
-                      className={`w-full flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-all ${
-                        active ? 'border-brand-400 bg-brand-50' : 'border-ink-200 hover:border-ink-300 bg-white'
+                    <button key={id} onClick={()=>setEngine(id)}
+                      className={`w-full flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all ${
+                        active ? 'border-brand-400 bg-brand-50 shadow-sm' : 'border-ink-200 hover:border-ink-300 bg-white'
                       }`}>
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${active ? 'bg-brand-600' : 'bg-ink-100'}`}>
-                        <Icon size={12} className={active ? 'text-white' : 'text-ink-500'}/>
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${active?'bg-brand-600':'bg-ink-100'}`}>
+                        <Icon size={13} className={active?'text-white':'text-ink-500'}/>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className={`text-[12px] font-700 ${active ? 'text-brand-700' : 'text-ink-900'}`}>{eng.label}</div>
-                        <div className="text-[10px] text-ink-400 mt-0.5">{eng.desc}</div>
+                        <div className={`text-[12px] font-700 leading-tight ${active?'text-brand-700':'text-ink-900'}`}>{ec.label}</div>
+                        <div className="text-[10px] text-ink-400 mt-0.5 leading-snug">{ec.desc}</div>
                       </div>
-                      {active && <div className="w-4 h-4 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0 mt-1">
-                        <CheckCircle size={10} className="text-white"/>
-                      </div>}
+                      {active && <CheckCircle size={14} className="text-brand-600 flex-shrink-0 mt-0.5"/>}
                     </button>
                   )
                 })}
@@ -581,131 +505,107 @@ export default function CommandCenter() {
             </div>
           )}
 
-          {/* ── STEP 3: Dynamic Field Mapping ── */}
-          {step2Done && engineCfg && (
+          {/* ── STEP 3: Map Fields ── */}
+          {step2 && cfg && (
             <div className="p-4 border-b border-ink-100">
-              <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-2">3. Map Fields</div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest">3. Map Fields</div>
+                <span className="text-[9px] text-ink-400">
+                  {cfg.required.filter(f=>!!fieldMap[f.key]).length}/{cfg.required.length} required
+                </span>
+              </div>
 
-              {/* Required fields */}
+              {/* Required */}
               <div className="rounded-xl border border-ink-200 overflow-hidden mb-2">
-                <div className="px-3 py-1.5 bg-ink-50 border-b border-ink-100 flex items-center justify-between">
-                  <span className="text-[9px] font-700 text-ink-400 uppercase tracking-widest">Required</span>
-                  <span className="text-[9px] text-ink-400">{engineCfg.required.filter(f => !!fieldMap[f.key]).length}/{engineCfg.required.length} mapped</span>
+                <div className="px-3 py-1.5 bg-ink-50 border-b border-ink-100">
+                  <span className="text-[9px] font-700 text-ink-500 uppercase tracking-widest">Required Fields</span>
                 </div>
-                {engineCfg.required.map(f => (
+                {cfg.required.map(f=>(
                   <FieldRow key={f.key} label={f.label} required
-                    value={fieldMap[f.key] || ''} columns={columns}
-                    onChange={(v: string) => setFieldMap(m => ({ ...m, [f.key]: v }))}
-                    error={!fieldMap[f.key] && step2Done ? fieldErrors[f.key] : undefined}
+                    value={fieldMap[f.key]||''} columns={columns}
+                    onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))}
+                    showError={validated}
                   />
                 ))}
               </div>
 
-              {/* Optional fields — collapsible */}
+              {/* Optional — collapsible */}
               <div className="rounded-xl border border-ink-200 overflow-hidden mb-2">
-                <button onClick={() => setShowOptional(v => !v)}
-                  className="w-full px-3 py-1.5 bg-ink-50 border-b border-ink-100 flex items-center justify-between hover:bg-ink-100 transition-colors">
-                  <span className="text-[9px] font-700 text-ink-400 uppercase tracking-widest">Optional Fields</span>
-                  {showOptional ? <ChevronUp size={12} className="text-ink-400"/> : <ChevronDown size={12} className="text-ink-400"/>}
+                <button onClick={()=>setShowOpt(v=>!v)}
+                  className="w-full px-3 py-1.5 bg-ink-50 flex items-center justify-between hover:bg-ink-100 transition-colors">
+                  <span className="text-[9px] font-700 text-ink-500 uppercase tracking-widest">Optional Fields</span>
+                  {showOptional?<ChevronUp size={11} className="text-ink-400"/>:<ChevronDown size={11} className="text-ink-400"/>}
                 </button>
-                {showOptional && engineCfg.optional.map(f => (
+                {showOptional && cfg.optional.map(f=>(
                   <FieldRow key={f.key} label={f.label}
-                    value={fieldMap[f.key] || ''} columns={columns}
-                    onChange={(v: string) => {
-                      setFieldMap(m => ({ ...m, [f.key]: v }))
-                      if (v) setDimensions(prev => prev.includes(v) ? prev : [...prev, v])
-                      else setDimensions(prev => prev.filter(d => d !== fieldMap[f.key]))
-                    }}
+                    value={fieldMap[f.key]||''} columns={columns}
+                    onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))}
+                    showError={false}
                   />
                 ))}
               </div>
 
-              {/* KPI Lens — collapsible advanced */}
+              {/* KPI Lens — collapsible */}
               <div className="rounded-xl border border-ink-200 overflow-hidden">
-                <button onClick={() => setShowKpiLens(v => !v)}
-                  className="w-full px-3 py-1.5 bg-ink-50 border-b border-ink-100 flex items-center justify-between hover:bg-ink-100 transition-colors">
-                  <span className="text-[9px] font-700 text-ink-400 uppercase tracking-widest">KPI Lens (Advanced)</span>
-                  {showKpiLens ? <ChevronUp size={12} className="text-ink-400"/> : <ChevronDown size={12} className="text-ink-400"/>}
+                <button onClick={()=>setShowKpi(v=>!v)}
+                  className="w-full px-3 py-1.5 bg-ink-50 flex items-center justify-between hover:bg-ink-100 transition-colors">
+                  <span className="text-[9px] font-700 text-ink-500 uppercase tracking-widest">KPI Lens</span>
+                  {showKpi?<ChevronUp size={11} className="text-ink-400"/>:<ChevronDown size={11} className="text-ink-400"/>}
                 </button>
-                {showKpiLens && engineCfg.kpiLens.map(f => (
+                {showKpi && cfg.kpiLens.map(f=>(
                   <FieldRow key={f.key} label={f.label}
-                    value={fieldMap[f.key] || ''} columns={columns}
-                    onChange={(v: string) => setFieldMap(m => ({ ...m, [f.key]: v }))}
+                    value={fieldMap[f.key]||''} columns={columns}
+                    onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))}
+                    showError={false}
                   />
                 ))}
               </div>
 
-              {/* Validation summary */}
-              {Object.keys(fieldErrors).length > 0 && (
-                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="text-[10px] text-amber-700 font-600">
-                    {Object.keys(fieldErrors).length} required field{Object.keys(fieldErrors).length > 1 ? 's' : ''} not mapped
-                  </div>
+              {validated && Object.keys(errors).length>0 && (
+                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-[10px]">
+                  ⚠ {Object.keys(errors).length} required field{Object.keys(errors).length>1?'s':''} not mapped
                 </div>
               )}
             </div>
           )}
 
-          {/* ── STEP 4: Modules + Config ── */}
-          {step3Done && (
+          {/* ── STEP 4: Run config ── */}
+          {step3 && (
             <div className="p-4">
-              <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-2">4. Analyse Metrics</div>
+              <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest mb-3">4. Analyze Settings</div>
 
-              {/* Lookback windows */}
-              {selectedEngine !== 'cohort' && (
-                <div className="mb-3">
-                  <div className="text-[10px] font-600 text-ink-600 mb-1.5">Lookback Windows</div>
-                  <div className="flex gap-1">
-                    {[1, 3, 6, 12].map(lb => (
-                      <button key={lb} onClick={() => setLookbacks(prev => prev.includes(lb) ? prev.filter(x => x !== lb) : [...prev, lb])}
-                        className={`flex-1 py-1 rounded text-[10px] font-700 border transition-all ${
-                          lookbacks.includes(lb) ? 'bg-brand-600 text-white border-brand-600' : 'border-ink-200 text-ink-500'
-                        }`}>{lb}M</button>
-                    ))}
+              {engine !== 'cohort' && (
+                <>
+                  <div className="mb-3">
+                    <div className="text-[10px] font-600 text-ink-600 mb-1">Lookback Windows</div>
+                    <div className="flex gap-1">
+                      {[1,3,6,12].map(lb=>(
+                        <button key={lb} onClick={()=>setLookbacks(p=>p.includes(lb)?p.filter(x=>x!==lb):[...p,lb])}
+                          className={`flex-1 py-1 rounded text-[10px] font-700 border transition-all ${
+                            lookbacks.includes(lb)?'bg-brand-600 text-white border-brand-600':'border-ink-200 text-ink-500'
+                          }`}>{lb}M</button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                  <div className="mb-3">
+                    <div className="text-[10px] font-600 text-ink-600 mb-1">Revenue Units</div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {[['raw','As-is'],['thousands','÷ 1K'],['millions','÷ 1M']].map(([v,l])=>(
+                        <button key={v} onClick={()=>setRevUnit(v)}
+                          className={`py-1 rounded text-[10px] font-600 border transition-all ${
+                            revenueUnit===v?'bg-brand-600 text-white border-brand-600':'border-ink-200 text-ink-500'
+                          }`}>{l}</button>
+                      ))}
+                    </div>
+                  </div>
+                </>
               )}
 
-              {/* Revenue units */}
-              {selectedEngine !== 'cohort' && (
-                <div className="mb-3">
-                  <div className="text-[10px] font-600 text-ink-600 mb-1.5">Revenue Units</div>
-                  <div className="grid grid-cols-3 gap-1">
-                    {[['raw','As-is'],['thousands','÷ 1K'],['millions','÷ 1M']].map(([val,lbl]) => (
-                      <button key={val} onClick={() => setRevenueUnit(val)}
-                        className={`py-1 rounded text-[10px] font-600 border transition-all ${
-                          revenueUnit === val ? 'bg-brand-600 text-white border-brand-600' : 'border-ink-200 text-ink-500'
-                        }`}>{lbl}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Module checkboxes — only for bridge/mrr/acv engines */}
-              {selectedEngine !== 'cohort' && (
-                <div className="mb-2">
-                  <div className="text-[10px] font-600 text-ink-600 mb-1.5">Output Modules</div>
-                  <div className="space-y-1">
-                    {MODULES.map(m => (
-                      <label key={m.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
-                        selectedModules.includes(m.id) ? 'border-brand-300 bg-brand-50' : 'border-ink-200 hover:border-ink-300'
-                      }`}>
-                        <input type="checkbox" checked={selectedModules.includes(m.id)} className="accent-brand-600"
-                          onChange={e => setSelectedModules(prev => e.target.checked ? [...prev, m.id] : prev.filter(x => x !== m.id))}/>
-                        <m.icon size={11} className={selectedModules.includes(m.id) ? 'text-brand-600' : 'text-ink-400'}/>
-                        <span className="text-[11px] font-600 text-ink-900">{m.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Period type */}
               <div className="flex gap-1">
-                {['Annual', 'Quarter'].map(p => (
-                  <button key={p} onClick={() => setPeriodType(p)}
+                {['Annual','Quarter'].map(p=>(
+                  <button key={p} onClick={()=>setPeriod(p)}
                     className={`flex-1 py-1 rounded text-[10px] font-700 border transition-all ${
-                      periodType === p ? 'bg-brand-600 text-white border-brand-600' : 'border-ink-200 text-ink-500'
+                      periodType===p?'bg-brand-600 text-white border-brand-600':'border-ink-200 text-ink-500'
                     }`}>{p}</button>
                 ))}
               </div>
@@ -713,37 +613,48 @@ export default function CommandCenter() {
           )}
         </div>
 
-        {/* Analyze button */}
-        <div className="p-4 border-t border-ink-100">
-          {error && (
+        {/* ── Bottom actions ── */}
+        <div className="p-4 border-t border-ink-100 flex-shrink-0">
+          {runErr && (
             <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-[10px] flex items-start gap-1.5">
-              <AlertCircle size={10} className="flex-shrink-0 mt-0.5"/> {error}
+              <AlertCircle size={10} className="mt-0.5 flex-shrink-0"/> {runErr}
             </div>
           )}
 
-          <button onClick={runAnalysis} disabled={!canAnalyze}
-            title={!step1Done ? 'Upload a file first' : !step2Done ? 'Select an engine' : !step3Done ? 'Map all required fields' : ''}
-            className="w-full flex items-center justify-center gap-2 bg-brand-600 text-white font-700 text-sm py-3 rounded-xl hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-            {running ? <Loader2 size={15} className="animate-spin"/> : <Play size={15}/>}
-            {running ? 'Analysing...' : 'Analyze Metrics'}
+          <button onClick={runAnalysis} disabled={!step1||!step2||running}
+            title={!step1?'Upload a file first':!step2?'Select an engine':''}
+            className={`w-full flex items-center justify-center gap-2 font-700 text-sm py-3 rounded-xl transition-all ${
+              canRun ? 'bg-brand-600 text-white hover:bg-brand-700' :
+              step3  ? 'bg-brand-400 text-white cursor-not-allowed' :
+                       'bg-ink-200 text-ink-400 cursor-not-allowed'
+            }`}>
+            {running?<Loader2 size={15} className="animate-spin"/>:<Play size={15}/>}
+            {running?'Running analysis...':'Analyze Metrics'}
           </button>
 
           {running && <UploadTimer active={running}/>}
 
-          {/* Premium export placeholder */}
-          <button disabled title="Premium Feature — Upgrade to export"
-            className="w-full mt-2 flex items-center justify-center gap-2 border border-ink-200 text-ink-400 font-600 text-[11px] py-2 rounded-xl cursor-not-allowed opacity-60 hover:opacity-80 transition-all">
-            <Lock size={12}/> Download / Export
-            <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-700">Premium</span>
-          </button>
+          {results && !running && (
+            isAdmin ? (
+              <button onClick={downloadCSV}
+                className="w-full mt-2 flex items-center justify-center gap-2 border border-brand-300 text-brand-700 font-600 text-[11px] py-2 rounded-xl hover:bg-brand-50 transition-all">
+                <Download size={12}/> Download Output CSV
+              </button>
+            ) : (
+              <button disabled title="Upgrade to download"
+                className="w-full mt-2 flex items-center justify-center gap-2 border border-ink-200 text-ink-400 font-600 text-[11px] py-2 rounded-xl cursor-not-allowed">
+                <Lock size={12}/> Download / Export
+                <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-700">Premium</span>
+              </button>
+            )
+          )}
 
-          {!step1Done && (
-            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-1.5">
-              <AlertTriangle size={10} className="text-blue-500 mt-0.5 flex-shrink-0"/>
-              <div className="text-[9px] text-blue-700">
-                <strong>First upload takes 30-90s</strong> — engine wakes on first use
-              </div>
-            </div>
+          {!results && !running && (
+            <button disabled
+              className="w-full mt-2 flex items-center justify-center gap-2 border border-ink-100 text-ink-300 font-600 text-[11px] py-2 rounded-xl cursor-not-allowed">
+              <Lock size={12}/> Download / Export
+              <span className="ml-auto text-[9px] bg-ink-100 text-ink-400 px-1.5 py-0.5 rounded-full font-700">Premium</span>
+            </button>
           )}
         </div>
       </aside>
