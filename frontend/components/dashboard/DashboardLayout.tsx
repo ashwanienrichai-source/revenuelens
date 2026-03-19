@@ -2,15 +2,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
   BarChart3, LayoutDashboard, Users, TrendingUp, DollarSign,
-  FileText, Upload, Settings, LogOut, Crown, Layers, Clock, Zap
+  FileText, Settings, LogOut, Crown, Zap, Clock
 } from 'lucide-react'
 import { supabase, UserProfile, canDownload } from '../../lib/supabase'
 
 const NAV = [
   { href: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard',         live: true,  badge: null   },
-  { href: '/dashboard/upload',   icon: Upload,          label: 'Upload Dataset',    live: true,  badge: null   },
   { href: '/app/command-center', icon: Zap,             label: 'Command Center',    live: true,  badge: 'NEW'  },
-  { href: '/app/cohort',         icon: Layers,          label: 'Cohort Analytics',  live: true,  badge: null   },
   { href: '/app/customer',       icon: Users,           label: 'Customer Analytics',live: false, badge: null   },
   { href: '/app/bridge',         icon: TrendingUp,      label: 'Revenue Bridge',    live: false, badge: null   },
   { href: '/app/pricing',        icon: DollarSign,      label: 'Pricing',           live: false, badge: null   },
@@ -47,7 +45,6 @@ export default function DashboardLayout({ children, profile, title }: Props) {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
           <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest px-2 mb-2">Platform</div>
-
           {NAV.map(item => {
             const active = router.pathname === item.href
             if (!item.live) {
@@ -65,16 +62,12 @@ export default function DashboardLayout({ children, profile, title }: Props) {
             return (
               <Link key={item.href} href={item.href}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-500 mb-0.5 transition-all ${
-                  active
-                    ? 'bg-brand-50 text-brand-700 font-600'
-                    : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'
+                  active ? 'bg-brand-50 text-brand-700 font-600' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'
                 }`}>
                 <item.icon size={14} className={item.badge === 'NEW' ? 'text-brand-500' : ''} />
                 <span className="flex-1">{item.label}</span>
                 {item.badge === 'NEW' && (
-                  <span className="text-[8px] bg-brand-600 text-white px-1.5 py-0.5 rounded-full font-700 uppercase">
-                    New
-                  </span>
+                  <span className="text-[8px] bg-brand-600 text-white px-1.5 py-0.5 rounded-full font-700 uppercase">New</span>
                 )}
               </Link>
             )
