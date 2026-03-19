@@ -263,8 +263,9 @@ export default function CommandCenter() {
   const [file, setFile]         = useState(null)
   const [columns, setColumns]   = useState([])
   const [rowCount, setRowCount] = useState(0)
-  const [uploading, setUploading] = useState(false)
-  const [uploadErr, setUploadErr] = useState('')
+  const [uploading, setUploading]       = useState(false)
+  const [uploadErr, setUploadErr]       = useState('')
+  const [isBridgeOutput, setIsBridgeOutput] = useState(false)
 
   // Step 2 — Engine
   const [engine, setEngine] = useState(null)
@@ -275,10 +276,13 @@ export default function CommandCenter() {
   const [validated, setValidated] = useState(false)
 
   // Step 4 — Cohort config
-  const [cohortTypes, setCohortTypes]     = useState(['SG','PC','RC'])
-  const [periodFilter, setPeriodFilter]   = useState('all')
-  const [selectedFY, setSelectedFY]       = useState('')
-  const [cohortGroupBy, setCohortGroupBy] = useState([])
+  const [cohortTypes, setCohortTypes]         = useState(['SG','PC','RC'])
+  const [periodFilter, setPeriodFilter]       = useState('all')
+  const [selectedFY, setSelectedFY]           = useState('')
+  const [useSingle, setUseSingle]             = useState(true)
+  const [useMulti, setUseMulti]               = useState(false)
+  const [individualCols, setIndividualCols]   = useState([''])
+  const [hierarchies, setHierarchies]         = useState([['']])
 
   // Step 4 — MRR/ACV config
   const [lookbacks, setLookbacks]   = useState([1,3,12])
@@ -329,12 +333,13 @@ export default function CommandCenter() {
   },[engine, columns])
 
   async function uploadFile(f) {
-    setFile(f); setUploading(true); setUploadErr(''); setColumns([]); setEngine(null); setFieldMap({}); setResults(null)
+    setFile(f); setUploading(true); setUploadErr(''); setColumns([]); setEngine(null); setFieldMap({}); setResults(null); setIsBridgeOutput(false)
     try {
       const fd = new FormData(); fd.append('file', f)
       const {data} = await axios.post(`${API}/api/columns`, fd, {timeout:90000})
       setColumns(data.columns); setRowCount(data.row_count)
       // Auto-suggest engine
+      setIsBridgeOutput(data.is_bridge_output || false)
       if(data.is_acv) setEngine('acv')
       else if(data.is_bridge_output) setEngine('mrr')
     } catch(e) {
@@ -358,25 +363,37 @@ export default function CommandCenter() {
         fd.append('cohort_types', JSON.stringify(cohortTypes))
         fd.append('period_filter', periodFilter)
         fd.append('selected_fiscal_year', selectedFY)
-        const dims = ['product','region','channel'].map(k=>fieldMap[k]).filter(Boolean)
-        fd.append('individual_cols', JSON.stringify(dims))
-        fd.append('hierarchies', JSON.stringify([]))
+        // Exact same logic as original cohort.tsx
+        fd.append('individual_cols', JSON.stringify(useSingle ? individualCols.filter(c=>c&&c!=='None') : []))
+        fd.append('hierarchies',     JSON.stringify(useMulti  ? hierarchies.filter(h=>h.some(c=>c&&c!=='None')) : []))
         const {data} = await axios.post(`${API}/api/cohort/analyze`, fd, {timeout:120000})
         setResults({...data, _engine:'cohort'})
         setActiveTab('heatmap')
       } else {
-        fd.append('tool_type',    engine==='acv'?'ACV':'MRR')
+        const dims = ['product','channel','region'].map(k=>fieldMap[k]).filter(Boolean)
         fd.append('revenue_unit', revenueUnit)
         fd.append('lookbacks',    JSON.stringify(lookbacks))
-        const dims = ['product','channel','region'].map(k=>fieldMap[k]).filter(Boolean)
         fd.append('dimension_cols', JSON.stringify(dims))
-        fd.append('modules', JSON.stringify(['bridge','top_movers','top_customers','kpi_matrix','output']))
         fd.append('year_filter',  yearFilter!=='All'?yearFilter:'')
         fd.append('period_type',  periodType)
-        fd.append('customer_col', fieldMap.customer||'Customer_ID')
         fd.append('n_movers',     '30')
         fd.append('n_customers',  '10')
-        const {data} = await axios.post(`${API}/api/bridge/analyze`, fd, {timeout:120000})
+        fd.append('tool_type',    engine==='acv'?'ACV':'MRR')
+
+        let endpoint = `${API}/api/bridge/analyze`
+        if(!isBridgeOutput) {
+          // Raw data mode — use new endpoint that computes bridge internally
+          endpoint = `${API}/api/mrr/analyze`
+          fd.append('customer_col', fieldMap.customer||'')
+          fd.append('date_col',     fieldMap.date||'')
+          fd.append('revenue_col',  fieldMap.revenue||'')
+        } else {
+          // Alteryx output — use existing bridge endpoint
+          fd.append('customer_col', fieldMap.customer||'Customer_ID')
+          fd.append('modules', JSON.stringify(['bridge','top_movers','top_customers','kpi_matrix','output']))
+        }
+
+        const {data} = await axios.post(endpoint, fd, {timeout:120000})
         setResults({...data, _engine:engine})
         setActiveTab('summary')
         if(lookbacks.length) setSelLb(lookbacks[lookbacks.length-1])
@@ -571,6 +588,8 @@ export default function CommandCenter() {
 
               {engine === 'cohort' && (
                 <div className="space-y-3">
+
+                  {/* Cohort Types */}
                   <div>
                     <div className="text-[10px] font-600 text-ink-600 mb-1.5">Cohort Types</div>
                     <div className="space-y-1">
@@ -586,6 +605,8 @@ export default function CommandCenter() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Period Filter */}
                   <div>
                     <div className="text-[10px] font-600 text-ink-600 mb-1.5">Period Filter</div>
                     <div className="flex gap-1 mb-1.5">
@@ -600,14 +621,88 @@ export default function CommandCenter() {
                         className="w-full text-[11px] border border-ink-200 rounded-lg px-2 py-1.5 outline-none focus:border-brand-400"/>
                     )}
                   </div>
-                  <div>
-                    <div className="text-[10px] font-600 text-ink-600 mb-1.5">Cohort Grouping</div>
-                    <div className="flex flex-wrap gap-1">
-                      {['Product','Region','Channel','Industry','Country'].map(g => (
-                        <button key={g} onClick={()=>setCohortGroupBy(p=>p.includes(g)?p.filter(x=>x!==g):[...p,g])}
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-600 border transition-all ${cohortGroupBy.includes(g)?'bg-brand-600 text-white border-brand-600':'border-ink-200 text-ink-500'}`}>{g}</button>
-                      ))}
-                    </div>
+
+                  {/* Individual Cohorts */}
+                  <div className="rounded-xl border border-ink-200 overflow-hidden">
+                    <label className={`flex items-center gap-2.5 p-3 cursor-pointer transition-all ${useSingle?'bg-brand-50 border-b border-brand-200':'hover:bg-ink-50'}`}>
+                      <input type="checkbox" checked={useSingle} className="accent-brand-600 flex-shrink-0"
+                        onChange={e=>setUseSingle(e.target.checked)}/>
+                      <div>
+                        <div className="text-[11px] font-700 text-ink-900">Individual Cohorts</div>
+                        <div className="text-[9px] text-ink-400">Cohort by single column at a time</div>
+                      </div>
+                    </label>
+                    {useSingle && (
+                      <div className="p-2 space-y-1.5 bg-ink-50/50">
+                        {individualCols.map((col,i) => (
+                          <div key={i} className="flex gap-1.5">
+                            <select value={col} onChange={e=>{const n=[...individualCols];n[i]=e.target.value;setIndividualCols(n)}}
+                              className="text-[10px] border border-ink-200 rounded px-1.5 py-1 bg-white text-ink-800 outline-none flex-1">
+                              <option value="">— Select column —</option>
+                              {columns.map(c=><option key={c} value={c}>{c}</option>)}
+                            </select>
+                            {individualCols.length > 1 && (
+                              <button onClick={()=>setIndividualCols(p=>p.filter((_,j)=>j!==i))}
+                                className="text-ink-400 hover:text-red-500 px-1.5">✕</button>
+                            )}
+                          </div>
+                        ))}
+                        <button onClick={()=>setIndividualCols(p=>[...p,''])}
+                          className="text-[10px] text-brand-600 font-600 flex items-center gap-1 px-1 py-0.5 hover:underline">
+                          + Add column
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hierarchical Cohorts */}
+                  <div className="rounded-xl border border-ink-200 overflow-hidden">
+                    <label className={`flex items-center gap-2.5 p-3 cursor-pointer transition-all ${useMulti?'bg-brand-50 border-b border-brand-200':'hover:bg-ink-50'}`}>
+                      <input type="checkbox" checked={useMulti} className="accent-brand-600 flex-shrink-0"
+                        onChange={e=>setUseMulti(e.target.checked)}/>
+                      <div>
+                        <div className="text-[11px] font-700 text-ink-900">Hierarchical Cohorts</div>
+                        <div className="text-[9px] text-ink-400">Cohort by column combinations</div>
+                      </div>
+                    </label>
+                    {useMulti && (
+                      <div className="p-2 space-y-2 bg-ink-50/50">
+                        {hierarchies.map((hier,hi) => (
+                          <div key={hi} className="p-2 bg-white rounded-lg border border-ink-200">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-[10px] font-600 text-ink-600">Hierarchy {hi+1}</span>
+                              <button onClick={()=>setHierarchies(p=>p.filter((_,j)=>j!==hi))}
+                                className="text-ink-400 hover:text-red-500 text-[10px]">✕</button>
+                            </div>
+                            <div className="space-y-1">
+                              {hier.map((col,ci) => (
+                                <div key={ci} className="flex gap-1.5 items-center">
+                                  <span className="text-[9px] text-ink-400 w-4">L{ci+1}</span>
+                                  <select value={col}
+                                    onChange={e=>{const n=hierarchies.map((h,j)=>j===hi?h.map((c,k)=>k===ci?e.target.value:c):h);setHierarchies(n)}}
+                                    className="text-[10px] border border-ink-200 rounded px-1.5 py-1 bg-white text-ink-800 outline-none flex-1">
+                                    <option value="">— Select column —</option>
+                                    {columns.map(c=><option key={c} value={c}>{c}</option>)}
+                                  </select>
+                                  {hier.length > 1 && (
+                                    <button onClick={()=>setHierarchies(p=>p.map((h,j)=>j===hi?h.filter((_,k)=>k!==ci):h))}
+                                      className="text-ink-400 hover:text-red-500 text-[10px]">✕</button>
+                                  )}
+                                </div>
+                              ))}
+                              <button onClick={()=>setHierarchies(p=>p.map((h,j)=>j===hi?[...h,'']:h))}
+                                className="text-[10px] text-brand-600 font-600 flex items-center gap-1 px-1 py-0.5 hover:underline">
+                                + Add level
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button onClick={()=>setHierarchies(p=>[...p,['']])}
+                          className="text-[10px] text-brand-600 font-600 flex items-center gap-1 px-1 py-0.5 hover:underline">
+                          + Add hierarchy
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
