@@ -35,9 +35,10 @@ const ENGINE_CONFIG = {
       { key:'channel',  label:'Channel',         kw:['channel','segment'] },
       { key:'region',   label:'Region',          kw:['region','geo','geography'] },
       { key:'quantity', label:'Quantity / Units', kw:['quantity','qty','units','seats'] },
-      { key:'lookback', label:'Month Lookback',   kw:['month_lookback','month lookback','lookback'] },
-      { key:'classify', label:'Bridge Classification', kw:['bridge classification','bridge_classification','classification'] },
     ],
+    // NOTE: Month Lookback and Bridge Classification are system-computed.
+    // They are NEVER user-selectable inputs. Lookback is set via the UI toggles
+    // (1M/3M/12M buttons). Bridge Classification is derived by the engine logic.`
   },
   acv: {
     label: 'ACV / Contract Analytics',
@@ -90,11 +91,15 @@ function autoDetect(cols, kws) {
       || ''
 }
 
+// System-computed fields — never auto-mapped or user-selectable
+const SYSTEM_COMPUTED_KEYS = new Set(['lookback','classify','bridge_classification','month_lookback'])
+
 function buildAutoMap(eng, cols) {
   if(!eng || !cols.length) return {}
   const cfg = ENGINE_CONFIG[eng]
   const map = {}
-  ;[...cfg.required, ...cfg.optional].forEach(f => {
+  ;[...cfg.required, ...(cfg.optional||[])].forEach(f => {
+    if(SYSTEM_COMPUTED_KEYS.has(f.key)) return  // skip system-computed
     const v = autoDetect(cols, f.kw)
     if(v) map[f.key] = v
   })
