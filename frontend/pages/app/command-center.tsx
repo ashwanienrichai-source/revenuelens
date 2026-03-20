@@ -254,6 +254,156 @@ function CohortHeatmap({data, title, isPercent}) {
 }
 
 // ═════════════════════════════════════════════════════════════════════
+
+// ── Bridge Pivot Table ────────────────────────────────────────────────
+function BridgePivotTable({pivot, title, lookbackLabel, showPct}) {
+  if(!pivot?.periods?.length || !pivot?.rows?.length) return (
+    <div className="text-center text-ink-400 text-sm py-8">No bridge data available</div>
+  )
+  const {periods, rows, retention} = pivot
+  const rowStyle = (r) => {
+    if(r.is_beginning||r.is_ending) return {bg:'#1E293B', text:'white', bold:true}
+    if(r.is_positive) return {bg:'#F0FDF4', text:'#166534', bold:false}
+    if(r.is_negative) return {bg:'#FFF1F2', text:'#9F1239', bold:false}
+    return {bg:'white', text:'#374151', bold:false}
+  }
+  const fmtV = (v) => {
+    if(v==null||v===undefined||v===0) return '—'
+    if(Math.abs(v)>=1e6) return `$${(v/1e6).toFixed(1)}M`
+    if(Math.abs(v)>=1e3) return `$${(v/1e3).toFixed(0)}K`
+    return `$${v.toFixed(0)}`
+  }
+  const fmtP = (v) => v==null?'':v===0?'':` ${v>0?'+':''}${v.toFixed(1)}%`
+  return (
+    <div className="overflow-x-auto">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="text-[10px] font-700 text-ink-500 uppercase tracking-widest">{title}</div>
+        {lookbackLabel&&<span className="text-[9px] bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full font-600">{lookbackLabel}</span>}
+      </div>
+      <table className="text-xs border-collapse" style={{minWidth: Math.max(periods.length*90+220, 400)}}>
+        <thead>
+          <tr className="border-b-2 border-ink-300 bg-ink-50">
+            <th className="text-left py-2 px-3 font-700 text-ink-500 uppercase tracking-wide whitespace-nowrap sticky left-0 bg-ink-50 w-48 text-[10px]">Bridge</th>
+            {periods.map(p=>(
+              <th key={p} className="text-right px-3 py-2 font-700 text-ink-600 whitespace-nowrap text-[10px]">
+                <div>{p}</div>
+                {showPct&&<div className="text-[8px] text-ink-400 font-400 mt-0.5">% of Beg</div>}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row,ri)=>{
+            const s = rowStyle(row)
+            return (
+              <tr key={ri} className="border-b border-ink-100" style={{background:s.bg}}>
+                <td className="py-1.5 px-3 whitespace-nowrap sticky left-0 text-[11px]"
+                  style={{background:s.bg,color:s.text,fontWeight:s.bold?700:500}}>
+                  {row.classification}
+                </td>
+                {periods.map(p=>{
+                  const v=row.values?.[p]
+                  const pct=row.pct_of_beginning?.[p]
+                  return (
+                    <td key={p} className="text-right px-3 py-1.5 whitespace-nowrap"
+                      style={{color:s.text,fontWeight:s.bold?700:400}}>
+                      <span>{fmtV(v)}</span>
+                      {showPct&&pct!=null&&<span className="text-[9px] opacity-60 ml-1">{fmtP(pct)}</span>}
+                    </td>
+                  )
+                })}
+              </tr>
+            )
+          })}
+          {retention&&Object.keys(retention).length>0&&(<>
+            <tr className="border-t-2 border-ink-300 bg-slate-50">
+              <td className="py-1.5 px-3 text-[10px] font-700 text-ink-500 uppercase tracking-wide sticky left-0 bg-slate-50 whitespace-nowrap">Gross Retention (churn only)</td>
+              {periods.map(p=>{const v=retention[p]?.churn_only_grr;return<td key={p} className={`text-right px-3 py-1.5 font-700 text-[11px] ${(v||0)>=80?'text-green-700':'text-red-600'}`}>{v!=null?`${v.toFixed(1)}%`:'—'}</td>})}
+            </tr>
+            <tr className="bg-slate-50">
+              <td className="py-1.5 px-3 text-[10px] font-700 text-ink-500 uppercase tracking-wide sticky left-0 bg-slate-50 whitespace-nowrap">Gross $ Retention Rate</td>
+              {periods.map(p=>{const v=retention[p]?.grr;return<td key={p} className={`text-right px-3 py-1.5 font-700 text-[11px] ${(v||0)>=80?'text-green-700':'text-red-600'}`}>{v!=null?`${v.toFixed(1)}%`:'—'}</td>})}
+            </tr>
+            <tr className="bg-slate-50">
+              <td className="py-1.5 px-3 text-[10px] font-700 text-ink-500 uppercase tracking-wide sticky left-0 bg-slate-50 whitespace-nowrap">Net $ Retention (excl. lapsed)</td>
+              {periods.map(p=>{const v=retention[p]?.nrr;return<td key={p} className={`text-right px-3 py-1.5 font-700 text-[11px] ${(v||0)>=100?'text-green-700':'text-amber-600'}`}>{v!=null?`${v.toFixed(1)}%`:'—'}</td>})}
+            </tr>
+          </>)}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function CustomerCountPivot({pivot}) {
+  if(!pivot?.periods?.length||!pivot?.rows?.length) return null
+  const {periods,rows,logo_retention}=pivot
+  return (
+    <div className="overflow-x-auto mt-6">
+      <div className="text-[10px] font-700 text-ink-500 uppercase tracking-widest mb-2">Bridge Display Customer Count</div>
+      <table className="text-xs border-collapse" style={{minWidth: Math.max(periods.length*80+220, 400)}}>
+        <thead>
+          <tr className="border-b-2 border-ink-300 bg-ink-50">
+            <th className="text-left py-2 px-3 font-700 text-ink-500 uppercase tracking-wide whitespace-nowrap sticky left-0 bg-ink-50 w-48 text-[10px]"></th>
+            {periods.map(p=><th key={p} className="text-right px-3 py-2 font-700 text-ink-600 whitespace-nowrap text-[10px]">{p}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row,ri)=>(
+            <tr key={ri} className="border-b border-ink-50 hover:bg-ink-50/30">
+              <td className="py-1.5 px-3 text-ink-600 whitespace-nowrap sticky left-0 bg-white text-[11px]">{row.classification}</td>
+              {periods.map(p=>{const v=row.values?.[p]||0;return<td key={p} className="text-right px-3 py-1.5 text-ink-700">{v===0?'—':v.toLocaleString()}</td>})}
+            </tr>
+          ))}
+          {logo_retention&&(
+            <tr className="border-t-2 border-ink-300 bg-slate-50">
+              <td className="py-1.5 px-3 text-[10px] font-700 text-ink-500 uppercase tracking-wide sticky left-0 bg-slate-50 whitespace-nowrap">Logo Retention</td>
+              {periods.map(p=>{const lr=logo_retention[p]?.logo_retention;return<td key={p} className={`text-right px-3 py-1.5 font-700 text-[11px] ${lr>=80?'text-green-700':lr>=60?'text-amber-600':'text-red-600'}`}>{lr!=null?`${lr.toFixed(1)}%`:'—'}</td>})}
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function KpiSummaryTable({rows}) {
+  if(!rows?.length) return null
+  const fmtV=(v)=>{if(v==null||v===0)return'—';if(Math.abs(v)>=1e6)return`$${(v/1e6).toFixed(1)}M`;if(Math.abs(v)>=1e3)return`$${(v/1e3).toFixed(0)}K`;return`$${v.toFixed(0)}`}
+  const fmtP=(v)=>v==null?'—':`${v.toFixed(1)}%`
+  const pClass=(v,g=80,gr=100)=>v==null?'text-ink-400':v>=gr?'text-green-700':v>=g?'text-amber-600':'text-red-600'
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="border-b-2 border-ink-200 bg-ink-50">
+            {['Period','Beg ARR','New Logo','Upsell','Downsell','Churn','End ARR','GRR','NRR (excl lapsed)','NRR','Logo Ret'].map(h=>(
+              <th key={h} className="text-left px-3 py-2.5 font-700 text-ink-500 text-[10px] uppercase tracking-wide whitespace-nowrap">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r,i)=>(
+            <tr key={i} className="border-b border-ink-50 hover:bg-ink-50/50">
+              <td className="px-3 py-2 font-700 text-ink-900 whitespace-nowrap">{r.period}</td>
+              <td className="px-3 py-2 text-ink-700">{fmtV(r.beginning_arr)}</td>
+              <td className="px-3 py-2 text-green-700 font-600">{r.new_logo>0?`+${fmtV(r.new_logo)}`:'—'}</td>
+              <td className="px-3 py-2 text-indigo-600 font-600">{r.upsell>0?`+${fmtV(r.upsell)}`:'—'}</td>
+              <td className="px-3 py-2 text-orange-600 font-600">{fmtV(r.downsell)}</td>
+              <td className="px-3 py-2 text-red-600 font-600">{fmtV(r.churn)}</td>
+              <td className="px-3 py-2 font-700 text-ink-900">{fmtV(r.ending_arr)}</td>
+              <td className={`px-3 py-2 font-700 ${pClass(r.gross_retention)}`}>{fmtP(r.gross_retention)}</td>
+              <td className={`px-3 py-2 font-700 ${pClass(r.net_retention_excl_lapsed,100,110)}`}>{fmtP(r.net_retention_excl_lapsed)}</td>
+              <td className={`px-3 py-2 font-700 ${pClass(r.net_retention,100,110)}`}>{fmtP(r.net_retention)}</td>
+              <td className={`px-3 py-2 font-700 ${pClass(r.logo_retention)}`}>{fmtP(r.logo_retention)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default function CommandCenter() {
   const router = useRouter()
   const fileRef = useRef(null)
@@ -982,34 +1132,38 @@ export default function CommandCenter() {
 
               {/* MRR/ACV TABS */}
               {!isCohort&&activeTab==='summary'&&(
-                <div className="grid grid-cols-3 gap-5">
-                  <div className="col-span-2 bg-white rounded-xl border border-ink-200 p-5">
-                    <div className="text-[10px] font-700 text-ink-400 uppercase tracking-widest mb-1">Revenue Bridge</div>
-                    <div className="text-sm font-700 text-ink-900 mb-4">{selLb}M Lookback — {yearFilter==='All'?'All Periods':yearFilter}</div>
-                    <WaterfallChart data={wfall}/>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="bg-white rounded-xl border border-ink-200 p-4">
-                      <div className="text-[10px] font-700 text-ink-400 uppercase tracking-widest mb-3">Retention Metrics</div>
-                      <div className="space-y-2">
-                        <RetentionCard label="Gross Retention" value={fmtPct(ret?.grr)} good={(ret?.grr||0)>=80}/>
-                        <RetentionCard label="Net Retention"   value={fmtPct(ret?.nrr)} good={(ret?.nrr||0)>=100}/>
-                      </div>
+                <div className="space-y-6">
+                  {/* QoQ Bridge Pivot (3M Lookback) */}
+                  {results?.pivot?.['3']?.bridge_pivot&&(
+                    <div className="bg-white rounded-xl border border-ink-200 p-5">
+                      <BridgePivotTable
+                        pivot={results.pivot['3'].bridge_pivot}
+                        title="ARR Waterfall"
+                        lookbackLabel="QoQ (3M)"
+                        showPct={false}
+                      />
+                      <CustomerCountPivot pivot={results.pivot['3'].customer_pivot}/>
                     </div>
-                    {filtFY?.length>0&&(
-                      <div className="bg-white rounded-xl border border-ink-200 p-4">
-                        <div className="text-[10px] font-700 text-ink-400 uppercase tracking-widest mb-3">By Fiscal Year</div>
-                        <div className="space-y-2.5">
-                          {filtFY.slice(0,5).map((row,i)=>(
-                            <div key={i} className="flex items-center justify-between">
-                              <span className="text-[11px] font-600 text-ink-700">{row.fiscal_year}</span>
-                              <div className="text-right"><div className="text-[12px] font-700 text-ink-900">{fmt(row.revenue)}</div><div className="text-[9px] text-ink-400">{row.customers} customers</div></div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  )}
+                  {/* YoY Bridge Pivot (12M Lookback) */}
+                  {results?.pivot?.['12']?.bridge_pivot&&(
+                    <div className="bg-white rounded-xl border border-ink-200 p-5">
+                      <BridgePivotTable
+                        pivot={results.pivot['12'].bridge_pivot}
+                        title="ARR Waterfall"
+                        lookbackLabel="YoY (12M)"
+                        showPct={true}
+                      />
+                      <CustomerCountPivot pivot={results.pivot['12'].customer_pivot}/>
+                    </div>
+                  )}
+                  {/* Fallback to waterfall chart if no pivot data */}
+                  {!results?.pivot&&(
+                    <div className="bg-white rounded-xl border border-ink-200 p-5">
+                      <div className="text-[10px] font-700 text-ink-400 uppercase tracking-widest mb-1">Revenue Bridge</div>
+                      <WaterfallChart data={wfall}/>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1125,25 +1279,43 @@ export default function CommandCenter() {
               )}
 
               {!isCohort&&activeTab==='kpi_matrix'&&(
-                <div className="bg-white rounded-xl border border-ink-200 overflow-hidden">
-                  <div className="px-5 py-3 border-b border-ink-100 bg-ink-50/50"><div className="text-[10px] font-700 text-ink-400 uppercase tracking-widest">KPI Matrix — {periodType}</div></div>
-                  <div className="overflow-x-auto"><table className="w-full text-sm">
-                    <thead><tr className="border-b border-ink-100">{['Period','Beginning','Ending','New Logo','Upsell','Downsell','Churn','Cross-sell','GRR','NRR'].map(h=><th key={h} className="px-4 py-2.5 text-left font-700 text-ink-500 text-[10px] uppercase whitespace-nowrap">{h}</th>)}</tr></thead>
-                    <tbody>{kpiRows.map((row,i)=>(
-                      <tr key={i} className="border-b border-ink-50 hover:bg-ink-50/50">
-                        <td className="px-4 py-2 font-700 text-ink-900">{row.period}</td>
-                        <td className="px-4 py-2 text-ink-700">{fmt(row.beginning)}</td>
-                        <td className="px-4 py-2 text-ink-700">{fmt(row.ending)}</td>
-                        <td className="px-4 py-2 text-green-700 font-600">{row.new_logo?`+${fmt(row.new_logo)}`:'—'}</td>
-                        <td className="px-4 py-2 text-indigo-600 font-600">{row.upsell?`+${fmt(row.upsell)}`:'—'}</td>
-                        <td className="px-4 py-2 text-orange-600 font-600">{row.downsell?fmt(row.downsell):'—'}</td>
-                        <td className="px-4 py-2 text-red-600 font-600">{row.churn?fmt(row.churn):'—'}</td>
-                        <td className="px-4 py-2 text-blue-600 font-600">{row.cross_sell?`+${fmt(row.cross_sell)}`:'—'}</td>
-                        <td className={`px-4 py-2 font-700 ${(row.grr||0)>=80?'text-green-700':'text-red-600'}`}>{fmtPct(row.grr)}</td>
-                        <td className={`px-4 py-2 font-700 ${(row.nrr||0)>=100?'text-green-700':'text-amber-600'}`}>{fmtPct(row.nrr)}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table></div>
+                <div className="space-y-5">
+                  {/* KPI Summary from new pivot service — shows all retention metrics */}
+                  {lookbacks.map(lb=>{
+                    const kpiData = results?.pivot?.[String(lb)]?.kpi_table
+                    if(!kpiData?.length) return null
+                    return (
+                      <div key={lb} className="bg-white rounded-xl border border-ink-200 p-5">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="text-[10px] font-700 text-ink-400 uppercase tracking-widest">KPI Summary</div>
+                          <span className="text-[9px] bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full font-600">{lb}M Lookback</span>
+                        </div>
+                        <KpiSummaryTable rows={kpiData}/>
+                      </div>
+                    )
+                  })}
+                  {/* Fallback to old kpi_matrix if no pivot data */}
+                  {!results?.pivot&&kpiRows.length>0&&(
+                    <div className="bg-white rounded-xl border border-ink-200 overflow-hidden">
+                      <div className="px-5 py-3 border-b border-ink-100 bg-ink-50/50"><div className="text-[10px] font-700 text-ink-400 uppercase tracking-widest">KPI Matrix — {periodType}</div></div>
+                      <div className="overflow-x-auto"><table className="w-full text-sm">
+                        <thead><tr className="border-b border-ink-100">{['Period','Beginning','Ending','New Logo','Upsell','Downsell','Churn','GRR','NRR'].map(h=><th key={h} className="px-4 py-2.5 text-left font-700 text-ink-500 text-[10px] uppercase whitespace-nowrap">{h}</th>)}</tr></thead>
+                        <tbody>{kpiRows.map((row,i)=>(
+                          <tr key={i} className="border-b border-ink-50 hover:bg-ink-50/50">
+                            <td className="px-4 py-2 font-700 text-ink-900">{row.period}</td>
+                            <td className="px-4 py-2 text-ink-700">{fmt(row.beginning)}</td>
+                            <td className="px-4 py-2 text-ink-700">{fmt(row.ending)}</td>
+                            <td className="px-4 py-2 text-green-700 font-600">{row.new_logo?`+${fmt(row.new_logo)}`:'—'}</td>
+                            <td className="px-4 py-2 text-indigo-600 font-600">{row.upsell?`+${fmt(row.upsell)}`:'—'}</td>
+                            <td className="px-4 py-2 text-orange-600 font-600">{row.downsell?fmt(row.downsell):'—'}</td>
+                            <td className="px-4 py-2 text-red-600 font-600">{row.churn?fmt(row.churn):'—'}</td>
+                            <td className={`px-4 py-2 font-700 ${(row.grr||0)>=80?'text-green-700':'text-red-600'}`}>{fmtPct(row.grr)}</td>
+                            <td className={`px-4 py-2 font-700 ${(row.nrr||0)>=100?'text-green-700':'text-amber-600'}`}>{fmtPct(row.nrr)}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table></div>
+                    </div>
+                  )}
                 </div>
               )}
 
