@@ -528,19 +528,36 @@ export default function CommandCenter() {
         fd.append('period_type',  periodType)
         fd.append('n_movers',     '30')
         fd.append('n_customers',  '10')
-        fd.append('tool_type',    engine==='acv'?'ACV':'MRR')
-
         let endpoint = `${API}/api/bridge/analyze`
-        if(!isBridgeOutput) {
-          // Raw data mode — use new endpoint that computes bridge internally
+
+        if(isBridgeOutput) {
+          // Alteryx bridge output — existing endpoint handles both MRR and ACV
+          fd.append('tool_type',    engine==='acv'?'ACV':'MRR')
+          fd.append('customer_col', fieldMap.customer||'Customer_ID')
+          fd.append('modules', JSON.stringify(['bridge','top_movers','top_customers','kpi_matrix','output']))
+        } else if(engine==='acv') {
+          // Raw contract data → ACV workflow engine
+          endpoint = `${API}/api/acv/analyze`
+          fd.append('customer_col',   fieldMap.customer||'')
+          fd.append('order_date_col', fieldMap.date||'')
+          fd.append('start_col',      fieldMap.contractStart||'')
+          fd.append('end_col',        fieldMap.contractEnd||'')
+          fd.append('tcv_col',        fieldMap.tcv||'')
+          if(fieldMap.product)  fd.append('product_col',  fieldMap.product)
+          if(fieldMap.channel)  fd.append('channel_col',  fieldMap.channel)
+          if(fieldMap.region)   fd.append('region_col',   fieldMap.region)
+          if(fieldMap.quantity) fd.append('quantity_col', fieldMap.quantity)
+        } else {
+          // Raw MRR/ARR data → MRR workflow engine
           endpoint = `${API}/api/mrr/analyze`
+          fd.append('tool_type',    'MRR')
           fd.append('customer_col', fieldMap.customer||'')
           fd.append('date_col',     fieldMap.date||'')
           fd.append('revenue_col',  fieldMap.revenue||'')
-        } else {
-          // Alteryx output — use existing bridge endpoint
-          fd.append('customer_col', fieldMap.customer||'Customer_ID')
-          fd.append('modules', JSON.stringify(['bridge','top_movers','top_customers','kpi_matrix','output']))
+          if(fieldMap.product)  fd.append('product_col',  fieldMap.product)
+          if(fieldMap.channel)  fd.append('channel_col',  fieldMap.channel)
+          if(fieldMap.region)   fd.append('region_col',   fieldMap.region)
+          if(fieldMap.quantity) fd.append('quantity_col', fieldMap.quantity)
         }
 
         const {data} = await axios.post(endpoint, fd, {timeout:120000})
