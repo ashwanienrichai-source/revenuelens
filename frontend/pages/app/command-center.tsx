@@ -26,16 +26,17 @@ const ENGINE_CONFIG = {
     desc:  'Revenue bridge, retention, NRR/GRR, top movers',
     icon:  TrendingUp,
     required: [
-      { key:'customer', label:'Customer / Account ID', kw:['customer','customer_id','customerid','client','account'] },
-      { key:'date',     label:'Date / Period',          kw:['date','activity_date','period','month'] },
-      { key:'revenue',  label:'MRR / ARR',              kw:['mrr','arr','revenue','amount','value','bridge value','bridge_value'] },
+      { key:'customer', label:'Customer / Account ID', kw:['customer','customer_id','customerid','client','account','company'] },
+      { key:'date',     label:'Date / Period (Monthly)', kw:['date','activity_date','period','month','activity date'] },
+      { key:'revenue',  label:'MRR / ARR / Revenue',    kw:['mrr','arr','revenue','amount','value','mrr or arr','mrrvalue','arrvalue'] },
     ],
     optional: [
-      { key:'product',  label:'Product',         kw:['product','sku','service'] },
-      { key:'channel',  label:'Channel',         kw:['channel','segment'] },
-      { key:'region',   label:'Region',          kw:['region','geo','geography'] },
-      { key:'quantity', label:'Quantity / Units', kw:['quantity','qty','units','seats'] },
+      { key:'product',  label:'Product (optional — enables Cross-sell)',  kw:['product','sku','service','product name'] },
+      { key:'channel',  label:'Channel (optional — enables Other In/Out)', kw:['channel','segment','sales channel'] },
+      { key:'region',   label:'Region (optional — enables Other In/Out)',  kw:['region','geo','geography','country'] },
+      { key:'quantity', label:'Quantity / Units (optional — enables Price/Volume decomposition)', kw:['quantity','qty','units','seats','licenses'] },
     ],
+    // Note: Month Lookback and Bridge Classification are SYSTEM-COMPUTED. Never shown as inputs.
     // NOTE: Month Lookback and Bridge Classification are system-computed.
     // They are NEVER user-selectable inputs. Lookback is set via the UI toggles
     // (1M/3M/12M buttons). Bridge Classification is derived by the engine logic.`
@@ -1155,6 +1156,21 @@ export default function CommandCenter() {
               {/* MRR/ACV TABS */}
               {!isCohort&&activeTab==='summary'&&(
                 <div className="space-y-6">
+                  {/* Granularity note */}
+                  {results?.metadata&&(
+                    <div className="bg-brand-50 border border-brand-200 rounded-lg px-4 py-2.5 flex items-center gap-3">
+                      <div className="text-[11px] text-brand-700">
+                        <span className="font-700">Granularity: </span>
+                        {results.metadata.dimensions?.length>0
+                          ? `Customer × ${results.metadata.dimensions.join(' × ')}`
+                          : 'Customer only'}
+                        {' · '}
+                        <span className="font-600">{results.metadata.row_count?.toLocaleString()} rows analyzed</span>
+                        {' · '}
+                        <span className="text-brand-600">{results.metadata.classifications?.filter(c=>!['Beginning MRR','Ending MRR','Beginning ARR','Ending ARR'].includes(c)).join(', ')}</span>
+                      </div>
+                    </div>
+                  )}
                   {/* QoQ Bridge Pivot (3M Lookback) */}
                   {results?.pivot?.['3']?.bridge_pivot&&(
                     <div className="bg-white rounded-xl border border-ink-200 p-5">
