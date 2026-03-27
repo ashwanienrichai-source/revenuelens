@@ -209,38 +209,47 @@ function MoverCard({customer,value,period,isRisk,rank}) {
 }
 
 // ─── Waterfall Bridge ─────────────────────────────────────────────────────────
-function WaterfallBridge({data}) {
+function WaterfallBridge({data, showBoundary=false}) {
   if(!data?.length) return <div style={{height:180,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--color-text-secondary)',fontSize:13}}>No bridge data</div>
-  const ORDER=['New Logo','Cross-sell','Returning','Other In','Upsell','Downsell','Churn','Churn Partial','Other Out','Lapsed']
-  const rows=data.filter(d=>ORDER.includes(d.category)).sort((a,b)=>ORDER.indexOf(a.category)-ORDER.indexOf(b.category))
+
+  const BOUNDARY = new Set(['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Prior ACV','Ending ACV'])
+  const ORDER=['Beginning ARR','Beginning MRR','New Logo','Cross-sell','Returning','Other In','Upsell','Downsell','Churn','Churn Partial','Other Out','Lapsed','Ending ARR','Ending MRR']
+  const rows = showBoundary
+    ? [...data].sort((a,b)=>{ const ai=ORDER.indexOf(a.category); const bi=ORDER.indexOf(b.category); return (ai<0?99:ai)-(bi<0?99:bi) })
+    : data.filter(d=>!BOUNDARY.has(d.category) && d.value!==0)
+
   const CustomTooltip=({active,payload})=>{
     if(!active||!payload?.length) return null
     const d=payload[0].payload
+    const isBound=BOUNDARY.has(d.category)
     return (
-      <div style={{background:'var(--color-surface)',border:'1px solid #1E2D45',borderRadius:12,padding:'8px 12px'}}>
-        <div style={{fontSize:10,fontWeight:600,color:'var(--color-text-primary)',marginBottom:2}}>{d.category}</div>
-        <div style={{fontSize:14,fontWeight:900,color:d.value>=0?'var(--color-accent)':'var(--color-negative)',fontFamily:'var(--font-mono)'}}>{d.value>=0?'+':''}{fmt(d.value)}</div>
+      <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:8,padding:'8px 12px'}}>
+        <div style={{fontSize:11,fontWeight:600,color:'var(--color-text-secondary)',marginBottom:3}}>{d.category}</div>
+        <div style={{fontSize:15,fontWeight:700,color:isBound?'var(--color-accent)':d.value>=0?'var(--color-positive)':'var(--color-negative)',fontFamily:'var(--font-mono)'}}>
+          {isBound?'':d.value>=0?'+':''}{fmt(d.value)}
+        </div>
       </div>
     )
   }
+  const getColor=(cat,val)=>BOUNDARY.has(cat)?'#3B82F6':BC[cat]||(val>=0?'#4ADE80':'#F87171')
+
   return (
-    <div style={{height:200}}>
+    <div style={{height:220}}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={rows} margin={{top:8,right:8,bottom:44,left:8}}>
+        <BarChart data={rows} margin={{top:8,right:8,bottom:48,left:8}}>
           <CartesianGrid strokeDasharray="2 4" stroke='var(--color-border)' vertical={false}/>
           <XAxis dataKey="category" tick={{fontSize:9,fill:'var(--color-text-secondary)'}} angle={-35} textAnchor="end" interval={0} axisLine={false} tickLine={false}/>
-          <YAxis tickFormatter={fmt} tick={{fontSize:9,fill:'var(--color-text-secondary)'}} width={44} axisLine={false} tickLine={false}/>
+          <YAxis tickFormatter={fmt} tick={{fontSize:9,fill:'var(--color-text-secondary)'}} width={48} axisLine={false} tickLine={false}/>
           <ReferenceLine y={0} stroke='var(--color-border)'/>
           <Tooltip content={<CustomTooltip/>} cursor={{fill:'rgba(255,255,255,0.02)'}}/>
-          <Bar dataKey="value" radius={[4,4,0,0]} maxBarSize={32}>
-            {rows.map((e,i)=><Cell key={i} fill={BC[e.category]||'var(--color-text-secondary)'}/>)}
+          <Bar dataKey="value" radius={[3,3,0,0]} maxBarSize={36}>
+            {rows.map((e,i)=><Cell key={i} fill={getColor(e.category,e.value)}/>)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
   )
 }
-
 // ─── Bridge Pivot Table ───────────────────────────────────────────────────────
 function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
   if(!pivot?.periods?.length||!pivot?.rows?.length) return <div style={{color:'var(--color-text-secondary)',textAlign:'center',padding:'32px',fontSize:13}}>No bridge data</div>
@@ -480,6 +489,11 @@ export default function CommandCenter() {
   const [activeTab, setActiveTab]   = useState('summary')
   const [moverCat, setMoverCat]     = useState('')
 
+  // Header filter state — these control UI; re-runs happen via applyFilters()
+  const [selDims, setSelDims]       = useState('customer')   // 'customer'|'product'|'region'
+  const [selPeriod, setSelPeriod]   = useState('')           // e.g. 'Jan-25' — empty = latest
+  const [rerunning, setRerunning]   = useState(false)
+
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
   const isCohort = results?._engine === 'cohort'
@@ -505,6 +519,36 @@ export default function CommandCenter() {
   const kpiRows  = results?.kpi_matrix || []
   const movers   = results?.top_movers || {}
   const topCusts = results?.top_customers || []
+
+  // Available periods from data (for period selector)
+  // Pull from by_period data — each item has _period field like 'Jan-25'
+  const availablePeriods = useMemo(() => {
+    const allPeriods = new Set()
+    if (results?.bridge) {
+      Object.values(results.bridge).forEach(b => {
+        if (b?.by_period) b.by_period.forEach(r => { if (r._period) allPeriods.add(r._period) })
+      })
+    }
+    return Array.from(allPeriods).sort()
+  }, [results])
+
+  // Filtered by_period data based on selPeriod
+  const filteredByPeriod = useMemo(() => {
+    if (!bdg?.by_period?.length) return []
+    if (!selPeriod) return bdg.by_period
+    return bdg.by_period.filter(r => r._period === selPeriod)
+  }, [bdg, selPeriod])
+
+  // Waterfall for the selected period (or overall if no period selected)
+  const selectedWfall = useMemo(() => {
+    if (!selPeriod || !bdg?.by_period?.length) return wfall
+    // Sum waterfall values for selected period from by_period
+    const row = bdg.by_period.find(r => r._period === selPeriod)
+    if (!row) return wfall
+    // Convert by_period row to waterfall format
+    const cats = ['New Logo','Cross-sell','Returning','Other In','Upsell','Downsell','Churn','Churn Partial','Other Out','Lapsed']
+    return cats.map(cat => ({ category: cat, value: row[cat] || 0 })).filter(r => r.value !== 0)
+  }, [selPeriod, bdg, wfall])
 
   const narrative = useMemo(() => genNarrative(ret, movers), [ret, movers])
 
@@ -615,6 +659,87 @@ export default function CommandCenter() {
       }
     } catch(e) { setRunErr(e?.response?.data?.detail||'Analysis failed. Please try again.') }
     setRunning(false)
+  }
+
+  // Re-run with different dimension filter (View by: customer/product/region)
+  async function applyDimFilter(dimKey) {
+    if (!file || !results || running || rerunning) return
+    setSelDims(dimKey)
+    setRerunning(true)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      // Build dimension_cols based on selected dim
+      const dims = []
+      if (dimKey === 'product' && fieldMap.product) dims.push(fieldMap.product)
+      if (dimKey === 'region'  && fieldMap.region)  dims.push(fieldMap.region)
+      fd.append('revenue_unit',   revenueUnit)
+      fd.append('lookbacks',      JSON.stringify(lookbacks))
+      fd.append('dimension_cols', JSON.stringify(dims))
+      fd.append('year_filter',    '')
+      fd.append('period_type',    periodType)
+      fd.append('n_movers',       '30')
+      fd.append('n_customers',    '10')
+      let endpoint = `${API}/api/mrr/analyze`
+      if (isBridgeOutput) {
+        endpoint = `${API}/api/bridge/analyze`
+        fd.append('tool_type',    engine==='acv'?'ACV':'MRR')
+        fd.append('customer_col', fieldMap.customer||'Customer_ID')
+        fd.append('modules',      JSON.stringify(['bridge','top_movers','top_customers','kpi_matrix','output']))
+      } else {
+        fd.append('tool_type',    'MRR')
+        fd.append('customer_col', fieldMap.customer||'')
+        fd.append('date_col',     fieldMap.date||'')
+        fd.append('revenue_col',  fieldMap.revenue||'')
+        if(fieldMap.product)  fd.append('product_col',  fieldMap.product)
+        if(fieldMap.channel)  fd.append('channel_col',  fieldMap.channel)
+        if(fieldMap.region)   fd.append('region_col',   fieldMap.region)
+        if(fieldMap.quantity) fd.append('quantity_col', fieldMap.quantity)
+      }
+      const {data} = await axios.post(endpoint, fd, {timeout:120000})
+      setResults({...data, _engine:engine})
+      if (lookbacks.length) setSelLb(lookbacks[lookbacks.length-1])
+    } catch(e) { console.error('Re-run failed:', e) }
+    setRerunning(false)
+  }
+
+  // Re-run when periodType (YoY/QoQ) changes
+  async function applyPeriodType(newPeriodType) {
+    setPeriod(newPeriodType)
+    if (!file || !results) return
+    setRerunning(true)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const dims = []
+      if (selDims === 'product' && fieldMap.product) dims.push(fieldMap.product)
+      if (selDims === 'region'  && fieldMap.region)  dims.push(fieldMap.region)
+      fd.append('revenue_unit',   revenueUnit)
+      fd.append('lookbacks',      JSON.stringify(lookbacks))
+      fd.append('dimension_cols', JSON.stringify(dims))
+      fd.append('year_filter',    '')
+      fd.append('period_type',    newPeriodType)
+      fd.append('n_movers',       '30')
+      fd.append('n_customers',    '10')
+      let endpoint = `${API}/api/mrr/analyze`
+      if (isBridgeOutput) {
+        endpoint = `${API}/api/bridge/analyze`
+        fd.append('tool_type',    engine==='acv'?'ACV':'MRR')
+        fd.append('customer_col', fieldMap.customer||'Customer_ID')
+        fd.append('modules',      JSON.stringify(['bridge','top_movers','top_customers','kpi_matrix','output']))
+      } else {
+        fd.append('tool_type',    'MRR')
+        fd.append('customer_col', fieldMap.customer||'')
+        fd.append('date_col',     fieldMap.date||'')
+        fd.append('revenue_col',  fieldMap.revenue||'')
+        if(fieldMap.product)  fd.append('product_col',  fieldMap.product)
+        if(fieldMap.channel)  fd.append('channel_col',  fieldMap.channel)
+        if(fieldMap.region)   fd.append('region_col',   fieldMap.region)
+        if(fieldMap.quantity) fd.append('quantity_col', fieldMap.quantity)
+      }
+      const {data} = await axios.post(endpoint, fd, {timeout:120000})
+      setResults({...data, _engine:engine})
+      if (lookbacks.length) setSelLb(lookbacks[lookbacks.length-1])
+    } catch(e) { console.error('Period type re-run failed:', e) }
+    setRerunning(false)
   }
 
   function downloadCSV() {
@@ -915,43 +1040,61 @@ export default function CommandCenter() {
               </p>
             </div>
 
-            {/* Right: controls */}
+            {/* Right: controls — all wired up and functional */}
             {results&&(
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0,paddingTop:4}}>
                 {!isCohort&&(
                   <>
-                    {/* Period toggle YoY/QoQ */}
+                    {/* YoY / QoQ toggle — triggers re-run */}
                     <div style={{display:'flex',gap:1,padding:3,background:'var(--color-background)',borderRadius:8,border:'1px solid var(--color-border)'}}>
-                      {['Annual','Quarter'].map(p=>(
-                        <button key={p} onClick={()=>setPeriod(p)} style={{padding:'5px 12px',borderRadius:6,fontSize:11,fontWeight:600,border:'none',cursor:'pointer',background:periodType===p?'var(--color-surface-hover)':'transparent',color:periodType===p?'var(--color-text-primary)':'var(--color-text-secondary)',transition:'all 0.12s'}}>
-                          {p==='Annual'?'YoY':'QoQ'}
+                      {[['Annual','YoY'],['Quarter','QoQ']].map(([val,lbl])=>(
+                        <button key={val} onClick={()=>applyPeriodType(val)}
+                          disabled={rerunning}
+                          style={{padding:'5px 12px',borderRadius:6,fontSize:11,fontWeight:600,border:'none',cursor:rerunning?'not-allowed':'pointer',background:periodType===val?'var(--color-surface-hover)':'transparent',color:periodType===val?'var(--color-text-primary)':'var(--color-text-secondary)',transition:'all 0.12s',opacity:rerunning?0.6:1}}>
+                          {lbl}
                         </button>
                       ))}
                     </div>
-                    {/* Lookback pills */}
+
+                    {/* Lookback pills — client-side filter, instant */}
                     <div style={{display:'flex',alignItems:'center',gap:1,padding:3,background:'var(--color-background)',borderRadius:8,border:'1px solid var(--color-border)'}}>
                       <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',color:'var(--color-text-secondary)',padding:'0 8px'}}>Lookback</span>
                       {lookbacks.map(l=>(
-                        <button key={l} onClick={()=>setSelLb(l)} style={{padding:'5px 10px',borderRadius:6,fontSize:11,fontWeight:600,border:'none',cursor:'pointer',background:selLb===l?'var(--color-accent)':'transparent',color:selLb===l?'#fff':'var(--color-text-secondary)',transition:'all 0.12s'}}>
+                        <button key={l} onClick={()=>setSelLb(l)}
+                          style={{padding:'5px 10px',borderRadius:6,fontSize:11,fontWeight:600,border:'none',cursor:'pointer',background:selLb===l?'var(--color-accent)':'transparent',color:selLb===l?'#fff':'var(--color-text-secondary)',transition:'all 0.12s'}}>
                           {l}M
                         </button>
                       ))}
                     </div>
+
+                    {/* Period selector — month/period from actual data (e.g. Jan-25) */}
+                    {availablePeriods.length>0&&(
+                      <select value={selPeriod} onChange={e=>setSelPeriod(e.target.value)}
+                        style={{fontSize:11,border:'1px solid var(--color-border)',borderRadius:8,padding:'6px 10px',background:'var(--color-background)',color:'var(--color-text-secondary)',outline:'none',maxWidth:110}}>
+                        <option value="">All Periods</option>
+                        {availablePeriods.slice().reverse().map(p=>(
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    )}
                   </>
                 )}
-                {/* Year filter */}
-                {fyYears.length>0&&(
-                  <select value={yearFilter} onChange={e=>setYearFilter(e.target.value)} style={{fontSize:11,border:'1px solid var(--color-border)',borderRadius:8,padding:'6px 10px',background:'var(--color-background)',color:'var(--color-text-secondary)',outline:'none'}}>
-                    <option value="All">All Years</option>
-                    {fyYears.map(fy=><option key={String(fy)} value={String(fy)}>{String(fy)}</option>)}
-                  </select>
+
+                {/* Rerunning indicator */}
+                {rerunning&&(
+                  <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'var(--color-text-secondary)'}}>
+                    <Loader2 size={12} style={{animation:'spin 1s linear infinite'}}/> Updating…
+                  </div>
                 )}
+
                 {/* Reset */}
-                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({})}} style={{padding:8,borderRadius:8,border:'1px solid var(--color-border)',background:'transparent',cursor:'pointer',color:'var(--color-text-secondary)',display:'flex',transition:'all 0.12s'}}
+                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('')}}
+                  style={{padding:8,borderRadius:8,border:'1px solid var(--color-border)',background:'transparent',cursor:'pointer',color:'var(--color-text-secondary)',display:'flex',transition:'all 0.12s'}}
                   onMouseEnter={e=>{e.currentTarget.style.background='var(--color-surface-hover)';e.currentTarget.style.color='var(--color-text-primary)'}}
                   onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='var(--color-text-secondary)'}}>
                   <RefreshCw size={13}/>
                 </button>
+
                 {/* Export */}
                 {isAdmin?(
                   <button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,padding:'7px 14px',borderRadius:8,border:'none',cursor:'pointer',background:'var(--color-accent)',color:'#fff'}}>
@@ -966,18 +1109,28 @@ export default function CommandCenter() {
             )}
           </div>
 
-          {/* Granularity selector row — Customer Level / Product / Region */}
+          {/* Granularity selector — wired to applyDimFilter re-run */}
           {results&&!isCohort&&(
             <div style={{display:'flex',alignItems:'center',gap:6,padding:'12px 28px',marginTop:4}}>
               <span style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',color:'var(--color-text-secondary)',marginRight:4}}>View by:</span>
               {[
-                {label:'Customer Level', dims:[]},
-                {label:'Customer × Product', dims:fieldMap.product?[fieldMap.product]:[]},
-                {label:'Customer × Region', dims:fieldMap.region?[fieldMap.region]:[]},
-              ].map((opt,i)=>{
-                const isActive = JSON.stringify(results?.metadata?.dimensions||[]) === JSON.stringify(opt.dims)
+                {key:'customer', label:'Customer Level',    available:true},
+                {key:'product',  label:'Customer × Product', available:!!fieldMap.product},
+                {key:'region',   label:'Customer × Region',  available:!!fieldMap.region},
+              ].map(opt=>{
+                const isActive = selDims===opt.key
                 return (
-                  <button key={i} style={{padding:'6px 14px',borderRadius:20,fontSize:11,fontWeight:600,border:`1px solid ${isActive?'var(--color-accent)':'var(--color-border)'}`,background:isActive?'var(--color-accent)':'transparent',color:isActive?'#fff':'var(--color-text-secondary)',cursor:'pointer',transition:'all 0.12s'}}>
+                  <button key={opt.key}
+                    onClick={()=>opt.available&&!rerunning&&applyDimFilter(opt.key)}
+                    disabled={!opt.available||rerunning}
+                    style={{
+                      padding:'6px 14px',borderRadius:20,fontSize:11,fontWeight:600,
+                      border:`1px solid ${isActive?'var(--color-accent)':'var(--color-border)'}`,
+                      background:isActive?'var(--color-accent)':'transparent',
+                      color:isActive?'#fff':opt.available?'var(--color-text-secondary)':'var(--color-border)',
+                      cursor:opt.available&&!rerunning?'pointer':'not-allowed',
+                      transition:'all 0.12s',opacity:!opt.available?0.4:1,
+                    }}>
                     {opt.label}
                   </button>
                 )
@@ -1201,8 +1354,8 @@ export default function CommandCenter() {
                         </tr>
                       </thead>
                       <tbody>
-                        {wfall.sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)).map((row,i)=>{
-                          const total=wfall.reduce((s,r)=>s+Math.abs(r.value),0)
+                        {selectedWfall.filter(r=>!['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR'].includes(r.category)).sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)).map((row,i)=>{
+                          const total=selectedWfall.filter(r=>!['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.value),0)
                           const isPos=row.value>=0
                           return (
                             <tr key={i} style={{borderBottom:'1px solid var(--color-border)'}}
@@ -1229,10 +1382,11 @@ export default function CommandCenter() {
                           )
                         })}
                         {/* Total row */}
-                        {wfall.length>0&&(()=>{
-                          const totalImpact=wfall.reduce((s,r)=>s+r.value,0)
-                          const totalCount=wfall.reduce((s,r)=>s+(r.count||0),0)
-                          const totalAbs=wfall.reduce((s,r)=>s+Math.abs(r.value),0)
+                        {selectedWfall.length>0&&(()=>{
+                          const mvts=selectedWfall.filter(r=>!['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR'].includes(r.category))
+                          const totalImpact=mvts.reduce((s,r)=>s+r.value,0)
+                          const totalCount=mvts.reduce((s,r)=>s+(r.count||0),0)
+                          const totalAbs=mvts.reduce((s,r)=>s+Math.abs(r.value),0)
                           return (
                             <tr style={{background:'var(--color-surface-hover)',borderTop:'2px solid var(--color-border)'}}>
                               <td style={{padding:'12px 20px',fontWeight:700,color:'var(--color-text-primary)',fontSize:13}}>Total Bridge Impact</td>
@@ -1251,13 +1405,13 @@ export default function CommandCenter() {
                   </div>
 
                   {/* ── Pivot tables (QoQ + YoY) below the main view ─── */}
-                  {results?.pivot?.['3']?.bridge_pivot&&(
+                  {results?.pivot?.[String(selLb)]?.bridge_pivot&&(
                     <div style={S.card}>
-                      <BridgePivotTable pivot={results.pivot['3'].bridge_pivot} title="ARR Waterfall" lookbackLabel="QoQ (3M)" showPct={false}/>
-                      <CustomerCountPivot pivot={results.pivot['3'].customer_pivot}/>
+                      <BridgePivotTable pivot={results.pivot[String(selLb)].bridge_pivot} title="ARR Waterfall" lookbackLabel={`${selLb}M Lookback`} showPct={false}/>
+                      <CustomerCountPivot pivot={results.pivot[String(selLb)].customer_pivot}/>
                     </div>
                   )}
-                  {results?.pivot?.['12']?.bridge_pivot&&(
+                  {results?.pivot?.['12']?.bridge_pivot&&selLb!==12&&(
                     <div style={S.card}>
                       <BridgePivotTable pivot={results.pivot['12'].bridge_pivot} title="ARR Waterfall" lookbackLabel="YoY (12M)" showPct={true}/>
                       <CustomerCountPivot pivot={results.pivot['12'].customer_pivot}/>
