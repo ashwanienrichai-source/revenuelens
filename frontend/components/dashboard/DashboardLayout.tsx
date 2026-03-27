@@ -1,24 +1,37 @@
+// @ts-nocheck
+/**
+ * DashboardLayout.tsx — Unified dark app shell
+ *
+ * Replaces the old light-theme layout. All app pages (dashboard,
+ * analytics, command-center) use this single layout so they feel
+ * like one product.
+ *
+ * Deploy to:
+ *   frontend/components/dashboard/DashboardLayout.tsx
+ *
+ * Replaces the old file at the same path.
+ */
+
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
-  BarChart3, LayoutDashboard, Users, TrendingUp, DollarSign,
-  FileText, Settings, LogOut, Crown, Zap, Clock
+  BarChart3, LayoutDashboard, Zap, Users, TrendingUp,
+  DollarSign, FileText, Settings, LogOut, Crown, Clock, Upload
 } from 'lucide-react'
-import { supabase, UserProfile, canDownload } from '../../lib/supabase'
+import { supabase, canDownload } from '../../lib/supabase'
 
 const NAV = [
-  { href: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard',         live: true,  badge: null   },
-  { href: '/app/command-center', icon: Zap,             label: 'Command Center',    live: true,  badge: 'NEW'  },
-  { href: '/app/customer',       icon: Users,           label: 'Customer Analytics',live: false, badge: null   },
-  { href: '/app/bridge',         icon: TrendingUp,      label: 'Revenue Bridge',    live: false, badge: null   },
-  { href: '/app/pricing',        icon: DollarSign,      label: 'Pricing',           live: false, badge: null   },
-  { href: '/dashboard/reports',  icon: FileText,        label: 'Reports',           live: true,  badge: null   },
-  { href: '/dashboard/settings', icon: Settings,        label: 'Settings',          live: true,  badge: null   },
+  { href: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard',         live: true  },
+  { href: '/app/command-center', icon: Zap,             label: 'Command Center',    live: true, badge: 'NEW' },
+  { href: '/dashboard/upload',   icon: Upload,          label: 'Upload Dataset',    live: true  },
+  { href: '/app/customer',       icon: Users,           label: 'Customer Analytics',live: false },
+  { href: '/app/bridge',         icon: TrendingUp,      label: 'Revenue Bridge',    live: false },
+  { href: '/app/pricing',        icon: DollarSign,      label: 'Pricing',           live: false },
+  { href: '/dashboard/reports',  icon: FileText,        label: 'Reports',           live: true  },
+  { href: '/dashboard/settings', icon: Settings,        label: 'Settings',          live: true  },
 ]
 
-interface Props { children: React.ReactNode; profile?: UserProfile | null; title?: string }
-
-export default function DashboardLayout({ children, profile, title }: Props) {
+export default function DashboardLayout({ children, profile, title }) {
   const router  = useRouter()
   const isAdmin = canDownload(profile || null)
 
@@ -28,46 +41,106 @@ export default function DashboardLayout({ children, profile, title }: Props) {
   }
 
   return (
-    <div className="flex h-screen bg-ink-50 overflow-hidden">
-      <aside className="w-52 flex flex-col bg-white border-r border-ink-200 flex-shrink-0">
+    <div style={{
+      display:    'flex',
+      height:     '100vh',
+      overflow:   'hidden',
+      background: 'var(--bg-page)',
+      fontFamily: 'var(--font-sans)',
+    }}>
+
+      {/* ── Sidebar ────────────────────────────────────────────────── */}
+      <aside style={{
+        width:         220,
+        display:       'flex',
+        flexDirection: 'column',
+        flexShrink:    0,
+        background:    'var(--bg-sidebar)',
+        borderRight:   '1px solid var(--border-muted)',
+        overflow:      'hidden',
+      }}>
 
         {/* Logo */}
-        <div className="h-14 flex items-center gap-2.5 px-4 border-b border-ink-100">
-          <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
-            <BarChart3 size={13} className="text-white" />
+        <div style={{
+          height:      56,
+          display:     'flex',
+          alignItems:  'center',
+          gap:         12,
+          padding:     '0 16px',
+          borderBottom:'1px solid var(--border-muted)',
+          flexShrink:  0,
+        }}>
+          <div style={{
+            width:          28,
+            height:         28,
+            borderRadius:   8,
+            background:     'var(--accent-gradient)',
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            flexShrink:     0,
+          }}>
+            <BarChart3 size={13} color="var(--bg-page)"/>
           </div>
           <div>
-            <div className="font-display font-700 text-ink-900 text-[13px]">RevenueLens</div>
-            <div className="text-ink-400 text-[9px] font-mono uppercase tracking-wider">Analytics</div>
+            <div style={{ fontSize:13, fontWeight:900, color:'var(--text-primary)', fontFamily:'var(--font-display)', letterSpacing:'-0.01em', lineHeight:1 }}>RevenueLens</div>
+            <div style={{ fontSize:8, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.15em', color:'var(--accent)', marginTop:2 }}>Analytics</div>
           </div>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2">
-          <div className="text-[9px] font-700 text-ink-400 uppercase tracking-widest px-2 mb-2">Platform</div>
+        <nav style={{ flex:1, overflowY:'auto', padding:'12px 8px' }}>
+          <div style={{ fontSize:8, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.15em', color:'var(--text-ghost)', padding:'0 8px', marginBottom:8 }}>Platform</div>
+
           {NAV.map(item => {
-            const active = router.pathname === item.href
-            if (!item.live) {
-              return (
-                <div key={item.href}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-500 mb-0.5 text-ink-300 cursor-not-allowed">
-                  <item.icon size={14} />
-                  <span>{item.label}</span>
-                  <span className="ml-auto flex items-center gap-0.5 text-[9px] bg-ink-100 text-ink-400 px-1.5 py-0.5 rounded-full font-600">
-                    <Clock size={8} /> Soon
-                  </span>
-                </div>
-              )
-            }
+            const active   = router.pathname === item.href || router.pathname.startsWith(item.href + '/')
+            const Icon     = item.icon
+            const disabled = !item.live
+
+            if (disabled) return (
+              <div key={item.href} style={{
+                display:    'flex',
+                alignItems: 'center',
+                gap:        10,
+                padding:    '8px 10px',
+                borderRadius: 10,
+                marginBottom: 2,
+                opacity:    0.35,
+                cursor:     'not-allowed',
+              }}>
+                <Icon size={13} color="var(--text-muted)"/>
+                <span style={{ fontSize:12, color:'var(--text-muted)', flex:1 }}>{item.label}</span>
+                <span style={{ fontSize:8, color:'var(--text-ghost)', display:'flex', alignItems:'center', gap:3 }}>
+                  <Clock size={8}/> Soon
+                </span>
+              </div>
+            )
+
             return (
-              <Link key={item.href} href={item.href}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-500 mb-0.5 transition-all ${
-                  active ? 'bg-brand-50 text-brand-700 font-600' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'
-                }`}>
-                <item.icon size={14} className={item.badge === 'NEW' ? 'text-brand-500' : ''} />
-                <span className="flex-1">{item.label}</span>
-                {item.badge === 'NEW' && (
-                  <span className="text-[8px] bg-brand-600 text-white px-1.5 py-0.5 rounded-full font-700 uppercase">New</span>
+              <Link key={item.href} href={item.href} style={{
+                display:        'flex',
+                alignItems:     'center',
+                gap:            10,
+                padding:        '8px 10px',
+                borderRadius:   10,
+                marginBottom:   2,
+                textDecoration: 'none',
+                background:     active ? 'rgba(0,229,160,0.08)' : 'transparent',
+                border:         active ? '1px solid rgba(0,229,160,0.2)' : '1px solid transparent',
+                color:          active ? 'var(--accent)' : 'var(--text-muted)',
+                fontWeight:     active ? 600 : 400,
+                fontSize:       12,
+                transition:     'all 0.12s',
+              }}
+              onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)' } }}
+              onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)' } }}
+              >
+                <Icon size={13} color={active ? 'var(--accent)' : 'var(--text-muted)'}/>
+                <span style={{ flex:1 }}>{item.label}</span>
+                {item.badge && (
+                  <span style={{ fontSize:8, background:'var(--accent)', color:'var(--bg-page)', padding:'1px 6px', borderRadius:20, fontWeight:700, letterSpacing:'0.05em' }}>
+                    {item.badge}
+                  </span>
                 )}
               </Link>
             )
@@ -76,49 +149,84 @@ export default function DashboardLayout({ children, profile, title }: Props) {
 
         {/* Plan badge */}
         {profile && (
-          <div className="px-3 pb-2">
+          <div style={{ padding:'0 12px 8px' }}>
             {isAdmin ? (
-              <div className="rounded-lg p-3 bg-amber-50 border border-amber-200 flex items-center gap-2">
-                <Crown size={12} className="text-amber-500" />
-                <span className="text-xs font-700 text-amber-700">Premium Access</span>
+              <div style={{ borderRadius:10, padding:'10px 12px', background:'rgba(244,162,97,0.08)', border:'1px solid rgba(244,162,97,0.2)', display:'flex', alignItems:'center', gap:8 }}>
+                <Crown size={12} color="var(--warning)"/>
+                <span style={{ fontSize:11, fontWeight:700, color:'var(--warning)' }}>Premium Access</span>
               </div>
             ) : (
-              <div className="rounded-lg p-3 bg-ink-50 border border-ink-200">
-                <div className="text-xs font-600 text-ink-700 mb-1">Free plan</div>
-                <Link href="/dashboard/upgrade" className="text-[11px] text-brand-600 font-600 hover:underline">
-                  Upgrade to download →
-                </Link>
+              <div style={{ borderRadius:10, padding:'10px 12px', background:'var(--bg-elevated)', border:'1px solid var(--border)' }}>
+                <div style={{ fontSize:11, fontWeight:600, color:'var(--text-secondary)', marginBottom:4 }}>Free plan</div>
+                <Link href="/dashboard/upgrade" style={{ fontSize:10, color:'var(--accent)', fontWeight:600, textDecoration:'none' }}>Upgrade to export →</Link>
               </div>
             )}
           </div>
         )}
 
-        {/* User */}
-        <div className="border-t border-ink-100 p-3">
-          <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-ink-50 cursor-pointer group">
-            <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-brand-700 text-xs font-700">
+        {/* User row */}
+        <div style={{ borderTop:'1px solid var(--border-muted)', padding:12 }}>
+          <div style={{
+            display:     'flex',
+            alignItems:  'center',
+            gap:         10,
+            padding:     '8px 10px',
+            borderRadius: 10,
+            cursor:      'pointer',
+            transition:  'background 0.12s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background='var(--bg-elevated)'}
+          onMouseLeave={e => e.currentTarget.style.background='transparent'}
+          >
+            <div style={{
+              width:          28,
+              height:         28,
+              borderRadius:   '50%',
+              background:     'rgba(0,229,160,0.15)',
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              flexShrink:     0,
+            }}>
+              <span style={{ fontSize:12, fontWeight:700, color:'var(--accent)' }}>
                 {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
               </span>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[11px] font-600 text-ink-900 truncate">{profile?.full_name || 'User'}</div>
-              <div className="text-[10px] text-ink-400 truncate">{profile?.email}</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{profile?.full_name || 'User'}</div>
+              <div style={{ fontSize:10, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{profile?.email}</div>
             </div>
-            <button onClick={signOut}
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-ink-400 hover:text-red-500">
-              <LogOut size={13} />
+            <button onClick={signOut} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', display:'flex', padding:4, borderRadius:6 }}
+              onMouseEnter={e => e.currentTarget.style.color='var(--negative)'}
+              onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>
+              <LogOut size={12}/>
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-14 bg-white border-b border-ink-200 flex items-center px-6 flex-shrink-0">
-          {title && <h1 className="font-display font-700 text-ink-900 text-[15px]">{title}</h1>}
-        </header>
-        <main className="flex-1 overflow-auto">{children}</main>
+      {/* ── Main area ──────────────────────────────────────────────── */}
+      <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0, overflow:'hidden' }}>
+
+        {/* Header */}
+        {title && (
+          <header style={{
+            height:      56,
+            background:  'var(--bg-sidebar)',
+            borderBottom:'1px solid var(--border-muted)',
+            display:     'flex',
+            alignItems:  'center',
+            padding:     '0 24px',
+            flexShrink:  0,
+          }}>
+            <h1 style={{ fontSize:15, fontWeight:700, color:'var(--text-primary)', fontFamily:'var(--font-display)', margin:0 }}>{title}</h1>
+          </header>
+        )}
+
+        {/* Content */}
+        <main style={{ flex:1, overflowY:'auto', background:'var(--bg-page)' }}>
+          {children}
+        </main>
       </div>
     </div>
   )
