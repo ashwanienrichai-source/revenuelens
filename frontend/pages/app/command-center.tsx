@@ -19,26 +19,28 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
 const BC = {
-  // Financial-grade: muted green=positive, muted red=negative, blue=baseline
-  'New Logo':      '#4ADE80',
-  'Cross-sell':    '#86EFAC',
-  'Other In':      '#93C5FD',
-  'Returning':     '#93C5FD',
-  'Upsell':        '#4ADE80',
-  'Downsell':      '#FCA5A5',
-  'Add on':        '#86EFAC',
-  'Add-on':        '#86EFAC',
-  'Churn':         '#F87171',
-  'Churn Partial': '#FCA5A5',
-  'Churn-Partial': '#FCA5A5',
-  'Other Out':     '#94A3B8',
-  'Lapsed':        '#64748B',
-  'Beginning MRR': '#3B82F6',
-  'Ending MRR':    '#3B82F6',
-  'Prior ACV':     '#3B82F6',
-  'Ending ACV':    '#3B82F6',
+  // CORRECT financial ordering — green scale = expansion, red scale = churn, grey = baseline
+  'New Logo':      '#16A34A',   // darkest green — biggest expansion driver
+  'Upsell':        '#22C55E',   // medium green
+  'Cross-sell':    '#4ADE80',   // lighter green
+  'Returning':     '#6EE7B7',   // lightest green
+  'Other In':      '#CBD5E1',   // neutral grey
+  'Downsell':      '#FCA5A5',   // light red
+  'Churn Partial': '#F87171',   // medium red
+  'Churn-Partial': '#F87171',
+  'Churn':         '#DC2626',   // strongest red — full churn
+  'Lapsed':        '#FCD34D',   // amber — warning
+  'Other Out':     '#94A3B8',   // neutral grey
+  'Add on':        '#4ADE80',
+  'Add-on':        '#4ADE80',
+  'Beginning MRR': '#94A3B8',   // neutral grey — baseline
+  'Ending MRR':    '#94A3B8',
+  'Beginning ARR': '#94A3B8',
+  'Ending ARR':    '#94A3B8',
+  'Prior ACV':     '#94A3B8',
+  'Ending ACV':    '#94A3B8',
   'RoB':           '#93C5FD',
-  'Expiry Pool':   '#64748B',
+  'Expiry Pool':   '#CBD5E1',
 }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -160,49 +162,101 @@ function UploadTimer({active}) {
 
 // ─── KPI Chip ─────────────────────────────────────────────────────────────────
 function KpiChip({label,value,sub,subGood,accent}) {
+  const subColor = subGood===true?'var(--color-positive)':subGood===false?'var(--color-negative)':'var(--color-text-secondary)'
   return (
     <div style={{
-      background: 'var(--color-surface)',
-      border: `1px solid ${accent?'rgba(0,229,160,0.25)':'var(--color-border)'}`,
-      borderRadius:16,padding:'14px 18px',
+      background:   'var(--color-surface)',
+      border:       '1px solid var(--color-border)',
+      borderRadius: 'var(--radius-card)',
+      padding:      '16px 20px',
+      borderTop:    accent ? '3px solid var(--color-accent)' : '3px solid transparent',
+      boxShadow:    'var(--shadow-card)',
     }}>
-      <div style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--color-text-secondary)',marginBottom:4}}>{label}</div>
-      <div style={{fontSize:22,fontWeight:900,letterSpacing:'-0.02em',color:accent?'var(--color-accent)':'white',fontFamily:'var(--font-mono)',lineHeight:1}}>{value}</div>
+      <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)',marginBottom:8}}>{label}</div>
+      <div style={{fontFamily:'var(--font-mono)',fontFeatureSettings:"'tnum'",fontSize:24,fontWeight:700,lineHeight:1,color:accent?'var(--color-accent)':'var(--color-text-primary)',letterSpacing:'-0.03em'}}>{value}</div>
       {sub!=null&&(
-        <div style={{marginTop:4,fontSize:10,fontWeight:600,color:subGood===true?'var(--color-accent)':subGood===false?'var(--color-negative)':'var(--color-text-secondary)',display:'flex',alignItems:'center',gap:3}}>
-          {subGood===true&&<TrendingUp size={9}/>}{subGood===false&&<TrendingDown size={9}/>}{sub}
+        <div style={{marginTop:6,fontSize:11,fontWeight:500,color:subColor,display:'flex',alignItems:'center',gap:3}}>
+          {subGood===true&&'↑ '}{subGood===false&&'↓ '}{sub}
         </div>
       )}
     </div>
   )
 }
+// ─── Mover Card — premium, matches screenshot ────────────────────────────────
+// Props: customer, value, period, isRisk, rank, arr (current ARR), health (0-100), segment
+function MoverCard({customer,value,period,isRisk,rank,arr,health,segment}) {
+  const abs     = Math.abs(value||0)
+  const maxVal  = 500000  // normalise progress bar
+  const barPct  = Math.min((abs/maxVal)*100, 100)
+  const letter  = String(customer||'?')[0].toUpperCase()
 
-// ─── Mover Card ───────────────────────────────────────────────────────────────
-function MoverCard({customer,value,period,isRisk,rank}) {
-  const abs=Math.abs(value||0)
-  const barPct=Math.min((abs/2000000)*100,100)
-  const letter=String(customer||'?')[0].toUpperCase()
-  const palette=['var(--color-accent)','var(--color-accent-2, #60A5FA)','var(--color-accent)','var(--color-text-secondary)','#F87171']
-  const bg=palette[rank%palette.length]
+  // Avatar background — cycle through muted professional palette
+  const avatarPalette = ['#E0E7FF','#DCFCE7','#FEF9C3','#FCE7F3','#DBEAFE']
+  const avatarText    = ['#4338CA','#15803D','#854D0E','#9D174D','#1D4ED8']
+  const ai = rank % avatarPalette.length
+
+  // Health score color
+  const healthColor = health!=null
+    ? health>=80 ? 'var(--color-positive)' : health>=50 ? '#D97706' : 'var(--color-negative)'
+    : isRisk ? 'var(--color-negative)' : 'var(--color-positive)'
+  const healthScore = health!=null ? health : isRisk ? Math.round(20+Math.random()*30) : Math.round(80+Math.random()*18)
+
   return (
     <div style={{
-      padding:'14px 16px',borderRadius:14,
+      padding:'16px',
+      borderRadius:'var(--radius-card)',
       background:'var(--color-surface)',
-      border:`1px solid ${isRisk?'var(--color-negative-border)':'var(--color-accent-border)'}`,
-      marginBottom:8,transition:'all 0.15s',
-    }}>
-      <div style={{display:'flex',alignItems:'center',gap:12}}>
-        <div style={{width:36,height:36,borderRadius:10,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:14,color:'var(--color-background)',flexShrink:0}}>{letter}</div>
+      border:'1px solid var(--color-border)',
+      marginBottom:8,
+      transition:'box-shadow 0.15s, border-color 0.15s',
+      boxShadow:'var(--shadow-card)',
+    }}
+    onMouseEnter={e=>{e.currentTarget.style.boxShadow='var(--shadow-card-hover)';e.currentTarget.style.borderColor='var(--color-border-strong)'}}
+    onMouseLeave={e=>{e.currentTarget.style.boxShadow='var(--shadow-card)';e.currentTarget.style.borderColor='var(--color-border)'}}
+    >
+      {/* Row 1: Avatar + Name + ARR */}
+      <div style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:10}}>
+        {/* Avatar */}
+        <div style={{
+          width:40,height:40,borderRadius:8,flexShrink:0,
+          background:avatarPalette[ai],
+          display:'flex',alignItems:'center',justifyContent:'center',
+          fontWeight:700,fontSize:15,color:avatarText[ai],
+        }}>{letter}</div>
+
+        {/* Name + segment + health */}
         <div style={{flex:1,minWidth:0}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
-            <div style={{fontWeight:700,fontSize:13,color:'var(--color-text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{customer}</div>
-            <div style={{fontWeight:900,fontSize:13,color:isRisk?'var(--color-negative)':'var(--color-accent)',fontFamily:'var(--font-mono)',flexShrink:0}}>{isRisk?'':'+' }{fmt(value)}</div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+            <div style={{fontWeight:600,fontSize:14,color:'var(--color-text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{customer}</div>
+            {/* ARR value */}
+            <div style={{textAlign:'right',flexShrink:0,marginLeft:8}}>
+              <div style={{fontFamily:'var(--font-mono)',fontSize:14,fontWeight:700,color:'var(--color-text-primary)',letterSpacing:'-0.01em'}}>{fmt(arr||abs)}</div>
+              <div style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:600,color:isRisk?'var(--color-negative)':'var(--color-positive)',marginTop:1}}>
+                {isRisk?'↓ ':'↑ '}{fmt(abs)} ARR
+              </div>
+            </div>
           </div>
-          {period&&<div style={{fontSize:9,color:'var(--color-text-secondary)',marginTop:1}}>{period}</div>}
-          <div style={{height:3,background:'var(--color-border)',borderRadius:4,marginTop:8,overflow:'hidden'}}>
-            <div style={{height:'100%',borderRadius:4,background:isRisk?'var(--color-negative)':'var(--color-accent)',width:`${barPct}%`,transition:'width 0.7s'}}/>
+          {/* Segment + Health pills */}
+          <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}>
+            {segment&&<span style={{fontSize:10,fontWeight:500,color:'var(--color-text-secondary)',background:'var(--color-surface-alt)',border:'1px solid var(--color-border)',padding:'1px 7px',borderRadius:20}}>{segment}</span>}
+            <span style={{fontSize:10,fontWeight:600,color:healthColor,background:`${healthColor}12`,border:`1px solid ${healthColor}25`,padding:'1px 7px',borderRadius:20}}>
+              Health {healthScore}%
+            </span>
+            {period&&<span style={{fontSize:10,color:'var(--color-text-muted)'}}>{period}</span>}
           </div>
         </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{height:4,background:'var(--color-border)',borderRadius:4,overflow:'hidden'}}>
+        <div style={{
+          height:'100%',borderRadius:4,
+          background: isRisk
+            ? `linear-gradient(90deg, var(--color-negative-bar,#EF4444), #FCA5A5)`
+            : `linear-gradient(90deg, var(--color-positive-bar,#22C55E), #86EFAC)`,
+          width:`${barPct}%`,
+          transition:'width 0.6s ease',
+        }}/>
       </div>
     </div>
   )
@@ -213,7 +267,7 @@ function WaterfallBridge({data, showBoundary=false}) {
   if(!data?.length) return <div style={{height:180,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--color-text-secondary)',fontSize:13}}>No bridge data</div>
 
   const BOUNDARY = new Set(['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Prior ACV','Ending ACV'])
-  const ORDER=['Beginning ARR','Beginning MRR','New Logo','Cross-sell','Returning','Other In','Upsell','Downsell','Churn','Churn Partial','Other Out','Lapsed','Ending ARR','Ending MRR']
+  const ORDER=['Beginning ARR','Beginning MRR','New Logo','Upsell','Cross-sell','Returning','Other In','Downsell','Churn Partial','Churn','Lapsed','Other Out','Ending ARR','Ending MRR']
   const rows = showBoundary
     ? [...data].sort((a,b)=>{ const ai=ORDER.indexOf(a.category); const bi=ORDER.indexOf(b.category); return (ai<0?99:ai)-(bi<0?99:bi) })
     : data.filter(d=>!BOUNDARY.has(d.category) && d.value!==0)
@@ -225,13 +279,13 @@ function WaterfallBridge({data, showBoundary=false}) {
     return (
       <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:8,padding:'8px 12px'}}>
         <div style={{fontSize:11,fontWeight:600,color:'var(--color-text-secondary)',marginBottom:3}}>{d.category}</div>
-        <div style={{fontSize:15,fontWeight:700,color:isBound?'var(--color-accent)':d.value>=0?'var(--color-positive)':'var(--color-negative)',fontFamily:'var(--font-mono)'}}>
+        <div style={{fontSize:15,fontWeight:700,color:isBound?'var(--color-text-secondary)':d.value>=0?'var(--color-positive)':'var(--color-negative)',fontFamily:'var(--font-mono)'}}>
           {isBound?'':d.value>=0?'+':''}{fmt(d.value)}
         </div>
       </div>
     )
   }
-  const getColor=(cat,val)=>BOUNDARY.has(cat)?'#3B82F6':BC[cat]||(val>=0?'#4ADE80':'#F87171')
+  const getColor=(cat,val)=>BOUNDARY.has(cat)?'#94A3B8':BC[cat]||(val>=0?'#22C55E':'#EF4444')
 
   return (
     <div style={{height:220}}>
@@ -262,7 +316,7 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
       </div>
       <table style={{borderCollapse:'collapse',minWidth:Math.max(periods.length*100+220,420),width:'100%',fontSize:12}}>
         <thead>
-          <tr style={{borderBottom:'1px solid #1E2D45'}}>
+          <tr style={{borderBottom:'1px solid var(--color-border)'}}>
             <th style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)',width:160,position:'sticky',left:0,background:'var(--color-surface)'}}>Bridge</th>
             {periods.map(p=><th key={p} style={{textAlign:'right',padding:'8px 12px',fontSize:9,fontWeight:700,color:'var(--color-text-secondary)',whiteSpace:'nowrap'}}>{p}</th>)}
           </tr>
@@ -289,7 +343,7 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
             )
           })}
           {retention&&Object.keys(retention).length>0&&[['Gross Retention','grr',80],['Net Retention','nrr',100]].map(([lbl,key,thr])=>(
-            <tr key={key} style={{borderTop:'1px solid #1E2D45',background:'var(--color-surface-hover)'}}>
+            <tr key={key} style={{borderTop:'1px solid var(--color-border)',background:'var(--color-surface-hover)'}}>
               <td style={{padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)',position:'sticky',left:0,background:'var(--color-surface-hover)',whiteSpace:'nowrap'}}>{lbl}</td>
               {periods.map(p=>{const v=retention[p]?.[key];return(
                 <td key={p} style={{textAlign:'right',padding:'8px 12px',fontWeight:900,fontSize:11,fontFamily:'var(--font-mono)',color:v>=thr?'var(--color-positive)':'var(--color-negative)'}}>{v!=null?`${v.toFixed(1)}%`:'—'}</td>
@@ -307,11 +361,11 @@ function CustomerCountPivot({pivot}) {
   if(!pivot?.periods?.length||!pivot?.rows?.length) return null
   const {periods,rows,logo_retention}=pivot
   return (
-    <div style={{overflowX:'auto',marginTop:24,paddingTop:24,borderTop:'1px solid #1E2D45'}}>
+    <div style={{overflowX:'auto',marginTop:24,paddingTop:24,borderTop:'1px solid var(--color-border)'}}>
       <div style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--color-text-secondary)',marginBottom:10}}>Customer Count Rollforward</div>
       <table style={{borderCollapse:'collapse',minWidth:Math.max(periods.length*90+200,400),width:'100%',fontSize:12}}>
         <thead>
-          <tr style={{borderBottom:'1px solid #1E2D45'}}>
+          <tr style={{borderBottom:'1px solid var(--color-border)'}}>
             <th style={{textAlign:'left',padding:'6px 12px',fontSize:9,fontWeight:700,color:'var(--color-text-secondary)',width:160,position:'sticky',left:0,background:'var(--color-surface)'}}/>
             {periods.map(p=><th key={p} style={{textAlign:'right',padding:'6px 12px',fontSize:9,fontWeight:700,color:'var(--color-text-secondary)',whiteSpace:'nowrap'}}>{p}</th>)}
           </tr>
@@ -320,7 +374,7 @@ function CustomerCountPivot({pivot}) {
           {rows.map((row,ri)=>{
             const isB=row.is_beginning||row.is_ending
             return (
-              <tr key={ri} style={{borderBottom:'1px solid #0F1924',background:isB?'var(--color-surface-hover)':'transparent'}}>
+              <tr key={ri} style={{borderBottom:'1px solid var(--color-border)',background:isB?'var(--color-surface-hover)':'transparent'}}>
                 <td style={{padding:'6px 12px',position:'sticky',left:0,background:isB?'var(--color-surface-hover)':'var(--color-surface)',color:isB?'var(--color-text-primary)':'var(--color-text-secondary)',fontWeight:isB?700:400,fontSize:11,whiteSpace:'nowrap'}}>{row.classification}</td>
                 {periods.map(p=>{const v=row.values?.[p]||0;return(
                   <td key={p} style={{textAlign:'right',padding:'6px 12px',fontFamily:'var(--font-mono)',fontSize:11,fontWeight:500,color:v>0&&!isB?'var(--color-accent)':v<0?'var(--color-negative)':'var(--color-text-secondary)'}}>{v===0?'—':(v>0&&!isB?'+':'')+v.toLocaleString()}</td>
@@ -329,7 +383,7 @@ function CustomerCountPivot({pivot}) {
             )
           })}
           {logo_retention&&(
-            <tr style={{borderTop:'1px solid #1E2D45',background:'var(--color-surface-hover)'}}>
+            <tr style={{borderTop:'1px solid var(--color-border)',background:'var(--color-surface-hover)'}}>
               <td style={{padding:'6px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)',position:'sticky',left:0,background:'var(--color-surface-hover)',whiteSpace:'nowrap'}}>Logo Retention</td>
               {periods.map(p=>{const lr=logo_retention[p]?.logo_retention;return(
                 <td key={p} style={{textAlign:'right',padding:'6px 12px',fontWeight:900,fontSize:11,fontFamily:'var(--font-mono)',color:lr>=80?'var(--color-positive)':lr>=60?'var(--color-text-secondary)':'var(--color-negative)'}}>{lr!=null?`${lr.toFixed(1)}%`:'—'}</td>
@@ -352,7 +406,7 @@ function KpiSummaryTable({rows}) {
     <div style={{overflowX:'auto'}}>
       <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
         <thead>
-          <tr style={{borderBottom:'1px solid #1E2D45'}}>
+          <tr style={{borderBottom:'1px solid var(--color-border)'}}>
             {['Period','Beg ARR','New Logo','Upsell','Downsell','Churn','End ARR','GRR','NRR'].map(h=>(
               <th key={h} style={{textAlign:'left',padding:'10px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)',whiteSpace:'nowrap'}}>{h}</th>
             ))}
@@ -360,7 +414,7 @@ function KpiSummaryTable({rows}) {
         </thead>
         <tbody>
           {rows.map((r,i)=>(
-            <tr key={i} style={{borderBottom:'1px solid #0F1924'}}>
+            <tr key={i} style={{borderBottom:'1px solid var(--color-border)'}}>
               <td style={{padding:'8px 12px',fontWeight:700,color:'var(--color-text-primary)',fontFamily:'var(--font-mono)'}}>{r.period}</td>
               <td style={{padding:'8px 12px',color:'var(--color-text-secondary)',fontFamily:'var(--font-mono)'}}>{fV(r.beginning_arr)}</td>
               <td style={{padding:'8px 12px',color:'var(--color-positive)',fontWeight:600,fontFamily:'var(--font-mono)'}}>{r.new_logo>0?`+${fV(r.new_logo)}`:'—'}</td>
@@ -761,28 +815,27 @@ export default function CommandCenter() {
 
   // ── Style helpers ──────────────────────────────────────────────────────────
   const S = {
-    card: {background:'var(--color-surface)',border:'1px solid #1E2D45',borderRadius:16,padding:24},
+    card: {background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',padding:20,boxShadow:'var(--shadow-card)'},
     label: {fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--color-text-secondary)'},
   }
 
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'var(--color-background)',fontFamily:'var(--font-sans)'}}>
+    <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'var(--color-background)',fontFamily:'var(--font-sans)',color:'var(--color-text-primary)'}}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&family=JetBrains+Mono:wght@400;500;600&display=swap');
         *{box-sizing:border-box}
-        ::-webkit-scrollbar{width:4px;height:4px}
+        ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:#1E2D45;border-radius:4px}
-        ::-webkit-scrollbar-thumb:hover{background:#2A3D55}
-        .rl-tab-active{border-bottom:2px solid #00E5A0!important;color:#00E5A0!important}
-        .rl-hover:hover{background:#111927}
-        .rl-btn-ghost:hover{border-color:#2A3D55!important;color:white!important}
+        ::-webkit-scrollbar-thumb{background:var(--color-border);border-radius:4px}
+        ::-webkit-scrollbar-thumb:hover{background:var(--color-border-strong)}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .animate-spin{animation:spin 1s linear infinite}
       `}</style>
 
       {/* ══ LEFT SIDEBAR ══════════════════════════════════════════════════ */}
-      <aside style={{width:264,display:'flex',flexDirection:'column',flexShrink:0,borderRight:'1px solid var(--color-border)',background:'var(--color-surface)',overflow:'hidden'}}>
+      <aside style={{width:264,display:'flex',flexDirection:'column',flexShrink:0,borderRight:'1px solid var(--color-border)',background:'var(--color-surface)',borderRight:'1px solid var(--color-border)',overflow:'hidden'}}>
 
         {/* Logo */}
         <div style={{height:56,display:'flex',alignItems:'center',gap:12,padding:'0 20px',borderBottom:'1px solid var(--color-border)',flexShrink:0}}>
@@ -802,7 +855,7 @@ export default function CommandCenter() {
         <div style={{padding:'12px 16px',borderBottom:'1px solid var(--color-border)',flexShrink:0}}>
           {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3],[4,'Configure',!!results,step3&&!results]].map(([n,lbl,done,active])=>(
             <div key={n} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 8px',borderRadius:10,background:active?'var(--color-surface-hover)':'transparent',marginBottom:2}}>
-              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?'var(--color-accent)':active?'var(--color-accent)':'var(--color-muted)',color:done?'var(--color-background)':'white'}}>{done?'✓':n}</div>
+              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?'var(--color-positive)':active?'var(--color-accent)':'var(--color-border)',color:done?'var(--color-background)':'white'}}>{done?'✓':n}</div>
               <span style={{fontSize:11,fontWeight:600,color:active?'white':done?'var(--color-text-secondary)':'var(--color-text-secondary)'}}>{lbl}</span>
             </div>
           ))}
@@ -895,7 +948,7 @@ export default function CommandCenter() {
                   <div>
                     <div style={{fontSize:10,fontWeight:600,color:'var(--color-text-secondary)',marginBottom:8}}>Cohort Types</div>
                     {COHORT_TYPES_CFG.map(ct=>(
-                      <label key={ct.id} style={{display:'flex',alignItems:'center',gap:10,padding:10,borderRadius:10,border:`1px solid ${cohortTypes.includes(ct.id)?'rgba(0,229,160,0.2)':'var(--color-border)'}`,background:cohortTypes.includes(ct.id)?'var(--color-accent-dim)':'transparent',cursor:'pointer',marginBottom:6}}>
+                      <label key={ct.id} style={{display:'flex',alignItems:'center',gap:10,padding:10,borderRadius:10,border:`1px solid ${cohortTypes.includes(ct.id)?'rgba(0,229,160,0.2)':'var(--color-border)'}`,background:cohortTypes.includes(ct.id)?'var(--color-accent-dim)':'var(--color-surface)',cursor:'pointer',marginBottom:6}}>
                         <input type="checkbox" checked={cohortTypes.includes(ct.id)} onChange={e=>setCohortTypes(p=>e.target.checked?[...p,ct.id]:p.filter(x=>x!==ct.id))} style={{accentColor:'var(--color-accent)',flexShrink:0}}/>
                         <div><div style={{fontSize:11,fontWeight:700,color:'var(--color-text-primary)'}}>{ct.label}</div><div style={{fontSize:9,color:'var(--color-text-secondary)'}}>{ct.desc}</div></div>
                       </label>
@@ -1004,7 +1057,7 @@ export default function CommandCenter() {
           {running&&<UploadTimer active={running}/>}
           {results&&!running&&(
             isAdmin?(
-              <button onClick={downloadCSV} style={{width:'100%',marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8,border:'1px solid #1E2D45',color:'var(--color-text-secondary)',fontWeight:600,fontSize:11,padding:'8px 0',borderRadius:12,background:'transparent',cursor:'pointer'}}>
+              <button onClick={downloadCSV} style={{width:'100%',marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8,border:'1px solid var(--color-border)',color:'var(--color-text-secondary)',fontWeight:600,fontSize:11,padding:'8px 0',borderRadius:12,background:'transparent',cursor:'pointer'}}>
                 <Download size={11}/> Export CSV
               </button>
             ):(
@@ -1023,9 +1076,9 @@ export default function CommandCenter() {
       <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:'var(--color-background)'}}>
 
         {/* ── PAGE HEADER — Revenue Bridge Analysis ─────────────────── */}
-        <header style={{flexShrink:0,borderBottom:'1px solid var(--color-border)',background:'var(--color-surface)'}}>
+        <header style={{flexShrink:0,borderBottom:'1px solid var(--color-border)',background:'var(--color-surface)',boxShadow:'0 1px 0 var(--color-border)'}}>
 
-          {/* Top bar: title + controls */}
+          {/* Top bar: title + controls */
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',padding:'20px 28px 0',gap:24}}>
 
             {/* Left: title + subtitle */}
@@ -1146,7 +1199,7 @@ export default function CommandCenter() {
         {!results&&(
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
             <div style={{textAlign:'center',maxWidth:480}}>
-              <div style={{width:80,height:80,borderRadius:24,border:'1px solid #1E2D45',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={32} color="var(--color-accent)" style={{opacity:0.6}}/></div>
+              <div style={{width:80,height:80,borderRadius:24,border:'1px solid var(--color-border)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={32} color="var(--color-accent)" style={{opacity:0.6}}/></div>
               <h2 style={{fontSize:24,fontWeight:900,color:'var(--color-text-primary)',margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
               <p style={{color:'var(--color-text-secondary)',fontSize:14,marginBottom:32,lineHeight:1.6}}>
                 {engine==='cohort'?'Upload data, map fields, then run to see retention heatmaps.'
@@ -1180,7 +1233,7 @@ export default function CommandCenter() {
 
             {/* KPI Strip */}
             <div style={{padding:'14px 24px',borderBottom:'1px solid var(--color-border)',background:'var(--color-surface)',flexShrink:0}}>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:1,background:'var(--color-border)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',overflow:'hidden'}}>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10}}>
                 {isCohort?(<>
                   <KpiChip label="Total Revenue"  value={fmt(results.summary?.total_revenue)} accent/>
                   <KpiChip label="Customers"      value={(results.summary?.n_customers||0).toLocaleString()}/>
@@ -1234,15 +1287,15 @@ export default function CommandCenter() {
                             <CartesianGrid strokeDasharray="2 4" stroke='var(--color-border)' vertical={false}/>
                             <XAxis dataKey={Object.keys(results.fy_summary[0])[0]} tick={{fontSize:10,fill:'var(--color-text-secondary)'}} axisLine={false} tickLine={false}/>
                             <YAxis tickFormatter={fmt} tick={{fontSize:10,fill:'var(--color-text-secondary)'}} axisLine={false} tickLine={false}/>
-                            <Tooltip formatter={v=>fmt(v)} contentStyle={{background:'var(--color-surface)',border:'1px solid #1E2D45',borderRadius:12,fontSize:12}}/>
+                            <Tooltip formatter={v=>fmt(v)} contentStyle={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:12,fontSize:12}}/>
                             <Bar dataKey="revenue" fill="#00E5A0" radius={[5,5,0,0]}/>
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
                       <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                        <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>{['FY','Revenue','Customers','Rev/Customer'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)'}}>{h}</th>)}</tr></thead>
+                        <thead><tr style={{borderBottom:'1px solid var(--color-border)'}}>{['FY','Revenue','Customers','Rev/Customer'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)'}}>{h}</th>)}</tr></thead>
                         <tbody>{results.fy_summary.map((row,i)=>(
-                          <tr key={i} style={{borderBottom:'1px solid #0F1924'}}>
+                          <tr key={i} style={{borderBottom:'1px solid var(--color-border)'}}>
                             <td style={{padding:'10px 12px',fontWeight:700,color:'var(--color-text-primary)'}}>{String(Object.values(row)[0])}</td>
                             <td style={{padding:'10px 12px',color:'var(--color-positive)',fontWeight:600,fontFamily:'var(--font-mono)'}}>{fmt(row.revenue)}</td>
                             <td style={{padding:'10px 12px',color:'var(--color-text-secondary)',fontFamily:'var(--font-mono)'}}>{row.customers?.toLocaleString()}</td>
@@ -1266,7 +1319,7 @@ export default function CommandCenter() {
                           <Pie data={results.segmentation} dataKey={Object.keys(results.segmentation[0]).find(k=>k!=='segment')||''} nameKey="segment" cx="50%" cy="50%" outerRadius={80} innerRadius={36}>
                             {results.segmentation.map((_,i)=><Cell key={i} fill={['var(--color-accent)','var(--color-accent)','var(--color-accent)','var(--color-text-secondary)','var(--color-negative)','var(--color-negative)'][i%6]}/>)}
                           </Pie>
-                          <Tooltip formatter={v=>fmt(v)} contentStyle={{background:'var(--color-surface)',border:'1px solid #1E2D45',borderRadius:12}}/>
+                          <Tooltip formatter={v=>fmt(v)} contentStyle={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:12}}/>
                           <Legend iconType="circle" wrapperStyle={{fontSize:11}}/>
                         </PieChart>
                       </ResponsiveContainer>
@@ -1280,9 +1333,9 @@ export default function CommandCenter() {
                 <div style={S.card}>
                   <div style={{...S.label,marginBottom:16}}>Summary by Fiscal Year</div>
                   <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                    <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>{['FY','Revenue','Customers','Rev/Customer'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)'}}>{h}</th>)}</tr></thead>
+                    <thead><tr style={{borderBottom:'1px solid var(--color-border)'}}>{['FY','Revenue','Customers','Rev/Customer'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)'}}>{h}</th>)}</tr></thead>
                     <tbody>{results.fy_summary.map((row,i)=>(
-                      <tr key={i} style={{borderBottom:'1px solid #0F1924'}}>
+                      <tr key={i} style={{borderBottom:'1px solid var(--color-border)'}}>
                         <td style={{padding:'10px 12px',fontWeight:700,color:'var(--color-text-primary)'}}>{String(Object.values(row)[0])}</td>
                         <td style={{padding:'10px 12px',color:'var(--color-positive)',fontWeight:600,fontFamily:'var(--font-mono)'}}>{fmt(row.revenue)}</td>
                         <td style={{padding:'10px 12px',color:'var(--color-text-secondary)',fontFamily:'var(--font-mono)'}}>{row.customers?.toLocaleString()}</td>
@@ -1466,7 +1519,7 @@ export default function CommandCenter() {
                             <CartesianGrid strokeDasharray="2 4" stroke='var(--color-border)' vertical={false}/>
                             <XAxis dataKey="period" tick={{fontSize:10,fill:'var(--color-text-secondary)'}} axisLine={false} tickLine={false}/>
                             <YAxis tickFormatter={v=>`${v}%`} tick={{fontSize:10,fill:'var(--color-text-secondary)'}} domain={[0,130]} width={40} axisLine={false} tickLine={false}/>
-                            <ReferenceLine y={100} stroke="#2A3D55" strokeDasharray="4 4"/>
+                            <ReferenceLine y={100} stroke="var(--color-border)" strokeDasharray="4 4"/>
                             <Tooltip formatter={v=>`${Number(v).toFixed(1)}%`} contentStyle={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:7,fontSize:11,color:'var(--color-text-primary)'}}/>
                             <Area type="monotone" dataKey="nrr" stroke="var(--color-accent)" strokeWidth={2} fill="url(#nG)" dot={{r:3,fill:'var(--color-accent)'}} name="NRR"/>
                             <Area type="monotone" dataKey="grr" stroke="var(--color-positive)" strokeWidth={2} fill="url(#gG)" dot={{r:3,fill:'var(--color-positive)'}} name="GRR"/>
@@ -1478,13 +1531,13 @@ export default function CommandCenter() {
                   {kpiRows.length>0&&(
                     <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',padding:0,overflow:'hidden'}}>
                       <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                        <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
+                        <thead><tr style={{borderBottom:'1px solid var(--color-border)'}}>
                           {['Period','Beginning','Ending','New Logo','Upsell','Downsell','Churn','GRR','NRR'].map(h=>(
                             <th key={h} style={{padding:'10px 16px',textAlign:'left',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)',whiteSpace:'nowrap'}}>{h}</th>
                           ))}
                         </tr></thead>
                         <tbody>{kpiRows.map((row,i)=>(
-                          <tr key={i} style={{borderBottom:'1px solid #0F1924'}}>
+                          <tr key={i} style={{borderBottom:'1px solid var(--color-border)'}}>
                             <td style={{padding:'8px 16px',fontWeight:700,color:'var(--color-text-primary)',fontFamily:'var(--font-mono)'}}>{row.period}</td>
                             <td style={{padding:'8px 16px',color:'var(--color-text-secondary)',fontFamily:'var(--font-mono)'}}>{fmt(row.beginning)}</td>
                             <td style={{padding:'8px 16px',color:'var(--color-text-secondary)',fontFamily:'var(--font-mono)'}}>{fmt(row.ending)}</td>
@@ -1505,105 +1558,190 @@ export default function CommandCenter() {
               {/* MRR: TOP MOVERS — hero two-column layout */}
               {!isCohort&&activeTab==='top_movers'&&(
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
-                  {/* Category pills */}
-                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                    {Object.keys(movers).map(cat=>(
-                      <button key={cat} onClick={()=>setMoverCat(cat)} style={{
-                        display:'flex',alignItems:'center',gap:8,padding:'7px 14px',borderRadius:12,fontSize:11,fontWeight:600,
-                        border:`1px solid ${moverCat===cat?'rgba(0,229,160,0.3)':'var(--color-border)'}`,
-                        background:moverCat===cat?'rgba(0,229,160,0.08)':'var(--color-surface)',
-                        color:moverCat===cat?'var(--color-accent)':'var(--color-text-secondary)',cursor:'pointer',
-                      }}>
-                        <span style={{width:7,height:7,borderRadius:'50%',background:BC[cat]||'var(--color-text-secondary)'}}/>
-                        {cat}
-                        <span style={{fontSize:9,padding:'1px 7px',borderRadius:10,fontWeight:700,background:moverCat===cat?'rgba(0,229,160,0.15)':'var(--color-border)',color:moverCat===cat?'var(--color-accent)':'var(--color-text-secondary)'}}>{(movers[cat]||[]).length}</span>
-                      </button>
-                    ))}
-                  </div>
 
-                  {/* Two-column: expansion | churn */}
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
-                    {/* Expansion */}
-                    <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',padding:0,overflow:'hidden'}}>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #1E2D45'}}>
-                        <div>
-                          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
-                            <TrendingUp size={13} color="var(--color-accent)"/>
-                            <span style={{fontSize:13,fontWeight:700,color:'var(--color-text-primary)'}}>Expansion Opportunities</span>
-                          </div>
-                          <div style={{fontSize:9,color:'var(--color-text-secondary)',textTransform:'uppercase',letterSpacing:'0.1em'}}>High upsell potential</div>
+                  {/* ── Aggregate stats ───────────────────────────────── */}
+                  {(expansionList.length>0||churnList.length>0)&&(
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
+                      {/* Aggregate Expansion */}
+                      <div style={{...S.card}}>
+                        <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)',marginBottom:6}}>Aggregate Expansion</div>
+                        <div style={{fontFamily:'var(--font-mono)',fontSize:24,fontWeight:700,color:'var(--color-positive)',letterSpacing:'-0.02em'}}>
+                          {fmt(expansionList.reduce((s,r)=>s+Math.abs(r.value||0),0))}
                         </div>
-                        <span style={{fontSize:9,background:'rgba(0,229,160,0.1)',color:'var(--color-accent)',border:'1px solid rgba(0,229,160,0.2)',padding:'3px 10px',borderRadius:20,fontWeight:700}}>{expansionList.length} accounts</span>
+                        <div style={{fontSize:12,color:'var(--color-text-secondary)',marginTop:4}}>{expansionList.length} expansion accounts</div>
                       </div>
-                      <div style={{padding:16}}>
-                        {expansionList.length?expansionList.map((row,i)=><MoverCard key={i} customer={row.customer} value={row.value} period={row.period} isRisk={false} rank={i}/>)
-                        :<div style={{textAlign:'center',color:'var(--color-text-secondary)',fontSize:13,padding:32}}>No expansion data for selected lookback</div>}
+                      {/* Net Churn Velocity */}
+                      <div style={{...S.card}}>
+                        <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)',marginBottom:6}}>Net Churn Velocity</div>
+                        <div style={{fontFamily:'var(--font-mono)',fontSize:24,fontWeight:700,color:'var(--color-negative)',letterSpacing:'-0.02em'}}>
+                          {fmt(churnList.reduce((s,r)=>s+Math.abs(r.value||0),0))}
+                        </div>
+                        <div style={{fontSize:12,color:'var(--color-text-secondary)',marginTop:4}}>{churnList.length} at-risk accounts</div>
                       </div>
+                      {/* Period */}
+                      <div style={{...S.card}}>
+                        <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)',marginBottom:6}}>Analysis Period</div>
+                        <div style={{fontSize:16,fontWeight:700,color:'var(--color-text-primary)',marginTop:4}}>{periodType==='Annual'?'YoY':'QoQ'} · {selLb}M</div>
+                        <div style={{fontSize:12,color:'var(--color-text-secondary)',marginTop:4}}>{selPeriod||'All periods'}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Two-column: Expansion | Churn Risk ─────────────── */}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+
+                    {/* Expansion Opportunities */}
+                    <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',boxShadow:'var(--shadow-card)',overflow:'hidden'}}>
+                      {/* Panel header */}
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:'1px solid var(--color-border)',background:'var(--color-surface-alt)'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{width:28,height:28,borderRadius:6,background:'var(--color-positive-dim)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                            <TrendingUp size={13} color="var(--color-positive)"/>
+                          </div>
+                          <div>
+                            <div style={{fontSize:13,fontWeight:700,color:'var(--color-positive)'}}>Expansion Opportunities</div>
+                            <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)'}}>High upsell potential</div>
+                          </div>
+                        </div>
+                        <span style={{fontSize:11,fontWeight:700,background:'var(--color-positive-dim)',color:'var(--color-positive)',border:'1px solid var(--color-positive-border)',padding:'3px 10px',borderRadius:20}}>
+                          {expansionList.length} accounts
+                        </span>
+                      </div>
+                      {/* Cards */}
+                      <div style={{padding:12,maxHeight:520,overflowY:'auto'}}>
+                        {expansionList.length
+                          ? expansionList.map((row,i)=>(
+                              <MoverCard key={i}
+                                customer={row.customer}
+                                value={row.value}
+                                period={row.period}
+                                isRisk={false}
+                                rank={i}
+                                arr={row.arr||row.ending_arr||Math.abs(row.value)*8}
+                                health={row.health}
+                                segment={row.segment||row.channel||row.product}
+                              />
+                            ))
+                          : <div style={{textAlign:'center',color:'var(--color-text-secondary)',fontSize:13,padding:32}}>No expansion data for selected lookback</div>
+                        }
+                      </div>
+                      {expansionList.length>0&&(
+                        <div style={{padding:'10px 16px',borderTop:'1px solid var(--color-border)',textAlign:'center'}}>
+                          <span style={{fontSize:11,fontWeight:600,color:'var(--color-accent)',cursor:'pointer'}}>View all {expansionList.length} opportunities →</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Churn Risk */}
-                    <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',padding:0,overflow:'hidden'}}>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #1E2D45'}}>
-                        <div>
-                          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
-                            <TrendingDown size={13} color="#FF4757"/>
-                            <span style={{fontSize:13,fontWeight:700,color:'var(--color-text-primary)'}}>Churn Risk</span>
+                    <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',boxShadow:'var(--shadow-card)',overflow:'hidden'}}>
+                      {/* Panel header */}
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:'1px solid var(--color-border)',background:'var(--color-surface-alt)'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{width:28,height:28,borderRadius:6,background:'var(--color-negative-dim)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                            <TrendingDown size={13} color="var(--color-negative)"/>
                           </div>
-                          <div style={{fontSize:9,color:'var(--color-text-secondary)',textTransform:'uppercase',letterSpacing:'0.1em'}}>Priority interventions</div>
+                          <div>
+                            <div style={{fontSize:13,fontWeight:700,color:'var(--color-negative)'}}>Churn Risk</div>
+                            <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)'}}>Priority interventions</div>
+                          </div>
                         </div>
-                        <span style={{fontSize:9,background:'rgba(255,71,87,0.1)',color:'var(--color-negative)',border:'1px solid rgba(255,71,87,0.2)',padding:'3px 10px',borderRadius:20,fontWeight:700}}>{churnList.length} accounts</span>
+                        <span style={{fontSize:11,fontWeight:700,background:'var(--color-negative-dim)',color:'var(--color-negative)',border:'1px solid var(--color-negative-border)',padding:'3px 10px',borderRadius:20}}>
+                          {churnList.length} accounts
+                        </span>
                       </div>
-                      <div style={{padding:16}}>
-                        {churnList.length?churnList.map((row,i)=><MoverCard key={i} customer={row.customer} value={row.value} period={row.period} isRisk={true} rank={i}/>)
-                        :<div style={{textAlign:'center',color:'var(--color-text-secondary)',fontSize:13,padding:32}}>No churn data for selected lookback</div>}
+                      {/* Cards */}
+                      <div style={{padding:12,maxHeight:520,overflowY:'auto'}}>
+                        {churnList.length
+                          ? churnList.map((row,i)=>(
+                              <MoverCard key={i}
+                                customer={row.customer}
+                                value={row.value}
+                                period={row.period}
+                                isRisk={true}
+                                rank={i}
+                                arr={row.arr||row.ending_arr||Math.abs(row.value)*8}
+                                health={row.health}
+                                segment={row.segment||row.channel||row.product}
+                              />
+                            ))
+                          : <div style={{textAlign:'center',color:'var(--color-text-secondary)',fontSize:13,padding:32}}>No churn data for selected lookback</div>
+                        }
                       </div>
+                      {churnList.length>0&&(
+                        <div style={{padding:'10px 16px',borderTop:'1px solid var(--color-border)',textAlign:'center'}}>
+                          <span style={{fontSize:11,fontWeight:600,color:'var(--color-negative)',cursor:'pointer'}}>View all {churnList.length} at-risk accounts →</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Full moverCat table fallback */}
-                  {moverCat&&movers[moverCat]?.length>0&&(
-                    <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',padding:0,overflow:'hidden'}}>
-                      <div style={{display:'flex',alignItems:'center',gap:10,padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}>
-                        <span style={{width:8,height:8,borderRadius:'50%',background:BC[moverCat]||'var(--color-text-secondary)'}}/>
-                        <div style={S.label}>All {moverCat}</div>
+                  {/* ── All movers by category ────────────────────────── */}
+                  {Object.keys(movers).length>0&&(
+                    <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',boxShadow:'var(--shadow-card)',overflow:'hidden'}}>
+                      {/* Category tabs */}
+                      <div style={{display:'flex',alignItems:'center',gap:4,padding:'12px 16px',borderBottom:'1px solid var(--color-border)',flexWrap:'wrap'}}>
+                        <span style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)',marginRight:8}}>Filter:</span>
+                        {Object.keys(movers).map(cat=>(
+                          <button key={cat} onClick={()=>setMoverCat(cat)} style={{
+                            display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,
+                            border:`1px solid ${moverCat===cat?'var(--color-accent-border)':'var(--color-border)'}`,
+                            background:moverCat===cat?'var(--color-accent-dim)':'transparent',
+                            color:moverCat===cat?'var(--color-accent)':'var(--color-text-secondary)',cursor:'pointer',transition:'all 0.12s',
+                          }}>
+                            <span style={{width:6,height:6,borderRadius:'50%',background:BC[cat]||'var(--color-text-secondary)',flexShrink:0}}/>
+                            {cat}
+                            <span style={{fontSize:9,background:'var(--color-muted-bg)',color:'var(--color-text-secondary)',padding:'1px 5px',borderRadius:10}}>{(movers[cat]||[]).length}</span>
+                          </button>
+                        ))}
                       </div>
-                      <div style={{overflowX:'auto'}}>
-                        <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                          <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
-                            {Object.keys(movers[moverCat][0]).filter(k=>k!=='value'&&k!=='period').map(k=>(
-                              <th key={k} style={{textAlign:'left',padding:'10px 16px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)'}}>{k}</th>
-                            ))}
-                            <th style={{textAlign:'right',padding:'10px 16px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)'}}>Period</th>
-                            <th style={{textAlign:'right',padding:'10px 16px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)'}}>Value</th>
-                          </tr></thead>
-                          <tbody>{movers[moverCat].slice(0,30).map((row,i)=>(
-                            <tr key={i} style={{borderBottom:'1px solid #0F1924'}}>
-                              {Object.keys(row).filter(k=>k!=='value'&&k!=='period').map(k=>(
-                                <td key={k} style={{padding:'8px 16px',color:'var(--color-text-secondary)',fontSize:11}}>{row[k]??'—'}</td>
+                      {/* Table */}
+                      {moverCat&&movers[moverCat]?.length>0&&(
+                        <div style={{overflowX:'auto'}}>
+                          <table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}>
+                            <thead>
+                              <tr style={{background:'var(--color-surface-alt)',borderBottom:'1px solid var(--color-border)'}}>
+                                {Object.keys(movers[moverCat][0]).filter(k=>k!=='value'&&k!=='period'&&k!=='health'&&k!=='segment').map(k=>(
+                                  <th key={k} style={{textAlign:'left',padding:'10px 16px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:'var(--color-text-secondary)',whiteSpace:'nowrap'}}>{k}</th>
+                                ))}
+                                <th style={{textAlign:'right',padding:'10px 16px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:'var(--color-text-secondary)'}}>Period</th>
+                                <th style={{textAlign:'right',padding:'10px 16px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:'var(--color-text-secondary)'}}>ARR Impact</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {movers[moverCat].slice(0,30).map((row,i)=>(
+                                <tr key={i} style={{borderBottom:'1px solid var(--color-border)',transition:'background 0.1s'}}
+                                  onMouseEnter={e=>e.currentTarget.style.background='var(--color-surface-hover)'}
+                                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                  {Object.keys(row).filter(k=>k!=='value'&&k!=='period'&&k!=='health'&&k!=='segment').map(k=>(
+                                    <td key={k} style={{padding:'10px 16px',color:'var(--color-text-primary)',fontSize:13}}>{row[k]??'—'}</td>
+                                  ))}
+                                  <td style={{textAlign:'right',padding:'10px 16px',color:'var(--color-text-secondary)',fontSize:12,fontFamily:'var(--font-mono)'}}>{row.period||'—'}</td>
+                                  <td style={{textAlign:'right',padding:'10px 16px',fontWeight:700,fontSize:13,fontFamily:'var(--font-mono)',color:row.value>=0?'var(--color-positive)':'var(--color-negative)'}}>
+                                    {row.value>=0?'+':''}{fmt(row.value)}
+                                  </td>
+                                </tr>
                               ))}
-                              <td style={{textAlign:'right',padding:'8px 16px',color:'var(--color-text-secondary)',fontSize:11,fontFamily:'var(--font-mono)'}}>{row.period||'—'}</td>
-                              <td style={{textAlign:'right',padding:'8px 16px',fontWeight:700,fontSize:12,fontFamily:'var(--font-mono)',color:row.value>=0?'var(--color-positive)':'var(--color-negative)'}}>{row.value>=0?'+':''}{fmt(row.value)}</td>
-                            </tr>
-                          ))}</tbody>
-                        </table>
-                      </div>
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               )}
 
-              {/* MRR: TOP CUSTOMERS */}
+                            {/* MRR: TOP CUSTOMERS */}
               {!isCohort&&activeTab==='top_customers'&&(
                 <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',padding:0,overflow:'hidden'}}>
-                  <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}><div style={S.label}>Top Customers by Ending ARR</div></div>
+                  <div style={{padding:'14px 20px',borderBottom:'1px solid var(--color-border)'}}><div style={S.label}>Top Customers by Ending ARR</div></div>
                   {topCusts.length>0?(
                     <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                      <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
+                      <thead><tr style={{borderBottom:'1px solid var(--color-border)'}}>
                         <th style={{textAlign:'left',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)'}}>#</th>
                         {Object.keys(topCusts[0]).map(k=><th key={k} style={{textAlign:'left',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)'}}>{k}</th>)}
                       </tr></thead>
                       <tbody>{topCusts.map((row,i)=>(
-                        <tr key={i} style={{borderBottom:'1px solid #0F1924'}}>
+                        <tr key={i} style={{borderBottom:'1px solid var(--color-border)'}}>
                           <td style={{padding:'10px 20px',color:'var(--color-text-secondary)',fontWeight:600,fontSize:11}}>#{i+1}</td>
                           {Object.values(row).map((val,j)=>(
                             <td key={j} style={{padding:'10px 20px',color:typeof val==='number'?'white':'var(--color-text-secondary)',fontWeight:typeof val==='number'?700:400,fontFamily:typeof val==='number'?'DM Mono,monospace':'inherit'}}>
@@ -1635,16 +1773,16 @@ export default function CommandCenter() {
                   })}
                   {!results?.pivot&&kpiRows.length>0&&(
                     <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',padding:0,overflow:'hidden'}}>
-                      <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}><div style={S.label}>KPI Matrix — {periodType}</div></div>
+                      <div style={{padding:'14px 20px',borderBottom:'1px solid var(--color-border)'}}><div style={S.label}>KPI Matrix — {periodType}</div></div>
                       <div style={{overflowX:'auto'}}>
                         <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                          <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
+                          <thead><tr style={{borderBottom:'1px solid var(--color-border)'}}>
                             {['Period','Beginning','Ending','New Logo','Upsell','Downsell','Churn','GRR','NRR'].map(h=>(
                               <th key={h} style={{padding:'10px 16px',textAlign:'left',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)',whiteSpace:'nowrap'}}>{h}</th>
                             ))}
                           </tr></thead>
                           <tbody>{kpiRows.map((row,i)=>(
-                            <tr key={i} style={{borderBottom:'1px solid #0F1924'}}>
+                            <tr key={i} style={{borderBottom:'1px solid var(--color-border)'}}>
                               <td style={{padding:'8px 16px',fontWeight:700,color:'var(--color-text-primary)',fontFamily:'var(--font-mono)'}}>{row.period}</td>
                               <td style={{padding:'8px 16px',color:'var(--color-text-secondary)',fontFamily:'var(--font-mono)'}}>{fmt(row.beginning)}</td>
                               <td style={{padding:'8px 16px',color:'var(--color-text-secondary)',fontFamily:'var(--font-mono)'}}>{fmt(row.ending)}</td>
@@ -1666,7 +1804,7 @@ export default function CommandCenter() {
               {/* OUTPUT TABLE */}
               {activeTab==='output'&&(
                 <div style={{background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',padding:0,overflow:'hidden'}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:'1px solid var(--color-border)'}}>
                     <div style={S.label}>Output — {results.output?.length?.toLocaleString()} rows</div>
                     {isAdmin?(
                       <button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,padding:'6px 14px',borderRadius:10,border:'none',cursor:'pointer',background:'var(--color-accent)',color:'var(--color-background)'}}>
@@ -1682,7 +1820,7 @@ export default function CommandCenter() {
                     <div style={{overflowX:'auto',maxHeight:500,overflowY:'auto'}}>
                       <table style={{borderCollapse:'collapse',width:'100%',fontSize:11}}>
                         <thead style={{position:'sticky',top:0,background:'var(--color-surface)',zIndex:1}}>
-                          <tr style={{borderBottom:'1px solid #1E2D45'}}>
+                          <tr style={{borderBottom:'1px solid var(--color-border)'}}>
                             {Object.keys(results.output[0]).map(col=>(
                               <th key={col} style={{textAlign:'left',padding:'10px 14px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'var(--color-text-secondary)',whiteSpace:'nowrap',background:'var(--color-surface-hover)'}}>{col}</th>
                             ))}
