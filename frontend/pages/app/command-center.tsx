@@ -162,18 +162,18 @@ function UploadTimer({active}) {
 
 // ─── KPI Chip ─────────────────────────────────────────────────────────────────
 function KpiChip({label,value,sub,subGood,accent}) {
-  const subColor = subGood===true?'var(--color-positive)':subGood===false?'var(--color-negative)':'var(--color-text-secondary)'
+  const subColor = subGood===true?'#16A34A':subGood===false?'#DC2626':'#64748B'
   return (
     <div style={{
-      background:   'var(--color-surface)',
-      border:       '1px solid var(--color-border)',
-      borderRadius: 'var(--radius-card)',
+      background:   '#FFFFFF',
+      border:       '1px solid #E2E8F0',
+      borderRadius: 8,
       padding:      '16px 20px',
-      borderTop:    accent ? '3px solid var(--color-accent)' : '3px solid transparent',
-      boxShadow:    'var(--shadow-card)',
+      borderTop:    accent ? '3px solid #1D4ED8' : '3px solid transparent',
+      boxShadow:    '0 1px 3px rgba(0,0,0,0.07)',
     }}>
-      <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)',marginBottom:8}}>{label}</div>
-      <div style={{fontFamily:'var(--font-mono)',fontFeatureSettings:"'tnum'",fontSize:24,fontWeight:700,lineHeight:1,color:accent?'var(--color-accent)':'var(--color-text-primary)',letterSpacing:'-0.03em'}}>{value}</div>
+      <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#64748B',marginBottom:8}}>{label}</div>
+      <div style={{fontFamily:'var(--font-mono)',fontFeatureSettings:"'tnum'",fontSize:24,fontWeight:700,lineHeight:1,color:accent?'#1D4ED8':'#0F172A',letterSpacing:'-0.03em'}}>{value}</div>
       {sub!=null&&(
         <div style={{marginTop:6,fontSize:11,fontWeight:500,color:subColor,display:'flex',alignItems:'center',gap:3}}>
           {subGood===true&&'↑ '}{subGood===false&&'↓ '}{sub}
@@ -205,11 +205,11 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment}) {
     <div style={{
       padding:'16px',
       borderRadius:'var(--radius-card)',
-      background:'var(--color-surface)',
-      border:'1px solid var(--color-border)',
+      background:'#FFFFFF',
+      border:'1px solid #E2E8F0',
       marginBottom:8,
       transition:'box-shadow 0.15s, border-color 0.15s',
-      boxShadow:'var(--shadow-card)',
+      boxShadow:'0 1px 3px rgba(0,0,0,0.07)',
     }}
     onMouseEnter={e=>{e.currentTarget.style.boxShadow='var(--shadow-card-hover)';e.currentTarget.style.borderColor='var(--color-border-strong)'}}
     onMouseLeave={e=>{e.currentTarget.style.boxShadow='var(--shadow-card)';e.currentTarget.style.borderColor='var(--color-border)'}}
@@ -251,9 +251,7 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment}) {
       <div style={{height:4,background:'var(--color-border)',borderRadius:4,overflow:'hidden'}}>
         <div style={{
           height:'100%',borderRadius:4,
-          background: isRisk
-            ? `linear-gradient(90deg, var(--color-negative-bar,#EF4444), #FCA5A5)`
-            : `linear-gradient(90deg, var(--color-positive-bar,#22C55E), #86EFAC)`,
+          background: isRisk ? '#EF4444' : '#22C55E',
           width:`${barPct}%`,
           transition:'width 0.6s ease',
         }}/>
@@ -574,6 +572,42 @@ export default function CommandCenter() {
   const movers   = results?.top_movers || {}
   const topCusts = results?.top_customers || []
 
+  // ── Mover data helpers ────────────────────────────────────────────
+  // API returns: { 'Customer Name': 'Acme', 'Period': '2025', 'Churn Value': -123 }
+  // We need to find the right keys dynamically
+  function getMoverCustomer(row) {
+    if (!row) return '?'
+    // Try common key names first
+    if (row.customer) return row.customer
+    if (row.Customer) return row.Customer
+    // Use fieldMap.customer column name
+    const custKey = fieldMap.customer
+    if (custKey && row[custKey] != null) return String(row[custKey])
+    // Fallback: first non-period, non-value string key
+    const key = Object.keys(row).find(k =>
+      k !== 'Period' && !k.includes('Value') && !k.includes('period') &&
+      typeof row[k] === 'string'
+    )
+    return key ? String(row[key]) : '?'
+  }
+
+  function getMoverValue(row, cat) {
+    if (!row) return 0
+    if (row.value != null) return row.value
+    // Try '{cat} Value' key
+    if (row[`${cat} Value`] != null) return row[`${cat} Value`]
+    // Try 'Bridge Value' or 'Bridge_Value'
+    if (row['Bridge_Value'] != null) return row['Bridge_Value']
+    if (row['Bridge Value'] != null) return row['Bridge Value']
+    // Find any numeric value key
+    const key = Object.keys(row).find(k => k.includes('Value') && typeof row[k] === 'number')
+    return key ? row[key] : 0
+  }
+
+  function getMoverPeriod(row) {
+    return row?.Period || row?.period || ''
+  }
+
   // Available periods from data (for period selector)
   // Pull from by_period data — each item has _period field like 'Jan-25'
   const availablePeriods = useMemo(() => {
@@ -608,20 +642,22 @@ export default function CommandCenter() {
 
   // Expansion / churn lists for Top Movers tab
   const expansionList = useMemo(() => {
-    if (moverCat && movers[moverCat]) return movers[moverCat].filter(r=>r.value>0).slice(0,20)
-    for (const cat of ['Upsell','New Logo','Cross-sell','Returning']) {
-      if (movers[cat]?.length) return movers[cat].slice(0,20)
+    // Positive categories — these always have positive values
+    const posCats = ['New Logo','Upsell','Cross-sell','Returning','Other In']
+    for (const cat of posCats) {
+      if (movers[cat]?.length) return movers[cat].map(r => ({...r, _cat:cat})).slice(0,20)
     }
     return []
-  }, [moverCat, movers])
+  }, [movers])
 
   const churnList = useMemo(() => {
-    for (const cat of ['Churn','Churn Partial']) {
-      if (movers[cat]?.length) return movers[cat].slice(0,20)
+    // Negative categories — these always have negative values
+    const negCats = ['Churn','Churn-Partial','Churn Partial','Lapsed','Downsell','Other Out']
+    for (const cat of negCats) {
+      if (movers[cat]?.length) return movers[cat].map(r => ({...r, _cat:cat})).slice(0,20)
     }
-    if (moverCat && movers[moverCat]) return movers[moverCat].filter(r=>r.value<0).slice(0,20)
     return []
-  }, [moverCat, movers])
+  }, [movers])
 
   useEffect(() => {
     supabase.auth.getSession().then(({data:{session}}) => {
@@ -709,7 +745,11 @@ export default function CommandCenter() {
         const {data}=await axios.post(endpoint,fd,{timeout:120000})
         setResults({...data,_engine:engine}); setActiveTab('summary')
         if (lookbacks.length) setSelLb(lookbacks[lookbacks.length-1])
-        const cats=Object.keys(data.top_movers||{}); if(cats.length) setMoverCat(cats[0])
+        const allCats=Object.keys(data.top_movers||{})
+        // Set initial category to first churn cat for churn panel
+        const churnCat=allCats.find(c=>['Churn','Churn-Partial','Lapsed','Downsell'].includes(c))
+        if(churnCat) setMoverCat(churnCat)
+        else if(allCats.length) setMoverCat(allCats[0])
       }
     } catch(e) { setRunErr(e?.response?.data?.detail||'Analysis failed. Please try again.') }
     setRunning(false)
@@ -752,6 +792,7 @@ export default function CommandCenter() {
       const {data} = await axios.post(endpoint, fd, {timeout:120000})
       setResults({...data, _engine:engine})
       if (lookbacks.length) setSelLb(lookbacks[lookbacks.length-1])
+      const c2=Object.keys(data.top_movers||{});if(c2.length)setMoverCat(c2[0])
     } catch(e) { console.error('Re-run failed:', e) }
     setRerunning(false)
   }
@@ -815,7 +856,7 @@ export default function CommandCenter() {
 
   // ── Style helpers ──────────────────────────────────────────────────────────
   const S = {
-    card: {background:'var(--color-surface)',border:'1px solid var(--color-border)',borderRadius:'var(--radius-card)',padding:20,boxShadow:'var(--shadow-card)'},
+    card: {background:'#FFFFFF',border:'1px solid #E2E8F0',borderRadius:8,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.07)'},
     label: {fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--color-text-secondary)'},
   }
 
@@ -825,7 +866,38 @@ export default function CommandCenter() {
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'var(--color-background)',fontFamily:'var(--font-sans)',color:'var(--color-text-primary)'}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+        :root {
+          --color-background:      #F7F8FA;
+          --color-surface:         #FFFFFF;
+          --color-surface-hover:   #F0F4F8;
+          --color-surface-alt:     #F7F8FA;
+          --color-border:          #E2E8F0;
+          --color-border-strong:   #CBD5E1;
+          --color-text-primary:    #0F172A;
+          --color-text-secondary:  #64748B;
+          --color-text-muted:      #94A3B8;
+          --color-accent:          #1D4ED8;
+          --color-accent-dim:      rgba(29,78,216,0.07);
+          --color-accent-border:   rgba(29,78,216,0.2);
+          --color-positive:        #16A34A;
+          --color-positive-dim:    rgba(22,163,74,0.08);
+          --color-positive-border: rgba(22,163,74,0.2);
+          --color-negative:        #DC2626;
+          --color-negative-dim:    rgba(220,38,38,0.06);
+          --color-negative-border: rgba(220,38,38,0.15);
+          --color-muted-bg:        #F1F5F9;
+          --color-neutral:         #94A3B8;
+          --font-sans:             'Inter', system-ui, -apple-system, sans-serif;
+          --font-mono:             'JetBrains Mono', monospace;
+          --radius-card:           8px;
+          --radius-input:          6px;
+          --radius-btn:            6px;
+          --radius-pill:           9999px;
+          --shadow-card:           0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+          --shadow-card-hover:     0 4px 12px rgba(0,0,0,0.08);
+        }
         *{box-sizing:border-box}
+        body{font-family:var(--font-sans);background:var(--color-background);color:var(--color-text-primary)}
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:var(--color-border);border-radius:4px}
@@ -835,7 +907,7 @@ export default function CommandCenter() {
       `}</style>
 
       {/* ══ LEFT SIDEBAR ══════════════════════════════════════════════════ */}
-      <aside style={{width:264,display:'flex',flexDirection:'column',flexShrink:0,borderRight:'1px solid var(--color-border)',background:'var(--color-surface)',borderRight:'1px solid var(--color-border)',overflow:'hidden'}}>
+      <aside style={{width:264,display:'flex',flexDirection:'column',flexShrink:0,borderRight:'1px solid #E2E8F0',background:'#FFFFFF',overflow:'hidden'}}>
 
         {/* Logo */}
         <div style={{height:56,display:'flex',alignItems:'center',gap:12,padding:'0 20px',borderBottom:'1px solid var(--color-border)',flexShrink:0}}>
@@ -1073,10 +1145,10 @@ export default function CommandCenter() {
       </aside>
 
       {/* ══ RIGHT PANEL ═══════════════════════════════════════════════════ */}
-      <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:'var(--color-background)'}}>
+      <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:'#F7F8FA'}}>
 
         {/* ── PAGE HEADER — Revenue Bridge Analysis ─────────────────── */}
-        <header style={{flexShrink:0,borderBottom:'1px solid var(--color-border)',background:'var(--color-surface)',boxShadow:'0 1px 0 var(--color-border)'}}>
+        <header style={{flexShrink:0,borderBottom:'1px solid #E2E8F0',background:'#FFFFFF',boxShadow:'0 1px 0 #E2E8F0'}}>
 
           {/* Top bar: title + controls */
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',padding:'20px 28px 0',gap:24}}>
@@ -1232,7 +1304,7 @@ export default function CommandCenter() {
           <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
 
             {/* KPI Strip */}
-            <div style={{padding:'14px 24px',borderBottom:'1px solid var(--color-border)',background:'var(--color-surface)',flexShrink:0}}>
+            <div style={{padding:'14px 24px',borderBottom:'1px solid #E2E8F0',background:'#FFFFFF',flexShrink:0}}>
               <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10}}>
                 {isCohort?(<>
                   <KpiChip label="Total Revenue"  value={fmt(results.summary?.total_revenue)} accent/>
@@ -1253,13 +1325,13 @@ export default function CommandCenter() {
             </div>
 
             {/* Tab bar */}
-            <div style={{display:'flex',borderBottom:'1px solid var(--color-border)',background:'var(--color-surface)',flexShrink:0,paddingLeft:24}}>
+            <div style={{display:'flex',borderBottom:'1px solid #E2E8F0',background:'#FFFFFF',flexShrink:0,paddingLeft:24}}>
               {TABS.map(tab=>(
                 <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{
                   padding:'12px 16px',fontSize:12,fontWeight:600,border:'none',
-                  borderBottom:`2px solid ${activeTab===tab.id?'var(--color-accent)':'transparent'}`,
+                  borderBottom:`2px solid ${activeTab===tab.id?'#1D4ED8':'transparent'}`,
                   background:'transparent',cursor:'pointer',marginBottom:-1,marginRight:4,
-                  color:activeTab===tab.id?'var(--color-accent)':'var(--color-text-secondary)',transition:'color 0.15s',
+                  color:activeTab===tab.id?'#1D4ED8':'#64748B',transition:'color 0.15s',
                 }}>{tab.label}</button>
               ))}
             </div>
@@ -1566,7 +1638,7 @@ export default function CommandCenter() {
                       <div style={{...S.card}}>
                         <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)',marginBottom:6}}>Aggregate Expansion</div>
                         <div style={{fontFamily:'var(--font-mono)',fontSize:24,fontWeight:700,color:'var(--color-positive)',letterSpacing:'-0.02em'}}>
-                          {fmt(expansionList.reduce((s,r)=>s+Math.abs(r.value||0),0))}
+                          {fmt(expansionList.reduce((s,r)=>s+Math.abs(getMoverValue(r,r._cat||moverCat)||0),0))}
                         </div>
                         <div style={{fontSize:12,color:'var(--color-text-secondary)',marginTop:4}}>{expansionList.length} expansion accounts</div>
                       </div>
@@ -1574,7 +1646,7 @@ export default function CommandCenter() {
                       <div style={{...S.card}}>
                         <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--color-text-secondary)',marginBottom:6}}>Net Churn Velocity</div>
                         <div style={{fontFamily:'var(--font-mono)',fontSize:24,fontWeight:700,color:'var(--color-negative)',letterSpacing:'-0.02em'}}>
-                          {fmt(churnList.reduce((s,r)=>s+Math.abs(r.value||0),0))}
+                          {fmt(churnList.reduce((s,r)=>s+Math.abs(getMoverValue(r,r._cat||moverCat)||0),0))}
                         </div>
                         <div style={{fontSize:12,color:'var(--color-text-secondary)',marginTop:4}}>{churnList.length} at-risk accounts</div>
                       </div>
@@ -1610,18 +1682,23 @@ export default function CommandCenter() {
                       {/* Cards */}
                       <div style={{padding:12,maxHeight:520,overflowY:'auto'}}>
                         {expansionList.length
-                          ? expansionList.map((row,i)=>(
-                              <MoverCard key={i}
-                                customer={row.customer}
-                                value={row.value}
-                                period={row.period}
-                                isRisk={false}
-                                rank={i}
-                                arr={row.arr||row.ending_arr||Math.abs(row.value)*8}
-                                health={row.health}
-                                segment={row.segment||row.channel||row.product}
-                              />
-                            ))
+                          ? expansionList.map((row,i)=>{
+                              const cat=row._cat||moverCat
+                              const val=getMoverValue(row,cat)
+                              const cust=getMoverCustomer(row)
+                              const per=getMoverPeriod(row)
+                              return (
+                                <MoverCard key={i}
+                                  customer={cust}
+                                  value={val}
+                                  period={per}
+                                  isRisk={false}
+                                  rank={i}
+                                  arr={row.arr||row.ending_arr||Math.abs(val)*6}
+                                  health={row.health}
+                                  segment={row.segment||row.channel||row.product||row.Region||row.Channel}
+                                />
+                              )})
                           : <div style={{textAlign:'center',color:'var(--color-text-secondary)',fontSize:13,padding:32}}>No expansion data for selected lookback</div>
                         }
                       </div>
@@ -1652,18 +1729,23 @@ export default function CommandCenter() {
                       {/* Cards */}
                       <div style={{padding:12,maxHeight:520,overflowY:'auto'}}>
                         {churnList.length
-                          ? churnList.map((row,i)=>(
-                              <MoverCard key={i}
-                                customer={row.customer}
-                                value={row.value}
-                                period={row.period}
-                                isRisk={true}
-                                rank={i}
-                                arr={row.arr||row.ending_arr||Math.abs(row.value)*8}
-                                health={row.health}
-                                segment={row.segment||row.channel||row.product}
-                              />
-                            ))
+                          ? churnList.map((row,i)=>{
+                              const cat=row._cat||moverCat
+                              const val=getMoverValue(row,cat)
+                              const cust=getMoverCustomer(row)
+                              const per=getMoverPeriod(row)
+                              return (
+                                <MoverCard key={i}
+                                  customer={cust}
+                                  value={val}
+                                  period={per}
+                                  isRisk={true}
+                                  rank={i}
+                                  arr={row.arr||row.ending_arr||Math.abs(val)*6}
+                                  health={row.health}
+                                  segment={row.segment||row.channel||row.product||row.Region||row.Channel}
+                                />
+                              )})
                           : <div style={{textAlign:'center',color:'var(--color-text-secondary)',fontSize:13,padding:32}}>No churn data for selected lookback</div>
                         }
                       </div>
@@ -1716,8 +1798,8 @@ export default function CommandCenter() {
                                     <td key={k} style={{padding:'10px 16px',color:'var(--color-text-primary)',fontSize:13}}>{row[k]??'—'}</td>
                                   ))}
                                   <td style={{textAlign:'right',padding:'10px 16px',color:'var(--color-text-secondary)',fontSize:12,fontFamily:'var(--font-mono)'}}>{row.period||'—'}</td>
-                                  <td style={{textAlign:'right',padding:'10px 16px',fontWeight:700,fontSize:13,fontFamily:'var(--font-mono)',color:row.value>=0?'var(--color-positive)':'var(--color-negative)'}}>
-                                    {row.value>=0?'+':''}{fmt(row.value)}
+                                  <td style={{textAlign:'right',padding:'10px 16px',fontWeight:700,fontSize:13,fontFamily:'var(--font-mono)',color:getMoverValue(row,moverCat)>=0?'var(--color-positive)':'var(--color-negative)'}}>
+                                    {getMoverValue(row,moverCat)>=0?'+':''}{fmt(getMoverValue(row,moverCat))}
                                   </td>
                                 </tr>
                               ))}
