@@ -401,8 +401,7 @@ h1,h2,h3,h4,h5,h6 { font-family: var(--font); }
 .font-body    { font-family: var(--font) !important; }
 .font-mono    { font-family: var(--font-mono) !important; }
 
-/* Legacy input-field → input */
-.input-field { @apply; }
+/* Legacy input-field */
 .input-field {
   display:       block;
   width:         100%;
