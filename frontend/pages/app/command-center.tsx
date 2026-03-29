@@ -1149,7 +1149,7 @@ export default function CommandCenter() {
         {/* ── PAGE HEADER — Revenue Bridge Analysis ─────────────────── */}
         <header style={{flexShrink:0,borderBottom:'1px solid #E5E7EB',background:'#FFFFFF',boxShadow:'0 1px 0 #E2E8F0'}}>
 
-          {/* Top bar: title + controls */
+          {/* Top bar: title + controls */}
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',padding:'20px 28px 0',gap:24}}>
 
             {/* Left: title + subtitle */}
