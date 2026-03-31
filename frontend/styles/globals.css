@@ -26,7 +26,7 @@
   --text-3:       #9CA3AF;         /* muted — placeholders            */
 
   /* Brand */
-  --accent:       #2563EB;         /* blue — CTAs, active, links      */
+  --accent:       #003A8F;   /* PE primary — deep navy blue */         /* blue — CTAs, active, links      */
   --accent-soft:  #EFF6FF;         /* blue tint backgrounds           */
   --accent-border:#BFDBFE;         /* blue borders                    */
 
@@ -203,7 +203,7 @@ h1,h2,h3,h4,h5,h6 { font-family: var(--font); }
   line-height:   1.5;
 }
 .input::placeholder { color: var(--text-3); }
-.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,58,143,0.1); }
 .input.error { border-color: var(--red); }
 
 .input-label {
@@ -416,7 +416,7 @@ h1,h2,h3,h4,h5,h6 { font-family: var(--font); }
   transition:    border-color var(--t), box-shadow var(--t);
 }
 .input-field::placeholder { color: var(--text-3); }
-.input-field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+.input-field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,58,143,0.1); }
 
 /* Legacy btn-primary */
 .btn-primary {
@@ -437,5 +437,5 @@ h1,h2,h3,h4,h5,h6 { font-family: var(--font); }
   white-space:    nowrap;
   outline:        none;
 }
-.btn-primary:hover   { background: #1D4ED8; }
+.btn-primary:hover   { background: #002670; }
 .btn-primary:disabled{ opacity: 0.45; cursor: not-allowed; }
