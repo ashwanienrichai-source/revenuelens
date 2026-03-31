@@ -19,7 +19,7 @@ const C = {
   text:    '#111827',
   text2:   '#6B7280',
   text3:   '#9CA3AF',
-  accent:  '#2563EB',
+  accent:  '#003A8F',
   red:     '#DC2626',
   redSoft: '#FEF2F2',
   redBdr:  '#FECACA',
