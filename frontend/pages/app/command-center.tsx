@@ -19,28 +19,28 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
 const BC = {
-  // PE-grade financial colors — green=growth, red=loss, grey=baseline
-  'New Logo':      '#16A34A',   // strong green — new revenue
-  'Upsell':        '#22C55E',   // medium green
-  'Cross-sell':    '#4ADE80',   // light green
-  'Returning':     '#86EFAC',   // lightest green
-  'Other In':      '#D1D5DB',   // neutral grey
-  'Downsell':      '#FCA5A5',   // light red
-  'Churn Partial': '#F87171',   // medium red
+  // Financial-grade palette — green gradient = growth magnitude, red gradient = loss severity
+  'New Logo':      '#16A34A',   // forest green — net new revenue
+  'Upsell':        '#22C55E',   // mid green — expansion
+  'Cross-sell':    '#4ADE80',   // light green — cross-sell
+  'Returning':     '#86EFAC',   // pale green — returning
+  'Other In':      '#64748B',   // slate — neutral in
+  'Downsell':      '#FCA5A5',   // pale red — contraction
+  'Churn Partial': '#F87171',   // mid red — partial loss
   'Churn-Partial': '#F87171',
-  'Churn':         '#DC2626',   // strong red — full loss
-  'Lapsed':        '#FCD34D',   // amber — warning
-  'Other Out':     '#D1D5DB',   // neutral grey
+  'Churn':         '#DC2626',   // deep red — full loss
+  'Lapsed':        '#CA8A04',   // muted amber — lapsed
+  'Other Out':     '#64748B',   // slate — neutral out
   'Add on':        '#4ADE80',
   'Add-on':        '#4ADE80',
-  'Beginning MRR': '#9CA3AF',   // neutral baseline
-  'Ending MRR':    '#4FDBC8',   // PE blue — ending total
-  'Beginning ARR': '#9CA3AF',   // neutral baseline
-  'Ending ARR':    '#4FDBC8',   // PE blue — ending total
-  'Prior ACV':     '#9CA3AF',
-  'Ending ACV':    '#4FDBC8',
-  'RoB':           '#93C5FD',
-  'Expiry Pool':   '#E5E7EB',
+  'Beginning MRR': '#3D5068',   // steel — neutral baseline
+  'Ending MRR':    '#475569',   // slate — ending (not neon)
+  'Beginning ARR': '#3D5068',
+  'Ending ARR':    '#475569',
+  'Prior ACV':     '#3D5068',
+  'Ending ACV':    '#475569',
+  'RoB':           '#7C9DBC',   // muted blue
+  'Expiry Pool':   '#4A5568',   // dark slate
 }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -162,24 +162,26 @@ function UploadTimer({active}) {
 
 // ─── KPI Chip ─────────────────────────────────────────────────────────────────
 function KpiChip({label,value,sub,subGood,accent}) {
-  const subColor = subGood===true?'#4FDBC8':subGood===false?'#FF6B6B':'#7B8EA8'
+  const subColor = subGood===true?'#4ADE80':subGood===false?'#F87171':'#64748B'
+  const valColor = label==='Net Retention'||(subGood===true&&(String(sub||'').includes('%')||String(sub||'').includes('Healthy')))?'#4ADE80'
+    :subGood===false&&(String(sub||'').includes('Risk')||String(sub||'').includes('Alert'))?'#F87171':'#E2E8F0'
   return (
     <div style={{
       background:  '#0F1A2E',
-      border:      `1px solid ${accent?'rgba(79,219,200,0.4)':'#1E2D45'}`,
-      borderTop:   accent ? '2px solid #4FDBC8' : '1px solid #1E2D45',
-      borderRadius:10,
-      padding:     '16px 18px',
+      border:      '1px solid #1E2D45',
+      borderLeft:  accent ? '2px solid #3D5068' : '1px solid #1E2D45',
+      borderRadius:6,
+      padding:     '14px 16px',
     }}>
-      <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#5A7294',marginBottom:9}}>
+      <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'#4A5A6E',marginBottom:8}}>
         {label}
       </div>
-      <div style={{fontFamily:"'JetBrains Mono',monospace",fontFeatureSettings:"'tnum'",fontSize:22,fontWeight:700,lineHeight:1,color:'#FFFFFF',letterSpacing:'-0.02em'}}>
+      <div style={{fontFamily:"'JetBrains Mono',monospace",fontFeatureSettings:"'tnum'",fontSize:20,fontWeight:700,lineHeight:1,color:valColor,letterSpacing:'-0.02em'}}>
         {value}
       </div>
       {sub!=null&&(
-        <div style={{marginTop:7,fontSize:12,fontWeight:500,color:subColor,display:'flex',alignItems:'center',gap:3}}>
-          {subGood===true&&'↑ '}{subGood===false&&'↓ '}{sub}
+        <div style={{marginTop:5,fontSize:10,fontWeight:500,color:subColor}}>
+          {subGood===true?'↑ ':subGood===false?'↓ ':''}{sub}
         </div>
       )}
     </div>
@@ -218,7 +220,7 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment}) {
             <div style={{fontWeight:600,fontSize:14,color:'#FFFFFF',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{customer||'Unknown'}</div>
             <div style={{textAlign:'right',flexShrink:0}}>
               <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:14,fontWeight:700,color:'#FFFFFF'}}>{fmt(arr||abs*5)}</div>
-              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:600,color:isRisk?'#FF6B6B':'#4FDBC8',marginTop:1}}>
+              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:600,color:isRisk?'#F87171':'#4ADE80',marginTop:1}}>
                 {isRisk?'↓ -':'↑ +'}{fmt(abs)} ARR
               </div>
             </div>
@@ -231,7 +233,7 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment}) {
         </div>
       </div>
       <div style={{height:3,background:'#162035',borderRadius:4,overflow:'hidden'}}>
-        <div style={{height:'100%',borderRadius:4,background:isRisk?'#FF6B6B':'#4FDBC8',width:`${barPct}%`,transition:'width 0.5s ease'}}/>
+        <div style={{height:'100%',borderRadius:4,background:isRisk?'#F87171':'#4ADE80',width:`${barPct}%`,transition:'width 0.5s ease'}}/>
       </div>
     </div>
   )
@@ -286,7 +288,7 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
     <div style={{overflowX:'auto'}}>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
         <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'#7B8EA8'}}>{title}</span>
-        {lookbackLabel&&<span style={{fontSize:9,background:'rgba(0,229,160,0.1)',color:'#2563EB',border:'1px solid rgba(0,229,160,0.2)',padding:'2px 8px',borderRadius:20,fontWeight:600}}>{lookbackLabel}</span>}
+        {lookbackLabel&&<span style={{fontSize:9,background:'#162035',color:'#64748B',border:'1px solid #1E2D45',padding:'2px 8px',borderRadius:4,fontWeight:500}}>{lookbackLabel}</span>}
       </div>
       <table style={{borderCollapse:'collapse',minWidth:Math.max(periods.length*100+220,420),width:'100%',fontSize:12}}>
         <thead>
@@ -299,8 +301,8 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
           {rows.map((row,ri)=>{
             const isB=row.is_beginning||row.is_ending
             return (
-              <tr key={ri} style={{borderBottom:`1px solid ${isB?'#E5E7EB':'#E5E7EB'}`,background:isB?'#F7F9FB':'#FFFFFF'}}>
-                <td style={{padding:'8px 12px',position:'sticky',left:0,background:isB?'#F7F9FB':'#FFFFFF',color:isB?'#111827':'#374151',fontWeight:isB?700:500,fontSize:11,whiteSpace:'nowrap'}}>
+              <tr key={ri} style={{borderBottom:`1px solid ${isB?'#E5E7EB':'#E5E7EB'}`,background:isB?'#162035':'#0F1A2E'}}>
+                <td style={{padding:'8px 12px',position:'sticky',left:0,background:isB?'#162035':'#0F1A2E',color:isB?'#111827':'#374151',fontWeight:isB?700:500,fontSize:11,whiteSpace:'nowrap'}}>
                   {!isB&&<span style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:BC[row.classification]||'#6B7280',marginRight:8,verticalAlign:'middle'}}/>}
                   {row.classification}
                 </td>
@@ -308,7 +310,7 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
                   const v=row.values?.[p]
                   const pos=v>0
                   return (
-                    <td key={p} style={{textAlign:'right',padding:'8px 12px',whiteSpace:'nowrap',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isB?700:500,color:isB?'#111827':pos?'#16A34A':v<0?'#DC2626':'#374151'}}>
+                    <td key={p} style={{textAlign:'right',padding:'8px 12px',whiteSpace:'nowrap',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isB?700:500,color:isB?'#E2E8F0':pos?'#4ADE80':v<0?'#F87171':'#64748B'}}>
                       {v==null||v===0?'—':(pos&&!isB?'+':'')+fmt(v)}
                     </td>
                   )
@@ -320,7 +322,7 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
             <tr key={key} style={{borderTop:'1px solid var(--color-border)',background:'#162035'}}>
               <td style={{padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',position:'sticky',left:0,background:'#162035',whiteSpace:'nowrap'}}>{lbl}</td>
               {periods.map(p=>{const v=retention[p]?.[key];return(
-                <td key={p} style={{textAlign:'right',padding:'8px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:v>=thr?'#16A34A':'#DC2626'}}>{v!=null?`${v.toFixed(1)}%`:'—'}</td>
+                <td key={p} style={{textAlign:'right',padding:'8px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:v>=thr?'#4ADE80':'#F87171'}}>{v!=null?`${v.toFixed(1)}%`:'—'}</td>
               )})}
             </tr>
           ))}
@@ -348,10 +350,10 @@ function CustomerCountPivot({pivot}) {
           {rows.map((row,ri)=>{
             const isB=row.is_beginning||row.is_ending
             return (
-              <tr key={ri} style={{borderBottom:'1px solid #1E2D45',background:isB?'#F7F9FB':'#FFFFFF'}}>
-                <td style={{padding:'6px 12px',position:'sticky',left:0,background:isB?'#F7F9FB':'#FFFFFF',color:isB?'#111827':'#374151',fontWeight:isB?700:400,fontSize:11,whiteSpace:'nowrap'}}>{row.classification}</td>
+              <tr key={ri} style={{borderBottom:'1px solid #1E2D45',background:isB?'#162035':'#0F1A2E'}}>
+                <td style={{padding:'6px 12px',position:'sticky',left:0,background:isB?'#162035':'#0F1A2E',color:isB?'#111827':'#374151',fontWeight:isB?700:400,fontSize:11,whiteSpace:'nowrap'}}>{row.classification}</td>
                 {periods.map(p=>{const v=row.values?.[p]||0;return(
-                  <td key={p} style={{textAlign:'right',padding:'6px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:500,color:v>0&&!isB?'#2563EB':v<0?'#DC2626':'#6B7280'}}>{v===0?'—':(v>0&&!isB?'+':'')+v.toLocaleString()}</td>
+                  <td key={p} style={{textAlign:'right',padding:'6px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:500,color:v>0&&!isB?'#4ADE80':v<0?'#F87171':'#64748B'}}>{v===0?'—':(v>0&&!isB?'+':'')+v.toLocaleString()}</td>
                 )})}
               </tr>
             )
@@ -360,7 +362,7 @@ function CustomerCountPivot({pivot}) {
             <tr style={{borderTop:'1px solid var(--color-border)',background:'#162035'}}>
               <td style={{padding:'6px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',position:'sticky',left:0,background:'#162035',whiteSpace:'nowrap'}}>Logo Retention</td>
               {periods.map(p=>{const lr=logo_retention[p]?.logo_retention;return(
-                <td key={p} style={{textAlign:'right',padding:'6px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:lr>=80?'#16A34A':lr>=60?'#6B7280':'#DC2626'}}>{lr!=null?`${lr.toFixed(1)}%`:'—'}</td>
+                <td key={p} style={{textAlign:'right',padding:'6px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:lr>=80?'#4ADE80':lr>=60?'#64748B':'#F87171'}}>{lr!=null?`${lr.toFixed(1)}%`:'—'}</td>
               )})}
             </tr>
           )}
@@ -391,10 +393,10 @@ function KpiSummaryTable({rows}) {
             <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
               <td style={{padding:'8px 12px',fontWeight:700,color:'#FFFFFF',fontFamily:"'JetBrains Mono',monospace"}}>{r.period}</td>
               <td style={{padding:'8px 12px',color:'#7B8EA8',fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.beginning_arr)}</td>
-              <td style={{padding:'8px 12px',color:'#16A34A',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{r.new_logo>0?`+${fV(r.new_logo)}`:'—'}</td>
-              <td style={{padding:'8px 12px',color:'#2563EB',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{r.upsell>0?`+${fV(r.upsell)}`:'—'}</td>
+              <td style={{padding:'8px 12px',color:'#4ADE80',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{r.new_logo>0?`+${fV(r.new_logo)}`:'—'}</td>
+              <td style={{padding:'8px 12px',color:'#4ADE80',fontWeight:500,fontFamily:"'JetBrains Mono',monospace"}}>{r.upsell>0?`+${fV(r.upsell)}`:'—'}</td>
               <td style={{padding:'8px 12px',color:'#7B8EA8',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.downsell)}</td>
-              <td style={{padding:'8px 12px',color:'#DC2626',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.churn)}</td>
+              <td style={{padding:'8px 12px',color:'#F87171',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.churn)}</td>
               <td style={{padding:'8px 12px',fontWeight:700,color:'#FFFFFF',fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.ending_arr)}</td>
               <td style={{padding:'8px 12px',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:pc(r.gross_retention)}}>{fP(r.gross_retention)}</td>
               <td style={{padding:'8px 12px',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:pc(r.net_retention,100,110)}}>{fP(r.net_retention)}</td>
@@ -925,17 +927,15 @@ export default function CommandCenter() {
           --raised:      #162035;
           --border:      #1E2D45;
           --border2:     #253550;
-          --text:        #FFFFFF;
-          --text-2:      #C8D6E8;
-          --text-3:      #7B8EA8;
-          --text-4:      #5A7294;
-          --teal:        #4FDBC8;
-          --teal-soft:   rgba(79,219,200,0.12);
-          --teal-border: rgba(79,219,200,0.3);
-          --red:         #FF6B6B;
-          --red-soft:    rgba(255,107,107,0.1);
-          --amber:       #F5A623;
+          --text:        #E2E8F0;
+          --text-2:      #94A3B8;
+          --text-3:      #64748B;
+          --text-4:      #4A5A6E;
+          --pos:         #4ADE80;
+          --neg:         #F87171;
+          --warn:        #FCD34D;
           --neutral:     #3D5068;
+          --accent:      #CBD5E1;
           --font:        'Inter', system-ui, sans-serif;
           --mono:        'JetBrains Mono', monospace;
         }
@@ -954,12 +954,12 @@ export default function CommandCenter() {
 
         {/* Logo */}
         <div style={{height:56,display:'flex',alignItems:'center',gap:12,padding:'0 20px',borderBottom:'1px solid #1E2D45',flexShrink:0}}>
-          <div style={{width:28,height:28,borderRadius:8,background:'#4FDBC8',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-            <BarChart3 size={13} color="#0B1220"/>
+          <div style={{width:28,height:28,borderRadius:6,background:'#162035',border:'1px solid #253550',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            <BarChart3 size={13} color="#94A3B8"/>
           </div>
           <div style={{flex:1}}>
             <div style={{fontSize:13,fontWeight:900,color:'#FFFFFF',letterSpacing:'-0.01em',lineHeight:1}}>RevenueLens</div>
-            <div style={{fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.15em',color:'#4FDBC8',marginTop:2}}>Analytics</div>
+            <div style={{fontSize:8,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.12em',color:'#4A5A6E',marginTop:2}}>Analytics</div>
           </div>
           <button onClick={()=>router.push('/dashboard')} style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:'#5A7294'}} onMouseEnter={e=>e.target.style.color='#4FDBC8'} onMouseLeave={e=>e.target.style.color='#5A7294'}>
             <Home size={12}/>
@@ -970,8 +970,8 @@ export default function CommandCenter() {
         <div style={{padding:'12px 16px',borderBottom:'1px solid #1E2D45',flexShrink:0}}>
           {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3],[4,'Configure',!!results,step3&&!results]].map(([n,lbl,done,active])=>(
             <div key={n} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 8px',borderRadius:10,background:active?'#162035':'transparent',marginBottom:2}}>
-              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?'#4FDBC8':active?'#4FDBC8':'#253550',color:done?'#0B1220':'#FFFFFF'}}>{done?'✓':n}</div>
-              <span style={{fontSize:11,fontWeight:600,color:active?'#4FDBC8':done?'#7B8EA8':'#7B8EA8'}}>{lbl}</span>
+              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?'#1A3A2A':active?'#162035':'#1E2D45',color:done?'#4ADE80':active?'#CBD5E1':'#4A5A6E'}}>{done?'✓':n}</div>
+              <span style={{fontSize:11,fontWeight:600,color:active?'#CBD5E1':done?'#4A5A6E':'#4A5A6E'}}>{lbl}</span>
             </div>
           ))}
         </div>
@@ -989,8 +989,8 @@ export default function CommandCenter() {
               background:file&&columns.length?'rgba(79,219,200,0.06)':uploading?'rgba(79,219,200,0.04)':'rgba(22,32,53,0.8)',
             }}>
               <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadFile(f)}}/>
-              {uploading?(<div><Loader2 size={18} color="#4FDBC8" style={{margin:'0 auto 4px',animation:'spin 1s linear infinite'}}/><div style={{fontSize:11,color:'#4FDBC8',fontWeight:600}}>Reading file…</div></div>)
-              :file&&columns.length?(<div><CheckCircle size={18} color="#4FDBC8" style={{margin:'0 auto 4px'}}/><div style={{fontSize:11,fontWeight:700,color:'#FFFFFF',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div><div style={{fontSize:10,color:'#7B8EA8'}}>{rowCount.toLocaleString()} rows · {columns.length} cols</div><button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{fontSize:9,color:'#4FDBC8',background:'none',border:'none',cursor:'pointer',fontWeight:600,marginTop:4}}>Change file</button></div>)
+              {uploading?(<div><Loader2 size={18} color="#94A3B8" style={{margin:'0 auto 4px',animation:'spin 1s linear infinite'}}/><div style={{fontSize:11,color:'#94A3B8',fontWeight:500}}>Reading file…</div></div>)
+              :file&&columns.length?(<div><CheckCircle size={18} color="#4ADE80" style={{margin:'0 auto 4px'}}/><div style={{fontSize:11,fontWeight:700,color:'#FFFFFF',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div><div style={{fontSize:10,color:'#7B8EA8'}}>{rowCount.toLocaleString()} rows · {columns.length} cols</div><button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{fontSize:9,color:'#4ADE80',background:'none',border:'none',cursor:'pointer',fontWeight:500,marginTop:4}}>Change file</button></div>)
               :(<div><Upload size={18} color="#5A7294" style={{margin:'0 auto 6px'}}/><div style={{fontSize:11,color:'#7B8EA8',fontWeight:600}}>Click or drag file</div><div style={{fontSize:10,color:'#5A7294',marginTop:2}}>CSV or Excel</div></div>)}
             </div>
             <UploadTimer active={uploading}/>
@@ -1017,7 +1017,7 @@ export default function CommandCenter() {
                         <div style={{fontSize:11,fontWeight:700,color:active?'#4FDBC8':'#C8D6E8',lineHeight:1.2}}>{ec.label}</div>
                         <div style={{fontSize:9,color:'#5A7294',marginTop:2}}>{ec.desc}</div>
                       </div>
-                      {active&&<CheckCircle size={12} color="#4FDBC8"/>}
+                      {active&&<CheckCircle size={12} color="#4ADE80"/>}
                     </button>
                   )
                 })}
@@ -1214,11 +1214,11 @@ export default function CommandCenter() {
                 {!isCohort&&(
                   <>
                     {/* YoY / QoQ toggle — triggers re-run */}
-                    <div style={{display:'flex',gap:1,padding:3,background:'#0F1A2E',borderRadius:8,border:'1px solid #1E2D45'}}>
+                    <div style={{display:'flex',gap:1,padding:2,background:'#0F1A2E',borderRadius:5,border:'1px solid #1E2D45'}}>
                       {[['Annual','YoY'],['Quarter','QoQ']].map(([val,lbl])=>(
                         <button key={val} onClick={()=>applyPeriodType(val)}
                           disabled={rerunning}
-                          style={{padding:'5px 12px',borderRadius:6,fontSize:11,fontWeight:600,border:'none',cursor:rerunning?'not-allowed':'pointer',background:periodType===val?'#EFF6FF':'transparent',color:periodType===val?'#003A8F':'#6B7280',fontWeight:periodType===val?600:400,transition:'all 0.12s',opacity:rerunning?0.6:1}}>
+                          style={{padding:'4px 11px',borderRadius:4,fontSize:11,fontWeight:periodType===val?500:400,border:'none',cursor:rerunning?'not-allowed':'pointer',background:periodType===val?'#162035':'transparent',color:periodType===val?'#CBD5E1':'#4A5A6E',transition:'all 0.12s',opacity:rerunning?0.6:1}}>
                           {lbl}
                         </button>
                       ))}
@@ -1226,10 +1226,10 @@ export default function CommandCenter() {
 
                     {/* Lookback pills — client-side filter, instant */}
                     <div style={{display:'flex',alignItems:'center',gap:2,background:'#162035',borderRadius:7,border:'1px solid #253550',padding:3}}>
-                      <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',color:'#5A7294',padding:'0 6px'}}>LB</span>
+                      <span style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#4A5A6E',padding:'0 5px'}}>LB</span>
                       {lookbacks.map(l=>(
                         <button key={l} onClick={()=>setSelLb(l)}
-                          style={{padding:'5px 10px',borderRadius:5,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',background:selLb===l?'#4FDBC8':'transparent',color:selLb===l?'#0B1220':'#7B8EA8',fontWeight:selLb===l?700:500,transition:'all 0.15s'}}>
+                          style={{padding:'5px 10px',borderRadius:5,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',background:selLb===l?'#162035':'transparent',color:selLb===l?'#CBD5E1':'#4A5A6E',fontWeight:selLb===l?500:400,transition:'all 0.15s'}}>
                           {l}M
                         </button>
                       ))}
@@ -1238,7 +1238,7 @@ export default function CommandCenter() {
                     {/* Period selector — month/period from actual data (e.g. Jan-25) */}
                     {availablePeriods.length>0&&(
                       <select value={selPeriod} onChange={e=>setSelPeriod(e.target.value)}
-                        style={{fontSize:12,border:'1px solid #253550',borderRadius:8,padding:'6px 12px',background:'#162035',color:'#C8D6E8',outline:'none',maxWidth:130}}>
+                        style={{fontSize:11,border:'1px solid #1E2D45',borderRadius:5,padding:'4px 10px',background:'#0F1A2E',color:'#94A3B8',outline:'none',maxWidth:120}}>
                         <option value="">All Periods</option>
                         {availablePeriods.slice().reverse().map(p=>(
                           <option key={p} value={p}>{p}</option>
@@ -1293,9 +1293,9 @@ export default function CommandCenter() {
                     disabled={!opt.available||rerunning}
                     style={{
                       padding:'6px 14px',borderRadius:20,fontSize:11,fontWeight:600,
-                      border:`1px solid ${isActive?'#003A8F':'#E5E7EB'}`,
-                      background:isActive?'#003A8F':'transparent',
-                      color:isActive?'#FFFFFF':opt.available?'#6B7280':'#D1D5DB',
+                      border:`1px solid ${isActive?'#253550':'#1E2D45'}`,
+                      background:isActive?'#162035':'transparent',
+                      color:isActive?'#CBD5E1':opt.available?'#64748B':'#334155',
                       cursor:opt.available&&!rerunning?'pointer':'not-allowed',
                       transition:'all 0.12s',opacity:!opt.available?0.4:1,
                     }}>
@@ -1314,7 +1314,7 @@ export default function CommandCenter() {
         {!results&&(
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
             <div style={{textAlign:'center',maxWidth:480}}>
-              <div style={{width:80,height:80,borderRadius:24,border:'1px solid #1E2D45',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={32} color="#2563EB" style={{opacity:0.6}}/></div>
+              <div style={{width:80,height:80,borderRadius:24,border:'1px solid #1E2D45',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={32} color="#3D5068" style={{opacity:0.8}}/></div>
               <h2 style={{fontSize:24,fontWeight:900,color:'#FFFFFF',margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
               <p style={{color:'#7B8EA8',fontSize:14,marginBottom:32,lineHeight:1.6}}>
                 {engine==='cohort'?'Upload data, map fields, then run to see retention heatmaps.'
@@ -1332,7 +1332,7 @@ export default function CommandCenter() {
                   {icon:Activity,   label:'Retention Trends', desc:'NRR, GRR over time'},
                 ]).map((m,i)=>(
                   <div key={i} style={{padding:16,borderRadius:14,border:'1px solid #1E2D45',background:'#0F1A2E',textAlign:'left'}}>
-                    <m.icon size={15} color="#2563EB" style={{opacity:0.8,marginBottom:8}}/>
+                    <m.icon size={15} color="#4A5A6E" style={{opacity:1,marginBottom:8}}/>
                     <div style={{fontSize:12,fontWeight:700,color:'#FFFFFF',marginBottom:3}}>{m.label}</div>
                     <div style={{fontSize:10,color:'#7B8EA8'}}>{m.desc}</div>
                   </div>
@@ -1346,9 +1346,18 @@ export default function CommandCenter() {
         {results&&(
           <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
 
-            {/* KPI Strip */}
-            <div style={{padding:'16px 24px',borderBottom:'1px solid #1E2D45',background:'#0B1220',flexShrink:0}}>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:12}}>
+            {/* KPI Section — clearly separated analysis output */}
+            <div style={{padding:'16px 24px 14px',borderBottom:'1px solid #1E2D45',background:'#0B1220',flexShrink:0}}>
+              {/* Context header — period / lookback / granularity */}
+              {!isCohort&&ret&&(
+                <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'#4A5A6E',marginBottom:12,paddingBottom:10,borderBottom:'1px solid #162035',display:'flex',alignItems:'center',gap:12}}>
+                  <span>Analysis Output</span>
+                  {selPeriod&&<span style={{color:'#64748B'}}>·  {selPeriod}</span>}
+                  <span style={{color:'#64748B'}}>·  {periodType==='Annual'?'Year-over-Year':'Quarter-over-Quarter'}</span>
+                  <span style={{color:'#64748B'}}>·  {selLb}M lookback</span>
+                </div>
+              )}
+              <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10}}>
                 {isCohort?(<>
                   <KpiChip label="Total Revenue"  value={fmt(results.summary?.total_revenue)} accent/>
                   <KpiChip label="Customers"      value={(results.summary?.n_customers||0).toLocaleString()}/>
@@ -1372,9 +1381,9 @@ export default function CommandCenter() {
               {TABS.map(tab=>(
                 <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{
                   padding:'12px 16px',fontSize:12,fontWeight:600,border:'none',
-                  borderBottom:`2px solid ${activeTab===tab.id?'#2563EB':'transparent'}`,
+                  borderBottom:`2px solid ${activeTab===tab.id?'#3D5068':'transparent'}`,
                   background:'transparent',cursor:'pointer',marginBottom:-1,marginRight:4,
-                  color:activeTab===tab.id?'#2563EB':'#6B7280',transition:'color 0.15s',
+                  color:activeTab===tab.id?'#CBD5E1':'#4A5A6E',transition:'color 0.15s',
                 }}>{tab.label}</button>
               ))}
             </div>
@@ -1403,7 +1412,7 @@ export default function CommandCenter() {
                             <XAxis dataKey={Object.keys(results.fy_summary[0])[0]} tick={{fontSize:10,fill:'#9CA3AF'}} axisLine={false} tickLine={false}/>
                             <YAxis tickFormatter={fmt} tick={{fontSize:10,fill:'#9CA3AF'}} axisLine={false} tickLine={false}/>
                             <Tooltip formatter={v=>fmt(v)} contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:12,fontSize:12}}/>
-                            <Bar dataKey="revenue" fill="#00E5A0" radius={[5,5,0,0]}/>
+                            <Bar dataKey="revenue" fill="#22C55E" radius={[3,3,0,0]}/>
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
@@ -1485,8 +1494,8 @@ export default function CommandCenter() {
                   {/* ── Reconciliation warning ───────────────────────── */}
                   {bridgeOk && !bridgeOk.valid && (
                     <div style={{padding:'10px 14px',background:'#FFFBEB',border:'1px solid #F59E0B',borderRadius:8,display:'flex',alignItems:'center',gap:8}}>
-                      <AlertCircle size={13} color="#F5A623"/>
-                      <span style={{fontSize:12,color:'#F5A623',fontWeight:500}}>
+                      <AlertCircle size={12} color="#CA8A04"/>
+                      <span style={{fontSize:11,color:'#CA8A04',fontWeight:400}}>
                         Reconciliation gap: movements sum {fmt(bridgeOk.total)}, expected {fmt(bridgeOk.expected)} (Δ {fmt(Math.abs(bridgeOk.diff))})
                       </span>
                     </div>
@@ -1779,7 +1788,7 @@ export default function CommandCenter() {
                             <TrendingDown size={13} color="#DC2626"/>
                           </div>
                           <div>
-                            <div style={{fontSize:13,fontWeight:700,color:'#DC2626'}}>Churn Risk</div>
+                            <div style={{fontSize:13,fontWeight:600,color:'#F87171'}}>Churn Risk</div>
                             <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8'}}>Priority interventions</div>
                           </div>
                         </div>
@@ -1910,7 +1919,7 @@ export default function CommandCenter() {
                       <div key={lb} style={S.card}>
                         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
                           <div style={S.label}>KPI Summary</div>
-                          <span style={{fontSize:9,background:'rgba(0,229,160,0.1)',color:'#2563EB',border:'1px solid rgba(0,229,160,0.2)',padding:'2px 8px',borderRadius:20,fontWeight:600}}>{lb}M Lookback</span>
+                          <span style={{fontSize:9,background:'#162035',color:'#64748B',border:'1px solid #1E2D45',padding:'2px 8px',borderRadius:4,fontWeight:500}}>{lb}M Lookback</span>
                         </div>
                         <KpiSummaryTable rows={kpiData}/>
                       </div>
