@@ -162,20 +162,23 @@ function UploadTimer({active}) {
 
 // ─── KPI Chip ─────────────────────────────────────────────────────────────────
 function KpiChip({label,value,sub,subGood,accent}) {
-  const subColor = subGood===true?'#16A34A':subGood===false?'#DC2626':'#6B7280'
+  const subColor = subGood===true?'#4FDBC8':subGood===false?'#FF6B6B':'#7B8EA8'
   return (
     <div style={{
-      background:   '#FFFFFF',
-      border:       '1px solid #E5E7EB',
-      borderRadius: 8,
-      padding:      '16px 20px',
-      borderTop:    accent ? '3px solid #1D4ED8' : '3px solid transparent',
-      boxShadow:    '0 1px 3px rgba(0,0,0,0.07)',
+      background:  '#0F1A2E',
+      border:      `1px solid ${accent?'rgba(79,219,200,0.4)':'#1E2D45'}`,
+      borderTop:   accent ? '2px solid #4FDBC8' : '1px solid #1E2D45',
+      borderRadius:10,
+      padding:     '16px 18px',
     }}>
-      <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',marginBottom:8}}>{label}</div>
-      <div style={{fontFamily:"'JetBrains Mono',monospace",fontFeatureSettings:"'tnum'",fontSize:24,fontWeight:700,lineHeight:1,color:accent?'#2563EB':'#FFFFFF',letterSpacing:'-0.03em'}}>{value}</div>
+      <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#5A7294',marginBottom:9}}>
+        {label}
+      </div>
+      <div style={{fontFamily:"'JetBrains Mono',monospace",fontFeatureSettings:"'tnum'",fontSize:22,fontWeight:700,lineHeight:1,color:'#FFFFFF',letterSpacing:'-0.02em'}}>
+        {value}
+      </div>
       {sub!=null&&(
-        <div style={{marginTop:6,fontSize:11,fontWeight:500,color:subColor,display:'flex',alignItems:'center',gap:3}}>
+        <div style={{marginTop:7,fontSize:12,fontWeight:500,color:subColor,display:'flex',alignItems:'center',gap:3}}>
           {subGood===true&&'↑ '}{subGood===false&&'↓ '}{sub}
         </div>
       )}
@@ -960,19 +963,19 @@ export default function CommandCenter() {
                   const Icon=ec.icon; const active=engine===id
                   return (
                     <button key={id} onClick={()=>setEngine(id)} style={{
-                      display:'flex',alignItems:'center',gap:12,padding:12,borderRadius:12,
-                      border:`1px solid ${active?'rgba(0,229,160,0.25)':'#E5E7EB'}`,
-                      background:active?'rgba(0,229,160,0.05)':'#FFFFFF',
+                      display:'flex',alignItems:'center',gap:12,padding:12,borderRadius:10,
+                      border:`1px solid ${active?'rgba(79,219,200,0.5)':'#253550'}`,
+                      background:active?'rgba(79,219,200,0.1)':'#162035',
                       cursor:'pointer',textAlign:'left',width:'100%',transition:'all 0.15s',
                     }}>
-                      <div style={{width:28,height:28,borderRadius:8,background:active?'rgba(0,229,160,0.15)':'#E5E7EB',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                        <Icon size={12} color={active?'#2563EB':'#6B7280'}/>
+                      <div style={{width:28,height:28,borderRadius:8,background:active?'rgba(79,219,200,0.2)':'#1E2D45',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        <Icon size={12} color={active?'#4FDBC8':'#7B8EA8'}/>
                       </div>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:11,fontWeight:700,color:active?'#2563EB':'white',lineHeight:1.2}}>{ec.label}</div>
-                        <div style={{fontSize:9,color:'#7B8EA8',marginTop:2}}>{ec.desc}</div>
+                        <div style={{fontSize:11,fontWeight:700,color:active?'#4FDBC8':'#C8D6E8',lineHeight:1.2}}>{ec.label}</div>
+                        <div style={{fontSize:9,color:'#5A7294',marginTop:2}}>{ec.desc}</div>
                       </div>
-                      {active&&<CheckCircle size={12} color="#2563EB"/>}
+                      {active&&<CheckCircle size={12} color="#4FDBC8"/>}
                     </button>
                   )
                 })}
@@ -985,7 +988,7 @@ export default function CommandCenter() {
             <div style={{padding:16,borderBottom:'1px solid #1E2D45'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
                 <div style={S.label}>3. Map Fields</div>
-                <span style={{fontSize:9,fontWeight:700,color:Object.keys(errors).length===0?'#2563EB':'#6B7280'}}>
+                <span style={{fontSize:9,fontWeight:700,color:Object.keys(errors).length===0?'#4FDBC8':'#7B8EA8'}}>
                   {cfg.required.filter(f=>!!fieldMap[f.key]).length}/{cfg.required.length} mapped
                 </span>
               </div>
@@ -1302,7 +1305,7 @@ export default function CommandCenter() {
           <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
 
             {/* KPI Strip */}
-            <div style={{padding:'14px 24px',borderBottom:'1px solid #1E2D45',background:'#0F1A2E',flexShrink:0}}>
+            <div style={{padding:'16px 24px',borderBottom:'1px solid #1E2D45',background:'#0B1220',flexShrink:0}}>
               <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:12}}>
                 {isCohort?(<>
                   <KpiChip label="Total Revenue"  value={fmt(results.summary?.total_revenue)} accent/>
@@ -1458,13 +1461,19 @@ export default function CommandCenter() {
                       </div>
                       {/* Legend */}
                       <div style={{display:'flex',alignItems:'center',gap:14,fontSize:10,color:'#7B8EA8'}}>
-                        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#4ADE80',display:'inline-block'}}/> Expansion</span>
-                        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#F87171',display:'inline-block'}}/> Contraction</span>
-                        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#003A8F',display:'inline-block'}}/> Baseline</span>
+                        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#4FDBC8',display:'inline-block'}}/> Expansion</span>
+                        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#FF6B6B',display:'inline-block'}}/> Contraction</span>
+                        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#3D5068',display:'inline-block'}}/> Baseline</span>
                       </div>
                     </div>
                     <div style={{padding:'20px 20px 8px'}}>
-                      <WaterfallBridge data={wfall}/>
+                      {(()=>{
+                        const movements = selectedWfall.filter(r=>!['Beginning MRR','Ending MRR','Beginning ARR','Ending ARR'].includes(r.category))
+                        const beginning = {category:'Beginning ARR', value:ret?.beginning||0}
+                        const ending    = {category:'Ending ARR',    value:ret?.ending||0}
+                        const fullData  = [beginning, ...movements, ending]
+                        return <WaterfallBridge data={fullData} showBoundary={true}/>
+                      })()}
                     </div>
                   </div>
 
