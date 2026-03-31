@@ -669,6 +669,24 @@ export default function CommandCenter() {
     return validateBridge(selectedWfall, r?.beginning, r?.ending)
   }, [selectedWfall, retForPeriod, ret])
 
+  // ── Customer ARR map: name → {endingArr, beginningArr} from top_customers ──
+  const customerArrMap = useMemo(() => {
+    const map = {}
+    if (!topCusts?.length) return map
+    topCusts.forEach(row => {
+      const custKey = Object.keys(row).find(k => /customer|account|name/i.test(k))
+      const endKey  = Object.keys(row).find(k => /ending|end_arr/i.test(k))
+      const begKey  = Object.keys(row).find(k => /beginning|beg_arr/i.test(k))
+      if (custKey && endKey) {
+        map[String(row[custKey])] = {
+          endingArr:    row[endKey]  ?? null,
+          beginningArr: begKey ? (row[begKey] ?? null) : null,
+        }
+      }
+    })
+    return map
+  }, [topCusts])
+
   const narrative = useMemo(() => genNarrative(retForPeriod||ret, movers), [retForPeriod, ret, movers])
 
   // Expansion / churn lists for Top Movers tab
@@ -1738,6 +1756,8 @@ export default function CommandCenter() {
                                   arr={row.arr||row.ending_arr||Math.abs(val)*6}
                                   health={row.health}
                                   segment={row.segment||row.channel||row.product||row.Region||row.Channel}
+                                  endingArr={customerArrMap[cust]?.endingArr??row.ending_arr??null}
+                                  beginningArr={customerArrMap[cust]?.beginningArr??row.beginning_arr??(ret?.beginning>0?ret.beginning:null)}
                                 />
                               )})
                           : <div style={{textAlign:'center',color:'#7B8EA8',fontSize:13,padding:32}}>No expansion data for selected lookback</div>
@@ -1785,6 +1805,8 @@ export default function CommandCenter() {
                                   arr={row.arr||row.ending_arr||Math.abs(val)*6}
                                   health={row.health}
                                   segment={row.segment||row.channel||row.product||row.Region||row.Channel}
+                                  endingArr={customerArrMap[cust]?.endingArr??row.ending_arr??null}
+                                  beginningArr={customerArrMap[cust]?.beginningArr??row.beginning_arr??(ret?.beginning>0?ret.beginning:null)}
                                 />
                               )})
                           : <div style={{textAlign:'center',color:'#7B8EA8',fontSize:13,padding:32}}>No churn data for selected lookback</div>
