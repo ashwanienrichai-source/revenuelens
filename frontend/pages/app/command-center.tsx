@@ -639,13 +639,37 @@ export default function CommandCenter() {
     return filterByDimension(base)
   }, [selPeriod, bdg, wfall, selDims])
 
+  // ── Period-specific KPI values (react to selPeriod + selLb) ─────────────
+  const retForPeriod = useMemo(() => {
+    if (!selPeriod || !bdg?.by_period?.length) return ret
+    const row = bdg.by_period.find(r => r._period === selPeriod)
+    if (!row) return ret
+    const cats = Object.keys(row).filter(k => k !== '_period')
+    const posCats = ['New Logo','Upsell','Cross-sell','Returning','Other In']
+    const negCats = ['Churn','Churn Partial','Churn-Partial','Downsell','Lapsed','Other Out']
+    const newArr  = posCats.reduce((s,c) => s + (row[c]||0), 0)
+    const lostArr = negCats.reduce((s,c) => s + (row[c]||0), 0)
+    // Try to get beginning/ending from the row or fall back to ret
+    const beg = ret?.beginning || 0
+    const end = beg + newArr + lostArr
+    return {
+      beginning: beg,
+      ending:    end > 0 ? end : ret?.ending,
+      new_arr:   newArr,
+      lost_arr:  lostArr,
+      nrr:       beg > 0 ? ((end - newArr) / beg) * 100 : ret?.nrr,
+      grr:       beg > 0 ? ((end - newArr + lostArr) / beg) * 100 : ret?.grr,
+    }
+  }, [selPeriod, bdg, ret])
+
   // ── Bridge reconciliation status ──────────────────────────────────────
   const bridgeOk = useMemo(() => {
-    if (!ret?.beginning && !ret?.ending) return null
-    return validateBridge(selectedWfall, ret?.beginning, ret?.ending)
-  }, [selectedWfall, ret])
+    const r = retForPeriod || ret
+    if (!r?.beginning && !r?.ending) return null
+    return validateBridge(selectedWfall, r?.beginning, r?.ending)
+  }, [selectedWfall, retForPeriod, ret])
 
-  const narrative = useMemo(() => genNarrative(ret, movers), [ret, movers])
+  const narrative = useMemo(() => genNarrative(retForPeriod||ret, movers), [retForPeriod, ret, movers])
 
   // Expansion / churn lists for Top Movers tab
   const expansionList = useMemo(() => {
@@ -1315,12 +1339,12 @@ export default function CommandCenter() {
                   <KpiChip label="Cohort Columns" value={(results.summary?.cohort_cols?.length||0).toString()}/>
                   <KpiChip label="Fiscal Years"   value={(results.fiscal_years?.length||0).toString()}/>
                 </>):(<>
-                  <KpiChip label="Starting ARR"    value={fmt(ret?.beginning)} accent/>
-                  <KpiChip label="Ending ARR"      value={fmt(ret?.ending)} sub={ret?.beginning>0?`${(((ret?.ending||0)-(ret?.beginning||0))/(ret?.beginning||1)*100).toFixed(1)}%`:null} subGood={(ret?.ending||0)>=(ret?.beginning||0)}/>
-                  <KpiChip label="New ARR"         value={fmt(ret?.new_arr)} sub={ret?.new_arr>0?`+${fmt(ret?.new_arr)}`:null} subGood={true}/>
-                  <KpiChip label="Lost ARR"        value={fmt(Math.abs(ret?.lost_arr||0))} sub={ret?.lost_arr<0?fmt(ret?.lost_arr):null} subGood={false}/>
-                  <KpiChip label="Net Retention"   value={fmtPct(ret?.nrr)} sub={(ret?.nrr||0)>=100?'Healthy':'At Risk'} subGood={(ret?.nrr||0)>=100}/>
-                  <KpiChip label="Gross Retention" value={fmtPct(ret?.grr)} sub={(ret?.grr||0)>=80?'Strong':'Alert'} subGood={(ret?.grr||0)>=80}/>
+                  <KpiChip label="Starting ARR"    value={fmt((retForPeriod||ret)?.beginning)} accent/>
+                  <KpiChip label="Ending ARR"      value={fmt((retForPeriod||ret)?.ending)} sub={(retForPeriod||ret)?.beginning>0?`${((((retForPeriod||ret)?.ending||0)-((retForPeriod||ret)?.beginning||0))/((retForPeriod||ret)?.beginning||1)*100).toFixed(1)}%`:null} subGood={((retForPeriod||ret)?.ending||0)>=((retForPeriod||ret)?.beginning||0)}/>
+                  <KpiChip label="New ARR"         value={fmt((retForPeriod||ret)?.new_arr)} sub={(retForPeriod||ret)?.new_arr>0?`+${fmt((retForPeriod||ret)?.new_arr)}`:null} subGood={true}/>
+                  <KpiChip label="Lost ARR"        value={fmt(Math.abs((retForPeriod||ret)?.lost_arr||0))} sub={(retForPeriod||ret)?.lost_arr<0?fmt((retForPeriod||ret)?.lost_arr):null} subGood={false}/>
+                  <KpiChip label="Net Retention"   value={fmtPct((retForPeriod||ret)?.nrr)} sub={((retForPeriod||ret)?.nrr||0)>=100?'Healthy':'At Risk'} subGood={((retForPeriod||ret)?.nrr||0)>=100}/>
+                  <KpiChip label="Gross Retention" value={fmtPct((retForPeriod||ret)?.grr)} sub={((retForPeriod||ret)?.grr||0)>=80?'Strong':'Alert'} subGood={((retForPeriod||ret)?.grr||0)>=80}/>
                 </>)}
               </div>
             </div>
@@ -1338,7 +1362,7 @@ export default function CommandCenter() {
             </div>
 
             {/* Tab content */}
-            <div style={{flex:1,overflowY:'auto',padding:24}}>
+            <div style={{flex:1,overflowY:'auto',padding:'20px 24px',background:'#0B1220'}}>
 
               {/* COHORT: Heatmap */}
               {isCohort&&activeTab==='heatmap'&&(
@@ -1455,7 +1479,7 @@ export default function CommandCenter() {
                     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #1E2D45'}}>
                       <div>
                         <div style={{fontSize:14,fontWeight:700,color:'#FFFFFF',letterSpacing:'-0.01em'}}>
-                          ARR Bridge: {periodType} · {selLb}M Lookback
+                          ARR Bridge: {periodType==='Annual'?'YoY':'QoQ'} · {selLb}M{selPeriod?` · ${selPeriod}`:''}
                         </div>
                         <div style={{fontSize:11,color:'#7B8EA8',marginTop:2}}>Movement from beginning to ending ARR</div>
                       </div>
@@ -1469,8 +1493,8 @@ export default function CommandCenter() {
                     <div style={{padding:'20px 20px 8px'}}>
                       {(()=>{
                         const movements = selectedWfall.filter(r=>!['Beginning MRR','Ending MRR','Beginning ARR','Ending ARR'].includes(r.category))
-                        const beginning = {category:'Beginning ARR', value:ret?.beginning||0}
-                        const ending    = {category:'Ending ARR',    value:ret?.ending||0}
+                        const beginning = {category:'Beginning ARR', value:(retForPeriod||ret)?.beginning||0}
+                        const ending    = {category:'Ending ARR',    value:(retForPeriod||ret)?.ending||0}
                         const fullData  = [beginning, ...movements, ending]
                         return <WaterfallBridge data={fullData} showBoundary={true}/>
                       })()}
