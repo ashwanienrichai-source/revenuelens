@@ -23,7 +23,7 @@ const C = {
   text:     '#111827',
   text2:    '#6B7280',
   text3:    '#9CA3AF',
-  accent:   '#2563EB',
+  accent:   '#003A8F',
   asoft:    '#EFF6FF',
   aborder:  '#BFDBFE',
   green:    '#16A34A',
@@ -138,7 +138,7 @@ const MODULES = [
   {
     icon: Zap, title: 'Command Center',
     desc: 'MRR/ARR bridge, retention, NRR/GRR, top movers. Full analysis in one view.',
-    href: '/app/command-center', color: '#2563EB', badge: 'Live', live: true,
+    href: '/app/command-center', color: '#003A8F', badge: 'Live', live: true,
   },
   {
     icon: Layers, title: 'Cohort Analytics',
