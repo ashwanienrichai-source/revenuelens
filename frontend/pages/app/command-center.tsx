@@ -54,6 +54,13 @@ const fmt = v => {
 }
 const fmtPct = v => v != null ? `${v.toFixed(1)}%` : '—'
 
+// toARR: convert raw value to ARR based on revenue type
+// Used for all monetary display — if MRR, ×12; if ARR, passthrough
+// Called with the revenueType state variable via closure in component
+function makeToARR(revenueType) {
+  return (v) => revenueType === 'MRR' ? (v == null ? null : v * 12) : v
+}
+
 // ─── Engine config ────────────────────────────────────────────────────────────
 const ENGINE_CONFIG = {
   mrr: {
@@ -509,6 +516,8 @@ export default function CommandCenter() {
   const [lookbacks, setLookbacks] = useState([1,3,12])
   const [revenueUnit, setRevUnit] = useState('raw')
   const [periodType, setPeriod]   = useState('Annual')
+  // MRR vs ARR toggle — if MRR, multiply ×12 to derive ARR everywhere
+  const [revenueType, setRevenueType] = useState('ARR')  // 'MRR' | 'ARR'
 
   // Results
   const [results, setResults]     = useState(null)
@@ -518,6 +527,10 @@ export default function CommandCenter() {
   const [yearFilter, setYearFilter] = useState('All')
   const [activeTab, setActiveTab]   = useState('summary')
   const [moverCat, setMoverCat]     = useState('')
+  // Inline cohort results fetched when user clicks Cohort Heatmap tab
+  const [cohortResults, setCohortResults] = useState(null)
+  const [cohortRunning, setCohortRunning] = useState(false)
+  const [cohortErr, setCohortErr]         = useState('')
 
   // Header filter state — these control UI; re-runs happen via applyFilters()
   const [selDims, setSelDims]       = useState('customer')   // 'customer'|'product'|'region'
@@ -539,6 +552,9 @@ export default function CommandCenter() {
   const step2  = step1 && !!engine
   const step3  = step2 && Object.keys(errors).length === 0
   const canRun = step3 && !running
+
+  // ── ARR converter — ×12 if MRR input ──────────────────────────────────────
+  const toARR = makeToARR(revenueType)
 
   // Derived
   const lb       = String(selLb)
@@ -760,6 +776,7 @@ export default function CommandCenter() {
       } else {
         const dims=['product','channel','region'].map(k=>fieldMap[k]).filter(Boolean)
         fd.append('revenue_unit',   revenueUnit)
+        fd.append('revenue_type',  revenueType)
         fd.append('lookbacks',      JSON.stringify(lookbacks))
         fd.append('dimension_cols', JSON.stringify(dims))
         fd.append('year_filter',    yearFilter!=='All'?yearFilter:'')
@@ -818,6 +835,7 @@ export default function CommandCenter() {
       if (dimKey === 'product' && fieldMap.product) dims.push(fieldMap.product)
       if (dimKey === 'region'  && fieldMap.region)  dims.push(fieldMap.region)
       fd.append('revenue_unit',   revenueUnit)
+      fd.append('revenue_type',  revenueType)
       fd.append('lookbacks',      JSON.stringify(lookbacks))
       fd.append('dimension_cols', JSON.stringify(dims))
       fd.append('year_filter',    '')
@@ -859,6 +877,7 @@ export default function CommandCenter() {
       if (selDims === 'product' && fieldMap.product) dims.push(fieldMap.product)
       if (selDims === 'region'  && fieldMap.region)  dims.push(fieldMap.region)
       fd.append('revenue_unit',   revenueUnit)
+      fd.append('revenue_type',  revenueType)
       fd.append('lookbacks',      JSON.stringify(lookbacks))
       fd.append('dimension_cols', JSON.stringify(dims))
       fd.append('year_filter',    '')
@@ -896,12 +915,38 @@ export default function CommandCenter() {
     a.download=`revenuelens_${engine}_${new Date().toISOString().slice(0,10)}.csv`; a.click()
   }
 
+  // ── Inline cohort analysis for Cohort Heatmap tab ────────────────────────
+  async function runInlineCohort() {
+    if (!file || cohortRunning) return
+    setCohortRunning(true); setCohortErr('')
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      // Use the same customer/date/revenue fields already mapped
+      fd.append('metric',       fieldMap.revenue||'')
+      fd.append('customer_col', fieldMap.customer||'')
+      fd.append('date_col',     fieldMap.date||'')
+      fd.append('fiscal_col',   'None')
+      fd.append('cohort_types', JSON.stringify(['SG']))
+      fd.append('period_filter','all')
+      fd.append('selected_fiscal_year', '')
+      fd.append('individual_cols', JSON.stringify([]))
+      fd.append('hierarchies',     JSON.stringify([]))
+      const {data} = await axios.post(`${API}/api/cohort/analyze`, fd, {timeout:120000})
+      setCohortResults(data)
+    } catch(e) {
+      setCohortErr(e?.response?.data?.detail||'Cohort analysis failed.')
+    }
+    setCohortRunning(false)
+  }
+
   const TABS = isCohort ? [
     {id:'heatmap',label:'Retention'},{id:'revenue_heatmap',label:'Revenue'},
     {id:'segmentation',label:'Segments'},{id:'summary',label:'Summary'},{id:'output',label:'Output'},
   ] : [
     {id:'summary',label:'Revenue Bridge'},
-    {id:'retention',label:'Retention'},{id:'top_movers',label:'Top Movers'},
+    {id:'retention_trend',label:'Retention Trends'},
+    {id:'cohort_heatmap',label:'Cohort Heatmap'},
+    {id:'top_movers',label:'Top Movers'},
     {id:'top_customers',label:'Customers'},{id:'kpi_matrix',label:'KPI Matrix'},{id:'output',label:'Output'},
   ]
 
@@ -1130,6 +1175,35 @@ export default function CommandCenter() {
                 </div>
               ):(
                 <div style={{display:'flex',flexDirection:'column',gap:14}}>
+                  {/* MRR vs ARR question — only for mrr engine */}
+                  {engine==='mrr'&&(
+                    <div>
+                      <div style={{fontSize:10,fontWeight:600,color:'#94A3B8',marginBottom:6}}>Revenue Column Type</div>
+                      <div style={{fontSize:10,color:'#64748B',marginBottom:10,lineHeight:1.5}}>
+                        Is your revenue column <strong style={{color:'#CBD5E1'}}>MRR</strong> (monthly recurring) or <strong style={{color:'#CBD5E1'}}>ARR</strong> (annual)?<br/>
+                        If MRR, values will be multiplied × 12 to derive ARR throughout.
+                      </div>
+                      <div style={{display:'flex',gap:6}}>
+                        {[['ARR','Already ARR'],['MRR','Monthly → ×12']].map(([v,l])=>(
+                          <button key={v} onClick={()=>setRevenueType(v)} style={{
+                            flex:1,padding:'8px 0',borderRadius:6,fontSize:10,fontWeight:500,
+                            border:`1px solid ${revenueType===v?'#2D5A3D':'#1E2D45'}`,
+                            background:revenueType===v?'#1A3A2A':'#0F1A2E',
+                            color:revenueType===v?'#4ADE80':'#64748B',
+                            cursor:'pointer',transition:'all 0.12s',
+                          }}>
+                            <div style={{fontWeight:700,marginBottom:2}}>{v}</div>
+                            <div style={{fontSize:9,opacity:0.8}}>{l}</div>
+                          </button>
+                        ))}
+                      </div>
+                      {revenueType==='MRR'&&(
+                        <div style={{marginTop:8,padding:'8px 10px',background:'#1A3A2A',border:'1px solid #2D5A3D',borderRadius:6,fontSize:10,color:'#4ADE80'}}>
+                          ✓ All revenue values will be multiplied × 12 → displayed as ARR
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div>
                     <div style={{fontSize:10,fontWeight:600,color:'#5A7294',marginBottom:8}}>Lookback Windows</div>
                     <div style={{display:'flex',gap:6}}>
@@ -1199,7 +1273,7 @@ export default function CommandCenter() {
             {/* Left: title + subtitle */}
             <div style={{flex:1,minWidth:0}}>
               <h1 style={{margin:0,fontSize:24,fontWeight:700,color:'#FFFFFF',letterSpacing:'-0.02em',lineHeight:1.1}}>
-                {isCohort ? 'Cohort Analytics' : 'Revenue Bridge Analysis'}
+                {isCohort ? 'Cohort Analytics' : `${revenueType} Bridge Analysis`}
               </h1>
               <p style={{margin:'6px 0 0',fontSize:13,color:'#7B8EA8',lineHeight:1.55,maxWidth:520}}>
                 {isCohort
@@ -1366,10 +1440,10 @@ export default function CommandCenter() {
                   <KpiChip label="Cohort Columns" value={(results.summary?.cohort_cols?.length||0).toString()}/>
                   <KpiChip label="Fiscal Years"   value={(results.fiscal_years?.length||0).toString()}/>
                 </>):(<>
-                  <KpiChip label="Starting ARR"    value={fmt((retForPeriod||ret)?.beginning)} accent/>
-                  <KpiChip label="Ending ARR"      value={fmt((retForPeriod||ret)?.ending)} sub={(retForPeriod||ret)?.beginning>0?`${((((retForPeriod||ret)?.ending||0)-((retForPeriod||ret)?.beginning||0))/((retForPeriod||ret)?.beginning||1)*100).toFixed(1)}%`:null} subGood={((retForPeriod||ret)?.ending||0)>=((retForPeriod||ret)?.beginning||0)}/>
-                  <KpiChip label="New ARR"         value={fmt((retForPeriod||ret)?.new_arr)} sub={(retForPeriod||ret)?.new_arr>0?`+${fmt((retForPeriod||ret)?.new_arr)}`:null} subGood={true}/>
-                  <KpiChip label="Lost ARR"        value={fmt(Math.abs((retForPeriod||ret)?.lost_arr||0))} sub={(retForPeriod||ret)?.lost_arr<0?fmt((retForPeriod||ret)?.lost_arr):null} subGood={false}/>
+                  <KpiChip label="Starting ARR"    value={fmt(toARR((retForPeriod||ret)?.beginning))} accent/>
+                  <KpiChip label="Ending ARR"      value={fmt(toARR((retForPeriod||ret)?.ending))} sub={(retForPeriod||ret)?.beginning>0?`${((((retForPeriod||ret)?.ending||0)-((retForPeriod||ret)?.beginning||0))/((retForPeriod||ret)?.beginning||1)*100).toFixed(1)}%`:null} subGood={((retForPeriod||ret)?.ending||0)>=((retForPeriod||ret)?.beginning||0)}/>
+                  <KpiChip label="New ARR"         value={fmt(toARR((retForPeriod||ret)?.new_arr))} sub={(retForPeriod||ret)?.new_arr>0?`+${fmt((retForPeriod||ret)?.new_arr)}`:null} subGood={true}/>
+                  <KpiChip label="Lost ARR"        value={fmt(Math.abs(toARR((retForPeriod||ret)?.lost_arr)||0))} sub={(retForPeriod||ret)?.lost_arr<0?fmt((retForPeriod||ret)?.lost_arr):null} subGood={false}/>
                   <KpiChip label="Net Retention"   value={fmtPct((retForPeriod||ret)?.nrr)} sub={((retForPeriod||ret)?.nrr||0)>=100?'Healthy':'At Risk'} subGood={((retForPeriod||ret)?.nrr||0)>=100}/>
                   <KpiChip label="Gross Retention" value={fmtPct((retForPeriod||ret)?.grr)} sub={((retForPeriod||ret)?.grr||0)>=80?'Strong':'Alert'} subGood={((retForPeriod||ret)?.grr||0)>=80}/>
                 </>)}
@@ -1379,7 +1453,12 @@ export default function CommandCenter() {
             {/* Tab bar */}
             <div style={{display:'flex',borderBottom:'1px solid #1E2D45',background:'#0F1A2E',flexShrink:0,paddingLeft:24}}>
               {TABS.map(tab=>(
-                <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{
+                <button key={tab.id} onClick={()=>{
+                  setActiveTab(tab.id)
+                  if(tab.id==='cohort_heatmap'&&!cohortResults&&!cohortRunning&&file&&fieldMap.customer&&fieldMap.date&&fieldMap.revenue) {
+                    runInlineCohort()
+                  }
+                }} style={{
                   padding:'12px 16px',fontSize:12,fontWeight:600,border:'none',
                   borderBottom:`2px solid ${activeTab===tab.id?'#3D5068':'transparent'}`,
                   background:'transparent',cursor:'pointer',marginBottom:-1,marginRight:4,
@@ -1520,8 +1599,8 @@ export default function CommandCenter() {
                     <div style={{padding:'20px 20px 8px'}}>
                       {(()=>{
                         const movements = selectedWfall.filter(r=>!['Beginning MRR','Ending MRR','Beginning ARR','Ending ARR'].includes(r.category))
-                        const beginning = {category:'Beginning ARR', value:(retForPeriod||ret)?.beginning||0}
-                        const ending    = {category:'Ending ARR',    value:(retForPeriod||ret)?.ending||0}
+                        const beginning = {category:'Beginning ARR', value:toARR((retForPeriod||ret)?.beginning)||0}
+                        const ending    = {category:'Ending ARR',    value:toARR((retForPeriod||ret)?.ending)||0}
                         const fullData  = [beginning, ...movements, ending]
                         return <WaterfallBridge data={fullData} showBoundary={true}/>
                       })()}
@@ -1637,8 +1716,8 @@ export default function CommandCenter() {
                 </div>
               )}
 
-              {/* MRR: RETENTION */}
-              {!isCohort&&activeTab==='retention'&&(
+              {/* MRR: RETENTION TRENDS */}
+              {!isCohort&&activeTab==='retention_trend'&&(
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
                   {kpiRows.length>0&&(
                     <div style={S.card}>
@@ -1690,6 +1769,95 @@ export default function CommandCenter() {
                           </tr>
                         ))}</tbody>
                       </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* COHORT HEATMAP TAB — embedded inside MRR/ARR Analytics */}
+              {!isCohort&&activeTab==='cohort_heatmap'&&(
+                <div style={{display:'flex',flexDirection:'column',gap:20}}>
+                  {/* Context explanation */}
+                  <div style={{padding:'12px 16px',background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,display:'flex',alignItems:'flex-start',gap:10}}>
+                    <Info size={13} color="#64748B" style={{flexShrink:0,marginTop:1}}/>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:600,color:'#CBD5E1',marginBottom:3}}>Cohort Retention Heatmap</div>
+                      <div style={{fontSize:11,color:'#64748B',lineHeight:1.5}}>
+                        Shows customer retention rates by acquisition cohort. Uses the same data file and field mapping already configured. Customer, Date and Revenue columns are required.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Run state / results */}
+                  {!cohortResults&&!cohortRunning&&(
+                    <div style={{textAlign:'center',padding:'48px 24px'}}>
+                      <div style={{width:56,height:56,borderRadius:12,border:'1px solid #1E2D45',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px'}}>
+                        <Layers size={24} color="#3D5068"/>
+                      </div>
+                      <div style={{fontSize:15,fontWeight:600,color:'#CBD5E1',marginBottom:6}}>Build Retention Heatmap</div>
+                      <div style={{fontSize:12,color:'#64748B',marginBottom:20,maxWidth:360,margin:'0 auto 20px'}}>
+                        Analyse cohort retention using your existing data. This runs a separate cohort pass on the same file.
+                      </div>
+                      {cohortErr&&<div style={{marginBottom:16,padding:'10px 14px',background:'#1A0A0A',border:'1px solid #3A1A1A',borderRadius:6,fontSize:11,color:'#F87171'}}>{cohortErr}</div>}
+                      <button onClick={runInlineCohort} style={{
+                        padding:'10px 28px',borderRadius:6,border:'1px solid #2D5A3D',
+                        background:'#1A3A2A',color:'#4ADE80',fontSize:13,fontWeight:600,cursor:'pointer',
+                      }}>
+                        Run Cohort Analysis
+                      </button>
+                    </div>
+                  )}
+
+                  {cohortRunning&&(
+                    <div style={{textAlign:'center',padding:'48px 24px'}}>
+                      <Loader2 size={24} color="#64748B" style={{animation:'spin 1s linear infinite',margin:'0 auto 12px',display:'block'}}/>
+                      <div style={{fontSize:12,color:'#64748B'}}>Running cohort analysis…</div>
+                    </div>
+                  )}
+
+                  {cohortResults&&!cohortRunning&&(
+                    <div style={{display:'flex',flexDirection:'column',gap:16}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                        <div style={{fontSize:11,color:'#64748B'}}>
+                          {cohortResults.retention?.length||0} cohorts · {cohortResults.retention?.[0] ? Object.keys(cohortResults.retention[0]).filter(k=>k!=='cohort').length : 0} periods
+                        </div>
+                        <button onClick={()=>setCohortResults(null)} style={{fontSize:11,color:'#64748B',background:'none',border:'none',cursor:'pointer',padding:'4px 8px'}}>
+                          ↺ Re-run
+                        </button>
+                      </div>
+
+                      {cohortResults.retention?.length>0&&(
+                        <div style={S.card}>
+                          <CohortHeatmap data={cohortResults.retention} title="Retention Rate % by Cohort" isPercent={true}/>
+                        </div>
+                      )}
+
+                      {cohortResults.heatmap?.length>0&&(
+                        <div style={S.card}>
+                          <CohortHeatmap data={cohortResults.heatmap} title="Customer Count by Cohort" isPercent={false}/>
+                        </div>
+                      )}
+
+                      {cohortResults.fy_summary?.length>0&&(
+                        <div style={S.card}>
+                          <div style={{...S.label,marginBottom:16}}>Summary by Period</div>
+                          <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
+                            <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
+                              {['Period','Revenue','Customers','Rev/Customer'].map(h=>(
+                                <th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#4A5A6E'}}>{h}</th>
+                              ))}
+                            </tr></thead>
+                            <tbody>{cohortResults.fy_summary.map((row,i)=>(
+                              <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
+                                <td style={{padding:'10px 12px',fontWeight:600,color:'#E2E8F0'}}>{String(Object.values(row)[0])}</td>
+                                <td style={{padding:'10px 12px',color:'#4ADE80',fontFamily:"'JetBrains Mono',monospace"}}>{fmt(toARR(row.revenue))}</td>
+                                <td style={{padding:'10px 12px',color:'#94A3B8',fontFamily:"'JetBrains Mono',monospace"}}>{row.customers?.toLocaleString()}</td>
+                                <td style={{padding:'10px 12px',color:'#94A3B8',fontFamily:"'JetBrains Mono',monospace"}}>{fmt(toARR(row.rev_per_customer))}</td>
+                              </tr>
+                            ))}</tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
