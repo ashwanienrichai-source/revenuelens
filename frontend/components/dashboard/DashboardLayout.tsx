@@ -114,7 +114,7 @@ export default function DashboardLayout({ children, profile, title, loading = fa
             width:          28,
             height:         28,
             borderRadius:   7,
-            background:     '#2563EB',
+            background:     '#003A8F',
             display:        'flex',
             alignItems:     'center',
             justifyContent: 'center',
@@ -217,7 +217,7 @@ export default function DashboardLayout({ children, profile, title, loading = fa
               }}>
                 <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 3 }}>Free plan</div>
                 <Link href="/dashboard/upgrade" style={{
-                  fontSize: 11, color: '#2563EB', fontWeight: 600, textDecoration: 'none',
+                  fontSize: 11, color: '#003A8F', fontWeight: 600, textDecoration: 'none',
                 }}>
                   Upgrade to export →
                 </Link>
@@ -240,7 +240,7 @@ export default function DashboardLayout({ children, profile, title, loading = fa
               width: 28, height: 28, borderRadius: '50%',
               background: '#EFF6FF', border: '1px solid #BFDBFE',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#2563EB',
+              flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#003A8F',
             }}>
               {initials}
             </div>
