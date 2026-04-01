@@ -170,24 +170,24 @@ function UploadTimer({active}) {
 // ─── KPI Chip ─────────────────────────────────────────────────────────────────
 function KpiChip({label,value,sub,subGood,accent}) {
   const subColor = subGood===true?'#4ADE80':subGood===false?'#F87171':'#64748B'
-  const valColor = label==='Net Retention'||(subGood===true&&(String(sub||'').includes('%')||String(sub||'').includes('Healthy')))?'#4ADE80'
+  const valColor = subGood===true&&(String(sub||'').includes('Healthy')||String(label||'').includes('Net'))?'#4ADE80'
     :subGood===false&&(String(sub||'').includes('Risk')||String(sub||'').includes('Alert'))?'#F87171':'#E2E8F0'
   return (
     <div style={{
       background:  '#0F1A2E',
       border:      '1px solid #1E2D45',
-      borderLeft:  accent ? '2px solid #3D5068' : '1px solid #1E2D45',
+      borderTop:   accent ? '2px solid #253550' : '1px solid #1E2D45',
       borderRadius:6,
-      padding:     '14px 16px',
+      padding:     '12px 14px',
     }}>
-      <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'#4A5A6E',marginBottom:8}}>
+      <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'#4A5A6E',marginBottom:7}}>
         {label}
       </div>
-      <div style={{fontFamily:"'JetBrains Mono',monospace",fontFeatureSettings:"'tnum'",fontSize:20,fontWeight:700,lineHeight:1,color:valColor,letterSpacing:'-0.02em'}}>
+      <div style={{fontFamily:"'JetBrains Mono',monospace",fontFeatureSettings:"'tnum'",fontSize:19,fontWeight:700,lineHeight:1,color:valColor,letterSpacing:'-0.02em'}}>
         {value}
       </div>
       {sub!=null&&(
-        <div style={{marginTop:5,fontSize:10,fontWeight:500,color:subColor}}>
+        <div style={{marginTop:4,fontSize:10,fontWeight:500,color:subColor}}>
           {subGood===true?'↑ ':subGood===false?'↓ ':''}{sub}
         </div>
       )}
@@ -327,7 +327,7 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
           })}
           {retention&&Object.keys(retention).length>0&&[['Gross Retention','grr',80],['Net Retention','nrr',100]].map(([lbl,key,thr])=>(
             <tr key={key} style={{borderTop:'1px solid var(--color-border)',background:'#162035'}}>
-              <td style={{padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',position:'sticky',left:0,background:'#162035',whiteSpace:'nowrap'}}>{lbl}</td>
+              <td style={{padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',position:'sticky',left:0,background:'#0F1A2E',whiteSpace:'nowrap'}}>{lbl}</td>
               {periods.map(p=>{const v=retention[p]?.[key];return(
                 <td key={p} style={{textAlign:'right',padding:'8px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:v>=thr?'#4ADE80':'#F87171'}}>{v!=null?`${v.toFixed(1)}%`:'—'}</td>
               )})}
@@ -367,7 +367,7 @@ function CustomerCountPivot({pivot}) {
           })}
           {logo_retention&&(
             <tr style={{borderTop:'1px solid var(--color-border)',background:'#162035'}}>
-              <td style={{padding:'6px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',position:'sticky',left:0,background:'#162035',whiteSpace:'nowrap'}}>Logo Retention</td>
+              <td style={{padding:'6px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',position:'sticky',left:0,background:'#0F1A2E',whiteSpace:'nowrap'}}>Logo Retention</td>
               {periods.map(p=>{const lr=logo_retention[p]?.logo_retention;return(
                 <td key={p} style={{textAlign:'right',padding:'6px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:lr>=80?'#4ADE80':lr>=60?'#64748B':'#F87171'}}>{lr!=null?`${lr.toFixed(1)}%`:'—'}</td>
               )})}
@@ -602,17 +602,51 @@ export default function CommandCenter() {
     return row?.Period || row?.period || ''
   }
 
-  // Available periods from data (for period selector)
-  // Pull from by_period data — each item has _period field like 'Jan-25'
+  // Available periods — full chronological range derived from data
+  // Format: 'Jan-22', 'Feb-22' … 'Dec-25'
+  // Reads all _period values across all lookback windows, generates contiguous range
   const availablePeriods = useMemo(() => {
-    const allPeriods = new Set()
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const raw = new Set()
     if (results?.bridge) {
       Object.values(results.bridge).forEach(b => {
-        if (b?.by_period) b.by_period.forEach(r => { if (r._period) allPeriods.add(r._period) })
+        if (b?.by_period) b.by_period.forEach(r => { if (r._period) raw.add(r._period) })
       })
     }
-    return Array.from(allPeriods).sort()
+    if (raw.size === 0) return []
+
+    // Parse 'Mon-YY' → sortable number: year*100+monthIndex
+    const parse = (s) => {
+      const [mon, yr] = (s||'').split('-')
+      const mi = MONTHS.indexOf(mon)
+      if (mi < 0) return 0
+      const yrNum = parseInt(yr, 10)
+      const fullYr = yrNum < 50 ? 2000 + yrNum : 1900 + yrNum
+      return fullYr * 100 + mi
+    }
+
+    const sorted = Array.from(raw).sort((a, b) => parse(a) - parse(b))
+    if (sorted.length === 0) return []
+
+    // Generate full contiguous range from min to max
+    const minN = parse(sorted[0])
+    const maxN = parse(sorted[sorted.length - 1])
+    const result = []
+    let cur = minN
+    while (cur <= maxN) {
+      const yr = Math.floor(cur / 100)
+      const mi = cur % 100
+      const yy = String(yr).slice(-2)
+      result.push(`${MONTHS[mi]}-${yy}`)
+      // Advance to next month
+      if (mi === 11) cur = (yr + 1) * 100
+      else cur++
+    }
+    return result
   }, [results])
+
+  // Auto-set selPeriod to latest when data first loads
+  const latestPeriod = availablePeriods.length > 0 ? availablePeriods[availablePeriods.length - 1] : ''
 
   // Filtered by_period data based on selPeriod
   const filteredByPeriod = useMemo(() => {
@@ -704,6 +738,13 @@ export default function CommandCenter() {
     })
     return map
   }, [topCusts])
+
+  // Auto-select latest period when periods first become available
+  useEffect(() => {
+    if (availablePeriods.length > 0 && !selPeriod) {
+      setSelPeriod(availablePeriods[availablePeriods.length - 1])
+    }
+  }, [availablePeriods])
 
   const narrative = useMemo(() => genNarrative(retForPeriod||ret, movers), [retForPeriod, ret, movers])
 
@@ -943,21 +984,39 @@ export default function CommandCenter() {
     {id:'heatmap',label:'Retention'},{id:'revenue_heatmap',label:'Revenue'},
     {id:'segmentation',label:'Segments'},{id:'summary',label:'Summary'},{id:'output',label:'Output'},
   ] : [
-    {id:'summary',label:'Revenue Bridge'},
-    {id:'retention_trend',label:'Retention Trends'},
-    {id:'cohort_heatmap',label:'Cohort Heatmap'},
+    {id:'summary',label:'Summary'},
+    {id:'retention_trend',label:'Detailed Bridge'},
+    {id:'cohort_heatmap',label:'Cohorts'},
     {id:'top_movers',label:'Top Movers'},
-    {id:'top_customers',label:'Customers'},{id:'kpi_matrix',label:'KPI Matrix'},{id:'output',label:'Output'},
+    {id:'top_customers',label:'Customers'},
+    {id:'kpi_matrix',label:'KPI Matrix'},
+    {id:'output',label:'Output'},
   ]
 
   // ── Style helpers ──────────────────────────────────────────────────────────
+  // ── Design tokens — single source of truth ──────────────────────────────
+  const T = {
+    bgPage:    '#0B1220',
+    bgSurface: '#0F1A2E',
+    bgRaised:  '#162035',
+    border:    '#1E2D45',
+    border2:   '#253550',
+    text:      '#E2E8F0',
+    text2:     '#94A3B8',
+    text3:     '#4A5A6E',
+    pos:       '#4ADE80',
+    neg:       '#F87171',
+    warn:      '#FCD34D',
+    neutral:   '#64748B',
+    mono:      "'JetBrains Mono',monospace",
+  }
   const S = {
-    card:  { background:'#0F1A2E', border:'1px solid #1E2D45', borderRadius:8, padding:20 },
-    cardF: { background:'#0F1A2E', border:'1px solid #1E2D45', borderRadius:8, padding:0, overflow:'hidden' },
-    label: { fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', color:'#5A7294' },
-    th:    { fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', color:'#5A7294', padding:'10px 16px', background:'#0D1525', borderBottom:'1px solid #1E2D45', textAlign:'left', whiteSpace:'nowrap' },
-    td:    { padding:'10px 16px', color:'#C8D6E8', fontSize:13, borderBottom:'1px solid #1A2840' },
-    mono:  { fontFamily:"'JetBrains Mono',monospace", fontFeatureSettings:"'tnum'" },
+    card:  { background:T.bgSurface, border:`1px solid ${T.border}`, borderRadius:6, padding:20 },
+    cardF: { background:T.bgSurface, border:`1px solid ${T.border}`, borderRadius:6, padding:0, overflow:'hidden' },
+    label: { fontSize:9, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.1em', color:T.text3 },
+    th:    { fontSize:9, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', color:T.text3, padding:'9px 14px', background:T.bgRaised, borderBottom:`1px solid ${T.border}`, textAlign:'left', whiteSpace:'nowrap' as const },
+    td:    { padding:'9px 14px', color:T.text2, fontSize:12, borderBottom:`1px solid ${T.border}` },
+    mono:  { fontFamily:T.mono, fontFeatureSettings:"'tnum'" },
   }
 
 
@@ -1013,7 +1072,7 @@ export default function CommandCenter() {
 
         {/* Progress steps */}
         <div style={{padding:'12px 16px',borderBottom:'1px solid #1E2D45',flexShrink:0}}>
-          {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3],[4,'Configure',!!results,step3&&!results]].map(([n,lbl,done,active])=>(
+          {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3]].map(([n,lbl,done,active])=>(
             <div key={n} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 8px',borderRadius:10,background:active?'#162035':'transparent',marginBottom:2}}>
               <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?'#1A3A2A':active?'#162035':'#1E2D45',color:done?'#4ADE80':active?'#CBD5E1':'#4A5A6E'}}>{done?'✓':n}</div>
               <span style={{fontSize:11,fontWeight:600,color:active?'#CBD5E1':done?'#4A5A6E':'#4A5A6E'}}>{lbl}</span>
@@ -1026,12 +1085,12 @@ export default function CommandCenter() {
 
           {/* STEP 1: Upload */}
           <div style={{padding:16,borderBottom:'1px solid #1E2D45'}}>
-            <div style={S.label}>1. Upload Data</div>
+            <div style={{...S.label}}>1. Upload Data</div>
             {uploadErr&&<div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:'rgba(220,38,38,0.06)',color:'#DC2626',fontSize:10,display:'flex',gap:8}}><AlertCircle size={11} style={{flexShrink:0,marginTop:1}}/>{uploadErr}</div>}
             <div onClick={()=>!uploading&&fileRef.current?.click()} style={{
-              marginTop:10,borderRadius:12,border:`2px dashed ${file&&columns.length?'rgba(79,219,200,0.5)':uploading?'rgba(79,219,200,0.3)':'#253550'}`,
+              marginTop:10,borderRadius:12,border:`2px dashed ${file&&columns.length?'rgba(74,222,128,0.35)':uploading?'rgba(74,222,128,0.2)':'#253550'}`,
               padding:16,textAlign:'center',cursor:'pointer',
-              background:file&&columns.length?'rgba(79,219,200,0.06)':uploading?'rgba(79,219,200,0.04)':'rgba(22,32,53,0.8)',
+              background:file&&columns.length?'rgba(74,222,128,0.04)':uploading?'rgba(74,222,128,0.03)':'rgba(22,32,53,0.8)',
             }}>
               <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadFile(f)}}/>
               {uploading?(<div><Loader2 size={18} color="#94A3B8" style={{margin:'0 auto 4px',animation:'spin 1s linear infinite'}}/><div style={{fontSize:11,color:'#94A3B8',fontWeight:500}}>Reading file…</div></div>)
@@ -1044,7 +1103,7 @@ export default function CommandCenter() {
           {/* STEP 2: Engine */}
           {step1&&(
             <div style={{padding:16,borderBottom:'1px solid #1E2D45'}}>
-              <div style={S.label}>2. Select Engine</div>
+              <div style={{...S.label}}>2. Select Engine</div>
               <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:6}}>
                 {Object.entries(ENGINE_CONFIG).map(([id,ec])=>{
                   const Icon=ec.icon; const active=engine===id
@@ -1059,7 +1118,7 @@ export default function CommandCenter() {
                         <Icon size={12} color={active?'#4FDBC8':'#7B8EA8'}/>
                       </div>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:11,fontWeight:700,color:active?'#4FDBC8':'#C8D6E8',lineHeight:1.2}}>{ec.label}</div>
+                        <div style={{fontSize:11,fontWeight:700,color:active?'#4ADE80':'#E2E8F0',lineHeight:1.2}}>{ec.label}</div>
                         <div style={{fontSize:9,color:'#5A7294',marginTop:2}}>{ec.desc}</div>
                       </div>
                       {active&&<CheckCircle size={12} color="#4ADE80"/>}
@@ -1074,7 +1133,7 @@ export default function CommandCenter() {
           {step2&&cfg&&(
             <div style={{padding:16,borderBottom:'1px solid #1E2D45'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                <div style={S.label}>3. Map Fields</div>
+                <div style={{...S.label}}>3. Map Fields</div>
                 <span style={{fontSize:9,fontWeight:700,color:Object.keys(errors).length===0?'#4FDBC8':'#7B8EA8'}}>
                   {cfg.required.filter(f=>!!fieldMap[f.key]).length}/{cfg.required.length} mapped
                 </span>
@@ -1099,136 +1158,6 @@ export default function CommandCenter() {
             </div>
           )}
 
-          {/* STEP 4: Configure */}
-          {step3&&(
-            <div style={{padding:16}}>
-              <div style={{...S.label,marginBottom:12}}>4. Configure</div>
-              {engine==='cohort'?(
-                <div style={{display:'flex',flexDirection:'column',gap:12}}>
-                  <div>
-                    <div style={{fontSize:10,fontWeight:600,color:'#5A7294',marginBottom:8}}>Cohort Types</div>
-                    {COHORT_TYPES_CFG.map(ct=>(
-                      <label key={ct.id} style={{display:'flex',alignItems:'center',gap:10,padding:10,borderRadius:10,border:`1px solid ${cohortTypes.includes(ct.id)?'rgba(0,229,160,0.2)':'#E5E7EB'}`,background:cohortTypes.includes(ct.id)?'rgba(37,99,235,0.08)':'#FFFFFF',cursor:'pointer',marginBottom:6}}>
-                        <input type="checkbox" checked={cohortTypes.includes(ct.id)} onChange={e=>setCohortTypes(p=>e.target.checked?[...p,ct.id]:p.filter(x=>x!==ct.id))} style={{accentColor:'#2563EB',flexShrink:0}}/>
-                        <div><div style={{fontSize:11,fontWeight:700,color:'#FFFFFF'}}>{ct.label}</div><div style={{fontSize:9,color:'#7B8EA8'}}>{ct.desc}</div></div>
-                      </label>
-                    ))}
-                  </div>
-                  <div>
-                    <div style={{fontSize:10,fontWeight:600,color:'#7B8EA8',marginBottom:6}}>Period Filter</div>
-                    <div style={{display:'flex',gap:4,marginBottom:6}}>
-                      {[['all','All'],['latest','Latest'],['fiscal_year','By FY']].map(([v,l])=>(
-                        <button key={v} onClick={()=>setPeriodFilter(v)} style={{flex:1,padding:'5px 0',borderRadius:8,fontSize:10,fontWeight:600,border:`1px solid ${periodFilter===v?'#2563EB':'#E5E7EB'}`,background:periodFilter===v?'#2563EB':'transparent',color:periodFilter===v?'#FFFFFF':'#6B7280',cursor:'pointer'}}>{l}</button>
-                      ))}
-                    </div>
-                    {periodFilter==='fiscal_year'&&<input value={selectedFY} onChange={e=>setSelectedFY(e.target.value)} placeholder="e.g. FY2024" style={{width:'100%',fontSize:11,border:'1px solid #1E2D45',borderRadius:8,padding:'6px 10px',background:'#0F1A2E',color:'#FFFFFF',outline:'none'}}/>}
-                  </div>
-                  {[
-                    [useSingle,setUseSingle,'Individual Cohorts','Cohort by single column',individualCols,setIndividualCols],
-                  ].map(([checked,setChecked,title,desc,cols,setCols])=>(
-                    <div key={title} style={{borderRadius:10,border:'1px solid #1E2D45',overflow:'hidden'}}>
-                      <label style={{display:'flex',alignItems:'center',gap:10,padding:12,cursor:'pointer',background:checked?'#F7F9FB':'transparent'}}>
-                        <input type="checkbox" checked={checked} onChange={e=>setChecked(e.target.checked)} style={{accentColor:'#2563EB',flexShrink:0}}/>
-                        <div><div style={{fontSize:11,fontWeight:700,color:'#FFFFFF'}}>{title}</div><div style={{fontSize:9,color:'#7B8EA8'}}>{desc}</div></div>
-                      </label>
-                      {checked&&<div style={{padding:8,background:'#0F1A2E',display:'flex',flexDirection:'column',gap:6}}>
-                        {cols.map((col,i)=>(
-                          <div key={i} style={{display:'flex',gap:6}}>
-                            <select value={col} onChange={e=>{const n=[...cols];n[i]=e.target.value;setCols(n)}} style={{flex:1,fontSize:10,border:'1px solid #1E2D45',borderRadius:6,padding:'4px 8px',background:'#0F1A2E',color:'#7B8EA8',outline:'none'}}>
-                              <option value="">— Select column —</option>
-                              {columns.map(c=><option key={c} value={c}>{c}</option>)}
-                            </select>
-                            {cols.length>1&&<button onClick={()=>setCols(p=>p.filter((_,j)=>j!==i))} style={{color:'#7B8EA8',background:'none',border:'none',cursor:'pointer',fontSize:12}}>✕</button>}
-                          </div>
-                        ))}
-                        <button onClick={()=>setCols(p=>[...p,''])} style={{fontSize:10,color:'#2563EB',background:'none',border:'none',cursor:'pointer',fontWeight:600,textAlign:'left'}}>+ Add column</button>
-                      </div>}
-                    </div>
-                  ))}
-                  <div style={{borderRadius:10,border:'1px solid #1E2D45',overflow:'hidden'}}>
-                    <label style={{display:'flex',alignItems:'center',gap:10,padding:12,cursor:'pointer',background:useMulti?'#F7F9FB':'transparent'}}>
-                      <input type="checkbox" checked={useMulti} onChange={e=>setUseMulti(e.target.checked)} style={{accentColor:'#2563EB',flexShrink:0}}/>
-                      <div><div style={{fontSize:11,fontWeight:700,color:'#FFFFFF'}}>Hierarchical Cohorts</div><div style={{fontSize:9,color:'#7B8EA8'}}>Multi-level combinations</div></div>
-                    </label>
-                    {useMulti&&<div style={{padding:8,background:'#0F1A2E',display:'flex',flexDirection:'column',gap:8}}>
-                      {hierarchies.map((hier,hi)=>(
-                        <div key={hi} style={{padding:8,background:'#0F1A2E',borderRadius:8,border:'1px solid #1E2D45'}}>
-                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-                            <span style={{fontSize:10,color:'#7B8EA8',fontWeight:600}}>Hierarchy {hi+1}</span>
-                            <button onClick={()=>setHierarchies(p=>p.filter((_,j)=>j!==hi))} style={{color:'#7B8EA8',background:'none',border:'none',cursor:'pointer'}}>✕</button>
-                          </div>
-                          {hier.map((col,ci)=>(
-                            <div key={ci} style={{display:'flex',gap:6,alignItems:'center',marginBottom:4}}>
-                              <span style={{fontSize:9,color:'#7B8EA8',width:16}}>L{ci+1}</span>
-                              <select value={col} onChange={e=>{const n=hierarchies.map((h,j)=>j===hi?h.map((c,k)=>k===ci?e.target.value:c):h);setHierarchies(n)}} style={{flex:1,fontSize:10,border:'1px solid #1E2D45',borderRadius:6,padding:'4px 8px',background:'#0F1A2E',color:'#7B8EA8',outline:'none'}}>
-                                <option value="">— Select —</option>{columns.map(c=><option key={c} value={c}>{c}</option>)}
-                              </select>
-                              {hier.length>1&&<button onClick={()=>setHierarchies(p=>p.map((h,j)=>j===hi?h.filter((_,k)=>k!==ci):h))} style={{color:'#7B8EA8',background:'none',border:'none',cursor:'pointer'}}>✕</button>}
-                            </div>
-                          ))}
-                          <button onClick={()=>setHierarchies(p=>p.map((h,j)=>j===hi?[...h,'']:h))} style={{fontSize:10,color:'#2563EB',background:'none',border:'none',cursor:'pointer',fontWeight:600}}>+ Add level</button>
-                        </div>
-                      ))}
-                      <button onClick={()=>setHierarchies(p=>[...p,['']]) } style={{fontSize:10,color:'#2563EB',background:'none',border:'none',cursor:'pointer',fontWeight:600}}>+ Add hierarchy</button>
-                    </div>}
-                  </div>
-                </div>
-              ):(
-                <div style={{display:'flex',flexDirection:'column',gap:14}}>
-                  {/* MRR vs ARR question — only for mrr engine */}
-                  {engine==='mrr'&&(
-                    <div>
-                      <div style={{fontSize:10,fontWeight:600,color:'#94A3B8',marginBottom:6}}>Revenue Column Type</div>
-                      <div style={{fontSize:10,color:'#64748B',marginBottom:10,lineHeight:1.5}}>
-                        Is your revenue column <strong style={{color:'#CBD5E1'}}>MRR</strong> (monthly recurring) or <strong style={{color:'#CBD5E1'}}>ARR</strong> (annual)?<br/>
-                        If MRR, values will be multiplied × 12 to derive ARR throughout.
-                      </div>
-                      <div style={{display:'flex',gap:6}}>
-                        {[['ARR','Already ARR'],['MRR','Monthly → ×12']].map(([v,l])=>(
-                          <button key={v} onClick={()=>setRevenueType(v)} style={{
-                            flex:1,padding:'8px 0',borderRadius:6,fontSize:10,fontWeight:500,
-                            border:`1px solid ${revenueType===v?'#2D5A3D':'#1E2D45'}`,
-                            background:revenueType===v?'#1A3A2A':'#0F1A2E',
-                            color:revenueType===v?'#4ADE80':'#64748B',
-                            cursor:'pointer',transition:'all 0.12s',
-                          }}>
-                            <div style={{fontWeight:700,marginBottom:2}}>{v}</div>
-                            <div style={{fontSize:9,opacity:0.8}}>{l}</div>
-                          </button>
-                        ))}
-                      </div>
-                      {revenueType==='MRR'&&(
-                        <div style={{marginTop:8,padding:'8px 10px',background:'#1A3A2A',border:'1px solid #2D5A3D',borderRadius:6,fontSize:10,color:'#4ADE80'}}>
-                          ✓ All revenue values will be multiplied × 12 → displayed as ARR
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div>
-                    <div style={{fontSize:10,fontWeight:600,color:'#5A7294',marginBottom:8}}>Lookback Windows</div>
-                    <div style={{display:'flex',gap:6}}>
-                      {[1,3,6,12].map(lb=>(
-                        <button key={lb} onClick={()=>setLookbacks(p=>p.includes(lb)?p.filter(x=>x!==lb):[...p,lb])} style={{flex:1,padding:'6px 0',borderRadius:10,fontSize:10,fontWeight:700,border:`1px solid ${lookbacks.includes(lb)?'#2563EB':'#E5E7EB'}`,background:lookbacks.includes(lb)?'#2563EB':'transparent',color:lookbacks.includes(lb)?'#fff':'#6B7280',cursor:'pointer'}}>{lb}M</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{fontSize:10,fontWeight:600,color:'#5A7294',marginBottom:8}}>Revenue Units</div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:4}}>
-                      {[['raw','As-is'],['thousands','÷1K'],['millions','÷1M']].map(([v,l])=>(
-                        <button key={v} onClick={()=>setRevUnit(v)} style={{padding:'5px 0',borderRadius:8,fontSize:10,fontWeight:600,border:`1px solid ${revenueUnit===v?'rgba(123,97,255,0.4)':'#E5E7EB'}`,background:revenueUnit===v?'rgba(123,97,255,0.15)':'transparent',color:revenueUnit===v?'#2563EB':'#6B7280',cursor:'pointer'}}>{l}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{display:'flex',gap:4}}>
-                    {['Annual','Quarter'].map(p=>(
-                      <button key={p} onClick={()=>setPeriod(p)} style={{flex:1,padding:'6px 0',borderRadius:10,fontSize:10,fontWeight:700,border:`1px solid ${periodType===p?'rgba(0,180,216,0.4)':'#E5E7EB'}`,background:periodType===p?'rgba(0,180,216,0.12)':'transparent',color:periodType===p?'#2563EB':'#6B7280',cursor:'pointer'}}>{p}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Run button */}
@@ -1237,10 +1166,10 @@ export default function CommandCenter() {
           <button onClick={runAnalysis} disabled={!step1||!step2||running} style={{
             width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:8,
             fontWeight:700,fontSize:13,padding:'12px 0',borderRadius:14,border:'none',cursor:canRun?'pointer':'not-allowed',
-            background:canRun?'#2563EB':'#F7F9FB',
-            color:canRun?'#fff':'#6B7280',transition:'opacity 0.15s',
+            background:canRun?'#1A3A2A':'#162035',
+            color:canRun?'#4ADE80':'#4A5A6E',transition:'opacity 0.15s',
           }}>
-            {running?<Loader2 size={14} color={canRun?'#0B1220':'#5A7294'} style={{animation:'spin 1s linear infinite'}}/>:<Zap size={14}/>}
+            {running?<Loader2 size={14} color={canRun?'#4ADE80':'#4A5A6E'} style={{animation:'spin 1s linear infinite'}}/>:<Zap size={14}/>}
             {running?'Analyzing…':'Run Analysis'}
           </button>
           {running&&<UploadTimer active={running}/>}
@@ -1264,131 +1193,149 @@ export default function CommandCenter() {
       {/* ══ RIGHT PANEL ═══════════════════════════════════════════════════ */}
       <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:'#0B1220'}}>
 
-        {/* ── PAGE HEADER — Revenue Bridge Analysis ─────────────────── */}
-        <header style={{flexShrink:0,borderBottom:'1px solid #1E2D45',background:'#0F1A2E',boxShadow:'0 1px 0 #E2E8F0'}}>
+        {/* ── PAGE HEADER ───────────────────────────────────────────── */}
+        <header style={{flexShrink:0,borderBottom:'1px solid #1E2D45',background:'#0F1A2E'}}>
 
-          {/* Top bar: title + controls */}
-          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',padding:'20px 28px 0',gap:24}}>
+          {/* Row 1: Title + all controls in ONE line */}
+          <div style={{display:'flex',alignItems:'center',padding:'0 28px',height:52,gap:16}}>
 
-            {/* Left: title + subtitle */}
-            <div style={{flex:1,minWidth:0}}>
-              <h1 style={{margin:0,fontSize:24,fontWeight:700,color:'#FFFFFF',letterSpacing:'-0.02em',lineHeight:1.1}}>
-                {isCohort ? 'Cohort Analytics' : `${revenueType} Bridge Analysis`}
-              </h1>
-              <p style={{margin:'6px 0 0',fontSize:13,color:'#7B8EA8',lineHeight:1.55,maxWidth:520}}>
-                {isCohort
-                  ? 'Retention heatmaps and cohort segmentation across your customer base.'
-                  : 'A forensic view of recurring revenue movements. Deep-dive into ARR expansion and contraction vectors.'}
-              </p>
+            {/* Title */}
+            <div style={{fontSize:15,fontWeight:700,color:'#E2E8F0',letterSpacing:'-0.01em',flexShrink:0}}>
+              Customer Analytics
             </div>
 
-            {/* Right: controls — all wired up and functional */}
-            {results&&(
-              <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0,paddingTop:4}}>
-                {!isCohort&&(
-                  <>
-                    {/* YoY / QoQ toggle — triggers re-run */}
-                    <div style={{display:'flex',gap:1,padding:2,background:'#0F1A2E',borderRadius:5,border:'1px solid #1E2D45'}}>
-                      {[['Annual','YoY'],['Quarter','QoQ']].map(([val,lbl])=>(
-                        <button key={val} onClick={()=>applyPeriodType(val)}
-                          disabled={rerunning}
-                          style={{padding:'4px 11px',borderRadius:4,fontSize:11,fontWeight:periodType===val?500:400,border:'none',cursor:rerunning?'not-allowed':'pointer',background:periodType===val?'#162035':'transparent',color:periodType===val?'#CBD5E1':'#4A5A6E',transition:'all 0.12s',opacity:rerunning?0.6:1}}>
-                          {lbl}
-                        </button>
-                      ))}
-                    </div>
+            <div style={{flex:1}}/>
 
-                    {/* Lookback pills — client-side filter, instant */}
-                    <div style={{display:'flex',alignItems:'center',gap:2,background:'#162035',borderRadius:7,border:'1px solid #253550',padding:3}}>
-                      <span style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#4A5A6E',padding:'0 5px'}}>LB</span>
-                      {lookbacks.map(l=>(
-                        <button key={l} onClick={()=>setSelLb(l)}
-                          style={{padding:'5px 10px',borderRadius:5,fontSize:12,fontWeight:600,border:'none',cursor:'pointer',background:selLb===l?'#162035':'transparent',color:selLb===l?'#CBD5E1':'#4A5A6E',fontWeight:selLb===l?500:400,transition:'all 0.15s'}}>
-                          {l}M
-                        </button>
-                      ))}
-                    </div>
+            {/* Controls row — all same height, same spacing */}
+            {results&&!isCohort&&(
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
 
-                    {/* Period selector — month/period from actual data (e.g. Jan-25) */}
-                    {availablePeriods.length>0&&(
-                      <select value={selPeriod} onChange={e=>setSelPeriod(e.target.value)}
-                        style={{fontSize:11,border:'1px solid #1E2D45',borderRadius:5,padding:'4px 10px',background:'#0F1A2E',color:'#94A3B8',outline:'none',maxWidth:120}}>
-                        <option value="">All Periods</option>
-                        {availablePeriods.slice().reverse().map(p=>(
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </select>
-                    )}
-                  </>
+                {/* Period selector */}
+                {availablePeriods.length>0&&(
+                  <select value={selPeriod} onChange={e=>setSelPeriod(e.target.value)}
+                    style={{height:30,fontSize:11,border:'1px solid #1E2D45',borderRadius:5,padding:'0 8px',background:'#0B1220',color:'#94A3B8',outline:'none',cursor:'pointer'}}>
+                    <option value="">All periods</option>
+                    {availablePeriods.map(p=>(
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
                 )}
+
+                {/* Divider */}
+                <div style={{width:1,height:18,background:'#1E2D45'}}/>
+
+                {/* YoY / QoQ */}
+                <div style={{display:'flex',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
+                  {[['Annual','YoY'],['Quarter','QoQ']].map(([val,lbl])=>(
+                    <button key={val} onClick={()=>applyPeriodType(val)} disabled={rerunning}
+                      style={{padding:'0 11px',height:30,fontSize:11,fontWeight:periodType===val?500:400,border:'none',cursor:rerunning?'not-allowed':'pointer',background:periodType===val?'#162035':'transparent',color:periodType===val?'#CBD5E1':'#4A5A6E',transition:'all 0.12s',opacity:rerunning?0.6:1}}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Divider */}
+                <div style={{width:1,height:18,background:'#1E2D45'}}/>
+
+                {/* Lookback */}
+                <div style={{display:'flex',alignItems:'center',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
+                  {lookbacks.map(l=>(
+                    <button key={l} onClick={()=>setSelLb(l)}
+                      style={{padding:'0 10px',height:30,fontSize:11,fontWeight:600,border:'none',cursor:'pointer',background:selLb===l?'#162035':'transparent',color:selLb===l?'#CBD5E1':'#4A5A6E',transition:'all 0.15s'}}>
+                      {l}M
+                    </button>
+                  ))}
+                </div>
+
+                {/* Divider */}
+                <div style={{width:1,height:18,background:'#1E2D45'}}/>
+
+                {/* Dimension */}
+                <div style={{display:'flex',alignItems:'center',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
+                  {[
+                    {key:'customer',label:'Customer'},
+                    {key:'product', label:'× Product',available:!!fieldMap.product},
+                    {key:'region',  label:'× Region', available:!!fieldMap.region},
+                  ].map(opt=>(
+                    <button key={opt.key}
+                      onClick={()=>opt.available!==false&&!rerunning&&applyDimFilter(opt.key)}
+                      disabled={opt.available===false||rerunning}
+                      style={{padding:'0 10px',height:30,fontSize:11,fontWeight:selDims===opt.key?500:400,border:'none',cursor:(opt.available===false||rerunning)?'not-allowed':'pointer',background:selDims===opt.key?'#162035':'transparent',color:selDims===opt.key?'#CBD5E1':opt.available===false?'#2A3040':'#4A5A6E',transition:'all 0.12s'}}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
 
                 {/* Rerunning indicator */}
                 {rerunning&&(
-                  <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#7B8EA8'}}>
-                    <Loader2 size={12} color="#4FDBC8" style={{animation:'spin 1s linear infinite'}}/> Updating…
+                  <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#4A5A6E'}}>
+                    <Loader2 size={11} style={{animation:'spin 1s linear infinite'}}/> Updating…
                   </div>
                 )}
 
                 {/* Reset */}
                 <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('')}}
-                  style={{padding:8,borderRadius:8,border:'1px solid #253550',background:'transparent',cursor:'pointer',color:'#7B8EA8',display:'flex',transition:'all 0.12s'}}
-                  onMouseEnter={e=>{e.currentTarget.style.background='#162035';e.currentTarget.style.color='#FFFFFF'}}
-                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#7B8EA8'}}>
-                  <RefreshCw size={13}/>
+                  style={{height:30,width:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:'1px solid #1E2D45',background:'transparent',cursor:'pointer',color:'#4A5A6E'}}
+                  onMouseEnter={e=>{e.currentTarget.style.color='#CBD5E1';e.currentTarget.style.borderColor='#253550'}}
+                  onMouseLeave={e=>{e.currentTarget.style.color='#4A5A6E';e.currentTarget.style.borderColor='#1E2D45'}}>
+                  <RefreshCw size={12}/>
                 </button>
 
                 {/* Export */}
                 {isAdmin?(
-                  <button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,padding:'7px 14px',borderRadius:8,border:'none',cursor:'pointer',background:'#003A8F',color:'#FFFFFF'}}>
+                  <button onClick={downloadCSV} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,padding:'0 12px',borderRadius:5,border:'1px solid #2D5A3D',cursor:'pointer',background:'#1A3A2A',color:'#4ADE80'}}>
                     <Download size={11}/> Export
                   </button>
                 ):(
-                  <button onClick={()=>router.push('/dashboard/upgrade')} style={{display:'flex',alignItems:'center',gap:6,fontSize:12,fontWeight:600,color:'#C8D6E8',border:'1px solid #253550',padding:'7px 14px',borderRadius:8,background:'transparent',cursor:'pointer'}}>
+                  <button onClick={()=>router.push('/dashboard/upgrade')} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:500,color:'#4A5A6E',border:'1px solid #1E2D45',padding:'0 12px',borderRadius:5,background:'transparent',cursor:'pointer'}}>
                     <Lock size={11}/> Upgrade
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Cohort engine — minimal controls */}
+            {results&&isCohort&&(
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});}}
+                  style={{height:30,width:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:'1px solid #1E2D45',background:'transparent',cursor:'pointer',color:'#4A5A6E'}}>
+                  <RefreshCw size={12}/>
+                </button>
+                {isAdmin&&(
+                  <button onClick={downloadCSV} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,padding:'0 12px',borderRadius:5,border:'1px solid #2D5A3D',cursor:'pointer',background:'#1A3A2A',color:'#4ADE80'}}>
+                    <Download size={11}/> Export
                   </button>
                 )}
               </div>
             )}
           </div>
 
-          {/* Granularity selector — wired to applyDimFilter re-run */}
-          {results&&!isCohort&&(
-            <div style={{display:'flex',alignItems:'center',gap:8,padding:'12px 28px 14px',background:'#0F1A2E'}}>
-              <span style={{fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:'#5A7294',marginRight:6}}>View by:</span>
-              {[
-                {key:'customer', label:'Customer Level',    available:true},
-                {key:'product',  label:'Customer × Product', available:!!fieldMap.product},
-                {key:'region',   label:'Customer × Region',  available:!!fieldMap.region},
-              ].map(opt=>{
-                const isActive = selDims===opt.key
-                return (
-                  <button key={opt.key}
-                    onClick={()=>opt.available&&!rerunning&&applyDimFilter(opt.key)}
-                    disabled={!opt.available||rerunning}
-                    style={{
-                      padding:'6px 14px',borderRadius:20,fontSize:11,fontWeight:600,
-                      border:`1px solid ${isActive?'#253550':'#1E2D45'}`,
-                      background:isActive?'#162035':'transparent',
-                      color:isActive?'#CBD5E1':opt.available?'#64748B':'#334155',
-                      cursor:opt.available&&!rerunning?'pointer':'not-allowed',
-                      transition:'all 0.12s',opacity:!opt.available?0.4:1,
-                    }}>
-                    {opt.label}
-                  </button>
-                )
-              })}
+          {/* Row 2: Tab navigation — at top level */}
+          {results&&(
+            <div style={{display:'flex',borderTop:'1px solid #1E2D45',paddingLeft:28,background:'#0F1A2E',overflowX:'auto'}}>
+              {TABS.map(tab=>(
+                <button key={tab.id} onClick={()=>{
+                  setActiveTab(tab.id)
+                  if(tab.id==='cohort_heatmap'&&!cohortResults&&!cohortRunning&&file&&fieldMap.customer&&fieldMap.date&&fieldMap.revenue) {
+                    runInlineCohort()
+                  }
+                }} style={{
+                  padding:'0 16px',height:40,fontSize:12,fontWeight:activeTab===tab.id?500:400,
+                  border:'none',borderBottom:`2px solid ${activeTab===tab.id?'#4A5A6E':'transparent'}`,
+                  background:'transparent',cursor:'pointer',
+                  color:activeTab===tab.id?'#CBD5E1':'#4A5A6E',
+                  transition:'color 0.12s',whiteSpace:'nowrap',
+                }}>{tab.label}</button>
+              ))}
             </div>
           )}
-
-          {/* Bottom padding to close header */}
-          <div style={{height:4}}/>
         </header>
 
         {/* ── EMPTY STATE ─────────────────────────────────────────────── */}
         {!results&&(
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
             <div style={{textAlign:'center',maxWidth:480}}>
-              <div style={{width:80,height:80,borderRadius:24,border:'1px solid #1E2D45',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={32} color="#3D5068" style={{opacity:0.8}}/></div>
+              <div style={{width:80,height:80,borderRadius:24,border:'1px solid #1E2D45',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={28} color="#4A5A6E" style={{opacity:1}}/></div>
               <h2 style={{fontSize:24,fontWeight:900,color:'#FFFFFF',margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
               <p style={{color:'#7B8EA8',fontSize:14,marginBottom:32,lineHeight:1.6}}>
                 {engine==='cohort'?'Upload data, map fields, then run to see retention heatmaps.'
@@ -1420,17 +1367,8 @@ export default function CommandCenter() {
         {results&&(
           <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
 
-            {/* KPI Section — clearly separated analysis output */}
-            <div style={{padding:'16px 24px 14px',borderBottom:'1px solid #1E2D45',background:'#0B1220',flexShrink:0}}>
-              {/* Context header — period / lookback / granularity */}
-              {!isCohort&&ret&&(
-                <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'#4A5A6E',marginBottom:12,paddingBottom:10,borderBottom:'1px solid #162035',display:'flex',alignItems:'center',gap:12}}>
-                  <span>Analysis Output</span>
-                  {selPeriod&&<span style={{color:'#64748B'}}>·  {selPeriod}</span>}
-                  <span style={{color:'#64748B'}}>·  {periodType==='Annual'?'Year-over-Year':'Quarter-over-Quarter'}</span>
-                  <span style={{color:'#64748B'}}>·  {selLb}M lookback</span>
-                </div>
-              )}
+            {/* KPI Section */}
+            <div style={{padding:'14px 28px',borderBottom:'1px solid #1E2D45',background:'#0B1220',flexShrink:0}}>
               <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10}}>
                 {isCohort?(<>
                   <KpiChip label="Total Revenue"  value={fmt(results.summary?.total_revenue)} accent/>
@@ -1450,31 +1388,14 @@ export default function CommandCenter() {
               </div>
             </div>
 
-            {/* Tab bar */}
-            <div style={{display:'flex',borderBottom:'1px solid #1E2D45',background:'#0F1A2E',flexShrink:0,paddingLeft:24}}>
-              {TABS.map(tab=>(
-                <button key={tab.id} onClick={()=>{
-                  setActiveTab(tab.id)
-                  if(tab.id==='cohort_heatmap'&&!cohortResults&&!cohortRunning&&file&&fieldMap.customer&&fieldMap.date&&fieldMap.revenue) {
-                    runInlineCohort()
-                  }
-                }} style={{
-                  padding:'12px 16px',fontSize:12,fontWeight:600,border:'none',
-                  borderBottom:`2px solid ${activeTab===tab.id?'#3D5068':'transparent'}`,
-                  background:'transparent',cursor:'pointer',marginBottom:-1,marginRight:4,
-                  color:activeTab===tab.id?'#CBD5E1':'#4A5A6E',transition:'color 0.15s',
-                }}>{tab.label}</button>
-              ))}
-            </div>
-
             {/* Tab content */}
-            <div style={{flex:1,overflowY:'auto',padding:'20px 24px',background:'#0B1220'}}>
+            <div style={{flex:1,overflowY:'auto',padding:'20px 28px',background:'#0B1220'}}>
 
               {/* COHORT: Heatmap */}
               {isCohort&&activeTab==='heatmap'&&(
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
-                  <div style={S.card}><CohortHeatmap data={results.retention} title="Retention Rate % by Cohort" isPercent={true}/></div>
-                  {results.heatmap?.length>0&&<div style={S.card}><CohortHeatmap data={results.heatmap} title="Customer Count by Cohort" isPercent={false}/></div>}
+                  <div style={{...S.card}}><CohortHeatmap data={results.retention} title="Retention Rate % by Cohort" isPercent={true}/></div>
+                  {results.heatmap?.length>0&&<div style={{...S.card}}><CohortHeatmap data={results.heatmap} title="Customer Count by Cohort" isPercent={false}/></div>}
                 </div>
               )}
 
@@ -1482,7 +1403,7 @@ export default function CommandCenter() {
               {isCohort&&activeTab==='revenue_heatmap'&&(
                 <div>
                   {results.fy_summary?.length>0?(
-                    <div style={S.card}>
+                    <div style={{...S.card}}>
                       <div style={{...S.label,marginBottom:20}}>Revenue by Fiscal Year</div>
                       <div style={{height:220,marginBottom:24}}>
                         <ResponsiveContainer width="100%" height="100%">
@@ -1514,7 +1435,7 @@ export default function CommandCenter() {
               {/* COHORT: Segmentation */}
               {isCohort&&activeTab==='segmentation'&&results.segmentation?.length>0&&(
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
-                  <div style={S.card}>
+                  <div style={{...S.card}}>
                     <div style={{...S.label,marginBottom:16}}>Revenue Segmentation</div>
                     <div style={{height:200}}>
                       <ResponsiveContainer width="100%" height="100%">
@@ -1533,7 +1454,7 @@ export default function CommandCenter() {
 
               {/* COHORT: Summary */}
               {isCohort&&activeTab==='summary'&&results.fy_summary?.length>0&&(
-                <div style={S.card}>
+                <div style={{...S.card}}>
                   <div style={{...S.label,marginBottom:16}}>Summary by Fiscal Year</div>
                   <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
                     <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>{['FY','Revenue','Customers','Rev/Customer'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8'}}>{h}</th>)}</tr></thead>
@@ -1678,13 +1599,13 @@ export default function CommandCenter() {
 
                   {/* ── Pivot tables (QoQ + YoY) below the main view ─── */}
                   {results?.pivot?.[String(selLb)]?.bridge_pivot&&(
-                    <div style={S.card}>
+                    <div style={{...S.card}}>
                       <BridgePivotTable pivot={results.pivot[String(selLb)].bridge_pivot} title="ARR Waterfall" lookbackLabel={`${selLb}M Lookback`} showPct={false}/>
                       <CustomerCountPivot pivot={results.pivot[String(selLb)].customer_pivot}/>
                     </div>
                   )}
                   {results?.pivot?.['12']?.bridge_pivot&&selLb!==12&&(
-                    <div style={S.card}>
+                    <div style={{...S.card}}>
                       <BridgePivotTable pivot={results.pivot['12'].bridge_pivot} title="ARR Waterfall" lookbackLabel="YoY (12M)" showPct={true}/>
                       <CustomerCountPivot pivot={results.pivot['12'].customer_pivot}/>
                     </div>
@@ -1692,9 +1613,9 @@ export default function CommandCenter() {
 
                   {/* ── Bridge trend chart (stacked bars over time) ───── */}
                   {bdg?.by_period?.length>0&&(
-                    <div style={S.card}>
+                    <div style={{...S.card}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-                        <div style={S.label}>Bridge Trend Over Time</div>
+                        <div style={{...S.label}}>Bridge Trend Over Time</div>
                         <span style={{fontSize:10,color:'#7B8EA8'}}>{periodType} · {selLb}M lookback</span>
                       </div>
                       <div style={{height:240}}>
@@ -1720,9 +1641,9 @@ export default function CommandCenter() {
               {!isCohort&&activeTab==='retention_trend'&&(
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
                   {kpiRows.length>0&&(
-                    <div style={S.card}>
+                    <div style={{...S.card}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-                        <div style={S.label}>Retention Trends</div>
+                        <div style={{...S.label}}>Retention Trends</div>
                         <div style={{display:'flex',gap:16,fontSize:10,color:'#7B8EA8'}}>
                           <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:14,height:2,background:'#003A8F',display:'inline-block'}}/>NRR</span>
                           <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:14,height:2,background:'#16A34A',display:'inline-block'}}/>GRR</span>
@@ -1751,7 +1672,7 @@ export default function CommandCenter() {
                     <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,padding:0,overflow:'hidden'}}>
                       <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
                         <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
-                          {['Period','Beginning','Ending','New Logo','Upsell','Downsell','Churn','GRR','NRR'].map(h=>(
+                          {['Period','Beginning ARR','Ending ARR','New Logo','Upsell','Downsell','Churn','GRR','NRR'].map(h=>(
                             <th key={h} style={{padding:'10px 16px',textAlign:'left',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8',whiteSpace:'nowrap'}}>{h}</th>
                           ))}
                         </tr></thead>
@@ -1827,19 +1748,19 @@ export default function CommandCenter() {
                       </div>
 
                       {cohortResults.retention?.length>0&&(
-                        <div style={S.card}>
+                        <div style={{...S.card}}>
                           <CohortHeatmap data={cohortResults.retention} title="Retention Rate % by Cohort" isPercent={true}/>
                         </div>
                       )}
 
                       {cohortResults.heatmap?.length>0&&(
-                        <div style={S.card}>
+                        <div style={{...S.card}}>
                           <CohortHeatmap data={cohortResults.heatmap} title="Customer Count by Cohort" isPercent={false}/>
                         </div>
                       )}
 
                       {cohortResults.fy_summary?.length>0&&(
-                        <div style={S.card}>
+                        <div style={{...S.card}}>
                           <div style={{...S.label,marginBottom:16}}>Summary by Period</div>
                           <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
                             <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
@@ -2055,7 +1976,7 @@ export default function CommandCenter() {
                             {/* MRR: TOP CUSTOMERS */}
               {!isCohort&&activeTab==='top_customers'&&(
                 <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,padding:0,overflow:'hidden'}}>
-                  <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}><div style={S.label}>Top Customers by Ending ARR</div></div>
+                  <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}><div style={{...S.label}}>Top Customers by Ending ARR</div></div>
                   {topCusts.length>0?(
                     <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
                       <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
@@ -2084,9 +2005,9 @@ export default function CommandCenter() {
                     const kpiData=results?.pivot?.[String(lb)]?.kpi_table
                     if(!kpiData?.length) return null
                     return (
-                      <div key={lb} style={S.card}>
+                      <div key={lb} style={{...S.card}}>
                         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
-                          <div style={S.label}>KPI Summary</div>
+                          <div style={{...S.label}}>KPI Summary</div>
                           <span style={{fontSize:9,background:'#162035',color:'#64748B',border:'1px solid #1E2D45',padding:'2px 8px',borderRadius:4,fontWeight:500}}>{lb}M Lookback</span>
                         </div>
                         <KpiSummaryTable rows={kpiData}/>
@@ -2095,11 +2016,11 @@ export default function CommandCenter() {
                   })}
                   {!results?.pivot&&kpiRows.length>0&&(
                     <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,padding:0,overflow:'hidden'}}>
-                      <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}><div style={S.label}>KPI Matrix — {periodType}</div></div>
+                      <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}><div style={{...S.label}}>KPI Matrix — {periodType}</div></div>
                       <div style={{overflowX:'auto'}}>
                         <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
                           <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
-                            {['Period','Beginning','Ending','New Logo','Upsell','Downsell','Churn','GRR','NRR'].map(h=>(
+                            {['Period','Beginning ARR','Ending ARR','New Logo','Upsell','Downsell','Churn','GRR','NRR'].map(h=>(
                               <th key={h} style={{padding:'10px 16px',textAlign:'left',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8',whiteSpace:'nowrap'}}>{h}</th>
                             ))}
                           </tr></thead>
@@ -2127,7 +2048,7 @@ export default function CommandCenter() {
               {activeTab==='output'&&(
                 <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,padding:0,overflow:'hidden'}}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}>
-                    <div style={S.label}>Output — {results.output?.length?.toLocaleString()} rows</div>
+                    <div style={{...S.label}}>Output — {results.output?.length?.toLocaleString()} rows</div>
                     {isAdmin?(
                       <button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,padding:'6px 14px',borderRadius:10,border:'none',cursor:'pointer',background:'#003A8F',color:'#FFFFFF'}}>
                         <Download size={11}/> Export CSV
