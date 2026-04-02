@@ -304,7 +304,6 @@ function WaterfallBridge({data, showBoundary=false}) {
     <div style={{height:260}}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={rows} margin={{top:8,right:8,bottom:48,left:8}}>
-          <CartesianGrid strokeDasharray="2 4" stroke='#E5E7EB' vertical={false}/>
           <XAxis dataKey="category" tick={{fontSize:9,fill:'#9CA3AF'}} angle={-35} textAnchor="end" interval={0} axisLine={false} tickLine={false}/>
           <YAxis tickFormatter={fmt} tick={{fontSize:9,fill:'#9CA3AF'}} width={48} axisLine={false} tickLine={false}/>
           <ReferenceLine y={0} stroke='#1A2840' strokeDasharray='3 3'/>
@@ -325,7 +324,7 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
     <div style={{overflowX:'auto'}}>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
         <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'#7B8EA8'}}>{title}</span>
-        {lookbackLabel&&<span style={{fontSize:9,background:'#162035',color:'#64748B',border:'1px solid #1E2D45',padding:'2px 8px',borderRadius:4,fontWeight:500}}>{lookbackLabel}</span>}
+        {lookbackLabel&&<span style={{fontSize:9,background:'transparent',color:'#3D5068',border:'none',padding:'2px 0',fontWeight:400}}>{lookbackLabel}</span>}
       </div>
       <table style={{borderCollapse:'collapse',minWidth:Math.max(periods.length*100+220,420),width:'100%',fontSize:12}}>
         <thead>
@@ -356,7 +355,7 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
             )
           })}
           {retention&&Object.keys(retention).length>0&&[['Gross Retention','grr',80],['Net Retention','nrr',100]].map(([lbl,key,thr])=>(
-            <tr key={key} style={{borderTop:'1px solid var(--color-border)',background:'#162035'}}>
+            <tr key={key} style={{borderTop:'1px solid #253550',background:'#162035'}}>
               <td style={{padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',position:'sticky',left:0,background:'#0F1A2E',whiteSpace:'nowrap'}}>{lbl}</td>
               {periods.map(p=>{const v=retention[p]?.[key];return(
                 <td key={p} style={{textAlign:'right',padding:'8px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:v>=thr?'#4ADE80':'#F87171'}}>{v!=null?`${v.toFixed(1)}%`:'—'}</td>
@@ -374,7 +373,7 @@ function CustomerCountPivot({pivot}) {
   if(!pivot?.periods?.length||!pivot?.rows?.length) return null
   const {periods,rows,logo_retention}=pivot
   return (
-    <div style={{overflowX:'auto',marginTop:24,paddingTop:24,borderTop:'1px solid var(--color-border)'}}>
+    <div style={{overflowX:'auto',marginTop:24,paddingTop:24,borderTop:'1px solid #253550'}}>
       <div style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'#7B8EA8',marginBottom:10}}>Customer Count Rollforward</div>
       <table style={{borderCollapse:'collapse',minWidth:Math.max(periods.length*90+200,400),width:'100%',fontSize:12}}>
         <thead>
@@ -396,7 +395,7 @@ function CustomerCountPivot({pivot}) {
             )
           })}
           {logo_retention&&(
-            <tr style={{borderTop:'1px solid var(--color-border)',background:'#162035'}}>
+            <tr style={{borderTop:'1px solid #253550',background:'#162035'}}>
               <td style={{padding:'6px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',position:'sticky',left:0,background:'#0F1A2E',whiteSpace:'nowrap'}}>Logo Retention</td>
               {periods.map(p=>{const lr=logo_retention[p]?.logo_retention;return(
                 <td key={p} style={{textAlign:'right',padding:'6px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:lr>=80?'#4ADE80':lr>=60?'#64748B':'#F87171'}}>{lr!=null?`${lr.toFixed(1)}%`:'—'}</td>
@@ -593,7 +592,52 @@ export default function CommandCenter() {
   const ret      = bdg?.retention
   const wfall    = bdg?.waterfall || []
   const fyYears  = results?.metadata?.fiscal_years || results?.fiscal_years || []
-  const kpiRows  = results?.kpi_matrix || []
+  // ── Monthly trend data — fill gaps so trend is always continuous ──────────
+  const kpiRows = useMemo(() => {
+    const raw = results?.kpi_matrix || []
+    if (raw.length < 2) return raw
+
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const parseP = (s) => {
+      const [mon,yr] = (s||'').split('-')
+      const mi = MONTHS.indexOf(mon)
+      if (mi<0) return null
+      const y = parseInt(yr,10); if(isNaN(y)||y<=0) return null
+      return {yr:y<50?2000+y:1900+y, mi}
+    }
+    const fmtP = ({yr,mi}) => `${MONTHS[mi]}-${String(yr).slice(-2)}`
+    const toKey = ({yr,mi}) => yr*100+mi
+    const advance = ({yr,mi}) => mi===11?{yr:yr+1,mi:0}:{yr,mi:mi+1}
+
+    // Map existing data by period key
+    const byKey = {}
+    raw.forEach(r => {
+      const p = parseP(r.period)
+      if (p) byKey[toKey(p)] = r
+    })
+
+    // Find min and max
+    const parsed = raw.map(r=>parseP(r.period)).filter(Boolean)
+    if (!parsed.length) return raw
+    const minKey = Math.min(...parsed.map(toKey))
+    const maxKey = Math.max(...parsed.map(toKey))
+
+    // Generate full contiguous range
+    const result = []
+    let cur = parsed.find(p=>toKey(p)===minKey)
+    while (toKey(cur) <= maxKey) {
+      const key = toKey(cur)
+      const label = fmtP(cur)
+      if (byKey[key]) {
+        result.push(byKey[key])
+      } else {
+        // Fill gap with null values so connectNulls works properly
+        result.push({period: label, beginning:null, ending:null, nrr:null, grr:null, new_logo:null, upsell:null, downsell:null, churn:null})
+      }
+      cur = advance(cur)
+    }
+    return result
+  }, [results])
   const movers   = results?.top_movers || {}
   const topCusts = results?.top_customers || []
 
@@ -681,6 +725,23 @@ export default function CommandCenter() {
     if (!selPeriod) return bdg.by_period
     return bdg.by_period.filter(r => r._period === selPeriod)
   }, [bdg, selPeriod])
+
+  // kpiRowsWindowed — trend charts show last selLb months ending at selPeriod
+  // This ensures Lookback control drives trend chart window too
+  const kpiRowsWindowed = useMemo(() => {
+    if (!kpiRows.length) return kpiRows
+    if (!selPeriod && !selLb) return kpiRows
+
+    // Find anchor index (selPeriod position in kpiRows)
+    const anchorIdx = selPeriod
+      ? kpiRows.findIndex(r => r.period === selPeriod)
+      : kpiRows.length - 1
+    const anchor = anchorIdx >= 0 ? anchorIdx : kpiRows.length - 1
+
+    // Show selLb months ending at anchor
+    const start = Math.max(0, anchor - selLb + 1)
+    return kpiRows.slice(start, anchor + 1)
+  }, [kpiRows, selPeriod, selLb])
 
   // ── Movement classification rules by granularity (PE-grade analytical logic)
   //
@@ -1295,64 +1356,67 @@ export default function CommandCenter() {
 
             <div style={{flex:1}}/>
 
-            {/* Controls row — all same height, same spacing */}
-            {results&&!isCohort&&(
+            {/* ── GLOBAL FILTER BAR — always visible across all tabs ─── */}
+            {results&&(
               <div style={{display:'flex',alignItems:'center',gap:6}}>
 
-                {/* Period selector */}
-                {availablePeriods.length>0&&(
+                {/* Period selector — real data months only, chronological, default=latest */}
+                {!isCohort&&availablePeriods.length>0&&(
                   <select value={selPeriod} onChange={e=>setSelPeriod(e.target.value)}
-                    style={{height:30,fontSize:11,border:'1px solid #1E2D45',borderRadius:5,padding:'0 8px',background:'#0B1220',color:'#94A3B8',outline:'none',cursor:'pointer'}}>
+                    style={{height:30,fontSize:11,border:'1px solid #1E2D45',borderRadius:5,padding:'0 8px',background:'#0B1220',color:'#94A3B8',outline:'none',cursor:'pointer',fontFamily:"'Inter',system-ui,sans-serif"}}>
                     {availablePeriods.map(p=>(
                       <option key={p} value={p}>{p}</option>
                     ))}
                   </select>
                 )}
 
-                {/* Divider */}
-                <div style={{width:1,height:18,background:'#1E2D45'}}/>
+                {!isCohort&&<div style={{width:1,height:18,background:'#1E2D45'}}/>}
 
-                {/* YoY / QoQ */}
-                <div style={{display:'flex',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
-                  {[['Annual','YoY'],['Quarter','QoQ']].map(([val,lbl])=>(
-                    <button key={val} onClick={()=>applyPeriodType(val)} disabled={rerunning}
-                      style={{padding:'0 11px',height:30,fontSize:11,fontWeight:periodType===val?500:400,border:'none',cursor:rerunning?'not-allowed':'pointer',background:periodType===val?'#162035':'transparent',color:periodType===val?'#CBD5E1':'#4A5A6E',transition:'all 0.12s',opacity:rerunning?0.6:1}}>
-                      {lbl}
-                    </button>
-                  ))}
-                </div>
+                {/* YoY / QoQ — re-runs analysis */}
+                {!isCohort&&(
+                  <div style={{display:'flex',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
+                    {[['Annual','YoY'],['Quarter','QoQ']].map(([val,lbl])=>(
+                      <button key={val} onClick={()=>applyPeriodType(val)} disabled={rerunning}
+                        style={{padding:'0 11px',height:30,fontSize:11,fontWeight:periodType===val?500:400,border:'none',cursor:rerunning?'not-allowed':'pointer',background:periodType===val?'#162035':'transparent',color:periodType===val?'#CBD5E1':'#4A5A6E',transition:'all 0.12s',opacity:rerunning?0.6:1}}>
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-                {/* Divider */}
-                <div style={{width:1,height:18,background:'#1E2D45'}}/>
+                {!isCohort&&<div style={{width:1,height:18,background:'#1E2D45'}}/>}
 
-                {/* Lookback */}
-                <div style={{display:'flex',alignItems:'center',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
-                  {lookbacks.map(l=>(
-                    <button key={l} onClick={()=>setSelLb(l)}
-                      style={{padding:'0 10px',height:30,fontSize:11,fontWeight:600,border:'none',cursor:'pointer',background:selLb===l?'#162035':'transparent',color:selLb===l?'#CBD5E1':'#4A5A6E',transition:'all 0.15s'}}>
-                      {l}M
-                    </button>
-                  ))}
-                </div>
+                {/* Lookback pills — controls bridge window + trend window */}
+                {!isCohort&&(
+                  <div style={{display:'flex',alignItems:'center',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
+                    {lookbacks.map(l=>(
+                      <button key={l} onClick={()=>setSelLb(l)}
+                        style={{padding:'0 10px',height:30,fontSize:11,fontWeight:600,border:'none',cursor:'pointer',background:selLb===l?'#162035':'transparent',color:selLb===l?'#CBD5E1':'#4A5A6E',transition:'all 0.15s'}}>
+                        {l}M
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-                {/* Divider */}
-                <div style={{width:1,height:18,background:'#1E2D45'}}/>
+                {!isCohort&&<div style={{width:1,height:18,background:'#1E2D45'}}/>}
 
-                {/* Dimension */}
-                <div style={{display:'flex',alignItems:'center',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
-                  {[
-                    {key:'customer',label:'Customer'},
-                    {key:'product', label:'× Product',available:!!fieldMap.product},
-                    {key:'region',  label:'× Region', available:!!fieldMap.region},
-                  ].map(opt=>(
-                    <button key={opt.key}
-                      onClick={()=>opt.available!==false&&!rerunning&&applyDimFilter(opt.key)}
-                      disabled={opt.available===false||rerunning}
-                      style={{padding:'0 10px',height:30,fontSize:11,fontWeight:selDims===opt.key?500:400,border:'none',cursor:(opt.available===false||rerunning)?'not-allowed':'pointer',background:selDims===opt.key?'#162035':'transparent',color:selDims===opt.key?'#CBD5E1':opt.available===false?'#2A3040':'#4A5A6E',transition:'all 0.12s'}}>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+                {/* Dimension — customer / product / region */}
+                {!isCohort&&(
+                  <div style={{display:'flex',alignItems:'center',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
+                    {[
+                      {key:'customer',label:'Customer'},
+                      {key:'product', label:'× Product',available:!!fieldMap.product},
+                      {key:'region',  label:'× Region', available:!!fieldMap.region},
+                    ].map(opt=>(
+                      <button key={opt.key}
+                        onClick={()=>opt.available!==false&&!rerunning&&applyDimFilter(opt.key)}
+                        disabled={opt.available===false||rerunning}
+                        style={{padding:'0 10px',height:30,fontSize:11,fontWeight:selDims===opt.key?500:400,border:'none',cursor:(opt.available===false||rerunning)?'not-allowed':'pointer',background:selDims===opt.key?'#162035':'transparent',color:selDims===opt.key?'#CBD5E1':opt.available===false?'#2A3040':'#4A5A6E',transition:'all 0.12s'}}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Rerunning indicator */}
                 {rerunning&&(
@@ -1362,7 +1426,7 @@ export default function CommandCenter() {
                 )}
 
                 {/* Reset */}
-                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('')}}
+                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('');setCohortResults(null)}}
                   style={{height:30,width:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:'1px solid #1E2D45',background:'transparent',cursor:'pointer',color:'#4A5A6E'}}
                   onMouseEnter={e=>{e.currentTarget.style.color='#CBD5E1';e.currentTarget.style.borderColor='#253550'}}
                   onMouseLeave={e=>{e.currentTarget.style.color='#4A5A6E';e.currentTarget.style.borderColor='#1E2D45'}}>
@@ -1377,21 +1441,6 @@ export default function CommandCenter() {
                 ):(
                   <button onClick={()=>router.push('/dashboard/upgrade')} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:500,color:'#4A5A6E',border:'1px solid #1E2D45',padding:'0 12px',borderRadius:5,background:'transparent',cursor:'pointer'}}>
                     <Lock size={11}/> Upgrade
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Cohort engine — minimal controls */}
-            {results&&isCohort&&(
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});}}
-                  style={{height:30,width:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:'1px solid #1E2D45',background:'transparent',cursor:'pointer',color:'#4A5A6E'}}>
-                  <RefreshCw size={12}/>
-                </button>
-                {isAdmin&&(
-                  <button onClick={downloadCSV} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,padding:'0 12px',borderRadius:5,border:'1px solid #2D5A3D',cursor:'pointer',background:'#1A3A2A',color:'#4ADE80'}}>
-                    <Download size={11}/> Export
                   </button>
                 )}
               </div>
@@ -1498,9 +1547,8 @@ export default function CommandCenter() {
                       <div style={{height:220,marginBottom:24}}>
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={results.fy_summary}>
-                            <CartesianGrid strokeDasharray="2 4" stroke='#E5E7EB' vertical={false}/>
-                            <XAxis dataKey={Object.keys(results.fy_summary[0])[0]} tick={{fontSize:10,fill:'#9CA3AF'}} axisLine={false} tickLine={false}/>
-                            <YAxis tickFormatter={fmt} tick={{fontSize:10,fill:'#9CA3AF'}} axisLine={false} tickLine={false}/>
+                            <XAxis dataKey={Object.keys(results.fy_summary[0])[0]} tick={{fontSize:10,fill:'#6B7280'}} axisLine={false} tickLine={false}/>
+                            <YAxis tickFormatter={fmt} tick={{fontSize:10,fill:'#6B7280'}} axisLine={false} tickLine={false}/>
                             <Tooltip formatter={v=>fmt(v)} contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:12,fontSize:12}}/>
                             <Bar dataKey="revenue" fill="#22C55E" radius={[3,3,0,0]}/>
                           </BarChart>
@@ -1671,7 +1719,7 @@ export default function CommandCenter() {
                           const totalCount=mvts.reduce((s,r)=>s+(r.count||0),0)
                           const totalAbs=mvts.reduce((s,r)=>s+Math.abs(r.value),0)
                           return (
-                            <tr style={{background:'#162035',borderTop:'2px solid #E5E7EB'}}>
+                            <tr style={{background:'#162035',borderTop:'1px solid #253550'}}>
                               <td style={{padding:'12px 20px',fontWeight:700,color:'#FFFFFF',fontSize:13}}>Total Bridge Impact</td>
                               <td style={{textAlign:'right',padding:'12px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:12,fontWeight:700,color:'#FFFFFF'}}>{totalCount>0?totalCount.toLocaleString():'—'}</td>
                               <td style={{textAlign:'right',padding:'12px 20px',fontWeight:700,fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:totalImpact>=0?'#16A34A':'#DC2626'}}>
@@ -1710,12 +1758,11 @@ export default function CommandCenter() {
                       </div>
                       <div style={{height:240}}>
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={bdg.by_period} margin={{left:8,right:8,bottom:8}}>
-                            <CartesianGrid strokeDasharray="2 4" stroke='#E5E7EB' vertical={false}/>
-                            <XAxis dataKey="_period" tick={{fontSize:10,fill:'#9CA3AF'}} axisLine={false} tickLine={false}/>
+                          <BarChart data={(()=>{const all=bdg?.by_period||[];if(!selPeriod||!selLb)return all;const ai=all.findIndex(r=>r._period===selPeriod);const a=ai>=0?ai:all.length-1;return all.slice(Math.max(0,a-selLb+1),a+1)})()} margin={{left:8,right:8,bottom:8}}>
+                            <XAxis dataKey="_period" tick={{fontSize:10,fill:'#6B7280'}} axisLine={false} tickLine={false}/>
                             <YAxis tickFormatter={fmt} tick={{fontSize:10,fill:'#9CA3AF'}} width={48} axisLine={false} tickLine={false}/>
                             <Tooltip formatter={v=>fmt(Number(v))} contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:7,fontSize:11,color:'#FFFFFF'}}/>
-                            <Legend iconType="circle" wrapperStyle={{fontSize:10}}/>
+                            
                             {['New Logo','Upsell','Cross-sell','Returning','Downsell','Churn','Churn Partial'].map(cat=>(
                               <Bar key={cat} dataKey={cat} stackId="a" fill={BC[cat]||'#6B7280'} name={cat}/>
                             ))}
@@ -1727,9 +1774,127 @@ export default function CommandCenter() {
                 </div>
               )}
 
-              {/* MRR: RETENTION TRENDS */}
+              {/* MRR: DETAILED BRIDGE + RETENTION TRENDS */}
               {!isCohort&&activeTab==='retention_trend'&&(
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
+
+                  {/* ── Monthly Bridge Table — columns = actual months ───── */}
+                  {(()=>{
+                    // Build monthly bridge matrix from by_period data
+                    // Columns: last selLb months up to selPeriod (or latest)
+                    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                    const allPeriods = bdg?.by_period || []
+                    if (!allPeriods.length) return null
+
+                    // Parse 'Mon-YY' → sort key
+                    const parseP = (s) => {
+                      const [mon,yr] = (s||'').split('-')
+                      const mi = MONTHS.indexOf(mon)
+                      if (mi<0) return 0
+                      const y = parseInt(yr,10); if(isNaN(y)||y<=0) return 0
+                      return (y<50?2000+y:1900+y)*100+mi
+                    }
+
+                    // Sort all available periods chronologically
+                    const sorted = [...allPeriods].sort((a,b)=>parseP(a._period)-parseP(b._period))
+
+                    // Find index of selPeriod (or last)
+                    const anchorIdx = selPeriod
+                      ? sorted.findIndex(r=>r._period===selPeriod)
+                      : sorted.length - 1
+                    const anchor = anchorIdx >= 0 ? anchorIdx : sorted.length - 1
+
+                    // Take last selLb months ending at anchor
+                    const start = Math.max(0, anchor - selLb + 1)
+                    const window = sorted.slice(start, anchor + 1)
+                    if (!window.length) return null
+
+                    const colPeriods = window.map(r=>r._period)
+
+                    // Determine which movement rows to show based on selDims
+                    const movementRows = selDims==='customer'
+                      ? ['New Logo','Upsell','Downsell','Churn']
+                      : selDims==='region'
+                      ? ['New Logo','Upsell','Downsell','Churn','Other In','Other Out']
+                      : ['New Logo','Upsell','Cross-sell','Downsell','Churn Partial','Churn','Other In','Other Out']
+
+                    const fmt2 = v => { if(!v) return '—'; const a=Math.abs(v); if(a>=1e6) return `${v<0?'':'+'}$${(v/1e6).toFixed(1)}M`; if(a>=1e3) return `${v<0?'':'+'}$${(v/1e3).toFixed(0)}K`; return `${v<0?'':'+'}$${v.toFixed(0)}` }
+
+                    // Build lookup: period → row data
+                    const lookup = {}
+                    window.forEach(r => { lookup[r._period] = r })
+
+                    return (
+                      <div style={{...S.cardF}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 20px',borderBottom:'1px solid #1E2D45'}}>
+                          <div>
+                            <div style={{fontSize:13,fontWeight:700,color:'#E2E8F0',letterSpacing:'-0.01em'}}>Monthly ARR Bridge</div>
+                            <div style={{fontSize:11,color:'#4A5A6E',marginTop:2}}>
+                              {colPeriods[0]} → {colPeriods[colPeriods.length-1]} · {colPeriods.length} months · {selDims==='customer'?'Customer level':selDims==='product'?'Customer × Product':'Customer × Region'}
+                            </div>
+                          </div>
+                          <div style={{fontSize:10,color:'#3D5068',fontWeight:500}}>
+                            {selPeriod&&`Selected: ${selPeriod}`}
+                          </div>
+                        </div>
+                        <div style={{overflowX:'auto'}}>
+                          <table style={{borderCollapse:'collapse',minWidth:Math.max(colPeriods.length*90+180,560),fontSize:11}}>
+                            <thead>
+                              <tr style={{background:'#162035'}}>
+                                <th style={{textAlign:'left',padding:'9px 16px',fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#4A5A6E',whiteSpace:'nowrap',borderBottom:'1px solid #1E2D45',position:'sticky',left:0,background:'#162035',minWidth:160}}>Movement</th>
+                                {colPeriods.map(p=>(
+                                  <th key={p} style={{textAlign:'right',padding:'9px 12px',fontSize:9,fontWeight:p===selPeriod?700:500,letterSpacing:'0.06em',color:p===selPeriod?'#CBD5E1':'#4A5A6E',whiteSpace:'nowrap',borderBottom:'1px solid #1E2D45',background:p===selPeriod?'#1A2840':'#162035'}}>
+                                    {p}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {movementRows.map((cat,ri)=>{
+                                const hasAnyData = colPeriods.some(p=>lookup[p]?.[cat])
+                                if(!hasAnyData) return null
+                                return (
+                                  <tr key={cat} style={{borderBottom:'1px solid #1E2D45',background:ri%2===0?'transparent':'#0D1525'}}>
+                                    <td style={{padding:'8px 16px',position:'sticky',left:0,background:ri%2===0?'#0F1A2E':'#0D1525',display:'flex',alignItems:'center',gap:8,whiteSpace:'nowrap'}}>
+                                      <span style={{width:6,height:6,borderRadius:'50%',background:BC[cat]||'#64748B',flexShrink:0}}/>
+                                      <span style={{fontWeight:500,color:'#94A3B8'}}>{cat}</span>
+                                    </td>
+                                    {colPeriods.map(p=>{
+                                      const v = lookup[p]?.[cat]
+                                      const isPos = (v||0)>=0
+                                      const isCurrentPeriod = p===selPeriod
+                                      return (
+                                        <td key={p} style={{textAlign:'right',padding:'8px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isCurrentPeriod?700:400,color:!v?'#2A3040':isPos?'#4ADE80':'#F87171',background:isCurrentPeriod?'rgba(26,40,64,0.6)':'transparent'}}>
+                                          {v?fmt2(toARR(v)):'—'}
+                                        </td>
+                                      )
+                                    })}
+                                  </tr>
+                                )
+                              })}
+                              {/* Net row */}
+                              <tr style={{borderTop:'1px solid #253550',background:'#162035'}}>
+                                <td style={{padding:'9px 16px',position:'sticky',left:0,background:'#162035',fontWeight:700,color:'#E2E8F0',fontSize:11}}>Net Change</td>
+                                {colPeriods.map(p=>{
+                                  const row = lookup[p]||{}
+                                  const posSum = ['New Logo','Upsell','Cross-sell','Returning','Other In'].reduce((s,k)=>s+(row[k]||0),0)
+                                  const negSum = ['Downsell','Churn Partial','Churn','Lapsed','Other Out'].reduce((s,k)=>s+(row[k]||0),0)
+                                  const net = toARR(posSum+negSum)
+                                  const isCurrentPeriod = p===selPeriod
+                                  return (
+                                    <td key={p} style={{textAlign:'right',padding:'9px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:700,color:net>=0?'#4ADE80':'#F87171',background:isCurrentPeriod?'rgba(26,40,64,0.8)':'#162035'}}>
+                                      {net?fmt2(net):'—'}
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
                   {kpiRows.length>0?(
                     <>
                     {/* ── Continuous monthly ARR trend ──────────────────── */}
@@ -1741,24 +1906,23 @@ export default function CommandCenter() {
                       <div style={{fontSize:11,color:'#64748B',marginBottom:16}}>Ending ARR each period</div>
                       <div style={{height:220}}>
                         <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={kpiRows} margin={{left:8,right:16,bottom:4}}>
+                          <AreaChart data={kpiRowsWindowed} margin={{left:8,right:16,bottom:4}}>
                             <defs>
                               <linearGradient id="arrGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#4ADE80" stopOpacity={0.18}/>
+                                <stop offset="5%" stopColor="#4ADE80" stopOpacity={0.08}/>
                                 <stop offset="95%" stopColor="#4ADE80" stopOpacity={0}/>
                               </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 6" stroke="#1E2D45" vertical={false}/>
-                            <XAxis dataKey="period" tick={{fontSize:9,fill:'#4A5A6E'}}
+                            <XAxis dataKey="period" tick={{fontSize:9,fill:'#6B7280'}}
                               interval={kpiRows.length>24?3:kpiRows.length>12?1:0}
                               axisLine={false} tickLine={false}/>
-                            <YAxis tickFormatter={v=>fmt(v)} tick={{fontSize:9,fill:'#4A5A6E'}} width={52} axisLine={false} tickLine={false}/>
+                            <YAxis tickFormatter={v=>fmt(v)} tick={{fontSize:9,fill:'#6B7280'}} width={52} axisLine={false} tickLine={false}/>
                             <Tooltip
                               formatter={(v,n)=>[fmt(v), n==='ending'?'Ending ARR':'Beginning ARR']}
-                              contentStyle={{background:'#0F1A2E',border:'1px solid #253550',borderRadius:6,fontSize:11,color:'#E2E8F0'}}
-                              labelStyle={{color:'#94A3B8',marginBottom:4}}/>
-                            <Area type="monotone" dataKey="ending" stroke="#4ADE80" strokeWidth={2}
-                              fill="url(#arrGrad)" dot={false} activeDot={{r:4,fill:'#4ADE80'}} name="ending"/>
+                              contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:4,fontSize:11,color:'#E2E8F0',boxShadow:'0 4px 12px rgba(0,0,0,0.4)'}}
+                              labelStyle={{color:'#64748B',marginBottom:3,fontSize:10}}/>
+                            <Area type="monotone" dataKey="ending" stroke="#4ADE80" strokeWidth={1.5}
+                              fill="url(#arrGrad)" dot={false} activeDot={{r:3,fill:'#4ADE80',strokeWidth:0}} name="ending"/>
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
@@ -1780,23 +1944,22 @@ export default function CommandCenter() {
                       <div style={{fontSize:11,color:'#64748B',marginBottom:16}}>100% = flat retention baseline</div>
                       <div style={{height:220}}>
                         <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={kpiRows} margin={{left:8,right:16,bottom:4}}>
-                            <CartesianGrid strokeDasharray="3 6" stroke="#1E2D45" vertical={false}/>
-                            <XAxis dataKey="period" tick={{fontSize:9,fill:'#4A5A6E'}}
+                          <LineChart data={kpiRowsWindowed} margin={{left:8,right:16,bottom:4}}>
+                            <XAxis dataKey="period" tick={{fontSize:9,fill:'#6B7280'}}
                               interval={kpiRows.length>24?3:kpiRows.length>12?1:0}
                               axisLine={false} tickLine={false}/>
-                            <YAxis tickFormatter={v=>`${v.toFixed(0)}%`} tick={{fontSize:9,fill:'#4A5A6E'}}
+                            <YAxis tickFormatter={v=>`${v.toFixed(0)}%`} tick={{fontSize:9,fill:'#6B7280'}}
                               domain={['dataMin - 5','dataMax + 5']} width={44} axisLine={false} tickLine={false}/>
                             <ReferenceLine y={100} stroke="#253550" strokeDasharray="4 4"
                               label={{value:'100%',position:'insideTopRight',fontSize:9,fill:'#3D5068'}}/>
                             <Tooltip
                               formatter={(v,n)=>[`${Number(v).toFixed(1)}%`, n]}
-                              contentStyle={{background:'#0F1A2E',border:'1px solid #253550',borderRadius:6,fontSize:11,color:'#E2E8F0'}}
-                              labelStyle={{color:'#94A3B8',marginBottom:4}}/>
-                            <Line type="monotone" dataKey="nrr" stroke="#4ADE80" strokeWidth={2}
-                              dot={false} activeDot={{r:4}} name="NRR" connectNulls/>
-                            <Line type="monotone" dataKey="grr" stroke="#94A3B8" strokeWidth={2}
-                              dot={false} activeDot={{r:4}} name="GRR" connectNulls strokeDasharray="4 2"/>
+                              contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:4,fontSize:11,color:'#E2E8F0',boxShadow:'0 4px 12px rgba(0,0,0,0.4)'}}
+                              labelStyle={{color:'#64748B',marginBottom:3,fontSize:10}}/>
+                            <Line type="monotone" dataKey="nrr" stroke="#4ADE80" strokeWidth={1.5}
+                              dot={false} activeDot={{r:3,fill:"#4ADE80"}} name="NRR" connectNulls/>
+                            <Line type="monotone" dataKey="grr" stroke="#94A3B8" strokeWidth={1.5}
+                              dot={false} activeDot={{r:3,fill:"#94A3B8"}} name="GRR" connectNulls strokeDasharray="4 2"/>
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
@@ -2212,7 +2375,7 @@ export default function CommandCenter() {
                       <div key={lb} style={{...S.card}}>
                         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
                           <div style={{...S.label}}>KPI Summary</div>
-                          <span style={{fontSize:9,background:'#162035',color:'#64748B',border:'1px solid #1E2D45',padding:'2px 8px',borderRadius:4,fontWeight:500}}>{lb}M Lookback</span>
+                          <span style={{fontSize:9,background:'transparent',color:'#3D5068',border:'none',padding:'2px 0',fontWeight:400}}>{lb}M Lookback</span>
                         </div>
                         <KpiSummaryTable rows={kpiData}/>
                       </div>
