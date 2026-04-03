@@ -1361,25 +1361,19 @@ export default function CommandCenter() {
             {results&&(
               <div style={{display:'flex',alignItems:'center',gap:6}}>
 
-                {/* Period selector — real data months only, chronological, default=latest */}
-                {!isCohort&&availablePeriods.length>0&&(
-                  <select value={selPeriod} onChange={e=>setSelPeriod(e.target.value)}
-                    style={{height:30,fontSize:11,border:'1px solid #1E2D45',borderRadius:5,padding:'0 8px',background:'#0B1220',color:'#94A3B8',outline:'none',cursor:'pointer',fontFamily:"'Inter',system-ui,sans-serif"}}>
-                    {availablePeriods.map(p=>(
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
-                )}
-
-                {!isCohort&&<div style={{width:1,height:18,background:'#1E2D45'}}/>}
-
-                {/* YoY / QoQ — re-runs analysis */}
+                {/* Lookback pills: MoM 1M | QoQ 3M | YoY 12M — single unified control */}
                 {!isCohort&&(
-                  <div style={{display:'flex',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
-                    {[['Annual','YoY'],['Quarter','QoQ']].map(([val,lbl])=>(
-                      <button key={val} onClick={()=>applyPeriodType(val)} disabled={rerunning}
-                        style={{padding:'0 11px',height:30,fontSize:11,fontWeight:periodType===val?500:400,border:'none',cursor:rerunning?'not-allowed':'pointer',background:periodType===val?'#162035':'transparent',color:periodType===val?'#CBD5E1':'#4A5A6E',transition:'all 0.12s',opacity:rerunning?0.6:1}}>
-                        {lbl}
+                  <div style={{display:'flex',alignItems:'center',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
+                    {[
+                      {lb:1,  label:'MoM 1M',  pt:'Month'},
+                      {lb:3,  label:'QoQ 3M',  pt:'Quarter'},
+                      {lb:12, label:'YoY 12M', pt:'Annual'},
+                    ].map(opt=>(
+                      <button key={opt.lb}
+                        onClick={()=>{setSelLb(opt.lb); if(opt.pt!==periodType) applyPeriodType(opt.pt)}}
+                        disabled={rerunning}
+                        style={{padding:'0 12px',height:30,fontSize:11,fontWeight:selLb===opt.lb?600:400,border:'none',borderBottom:`2px solid ${selLb===opt.lb?'#CBD5E1':'transparent'}`,cursor:rerunning?'not-allowed':'pointer',background:selLb===opt.lb?'#162035':'transparent',color:selLb===opt.lb?'#CBD5E1':'#4A5A6E',transition:'all 0.12s',opacity:rerunning?0.6:1,whiteSpace:'nowrap'}}>
+                        {opt.label}
                       </button>
                     ))}
                   </div>
@@ -1387,15 +1381,20 @@ export default function CommandCenter() {
 
                 {!isCohort&&<div style={{width:1,height:18,background:'#1E2D45'}}/>}
 
-                {/* Lookback pills — controls bridge window + trend window */}
+                {/* Period dropdown — all real data months, latest selected by default */}
                 {!isCohort&&(
-                  <div style={{display:'flex',alignItems:'center',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
-                    {lookbacks.map(l=>(
-                      <button key={l} onClick={()=>setSelLb(l)}
-                        style={{padding:'0 10px',height:30,fontSize:11,fontWeight:600,border:'none',cursor:'pointer',background:selLb===l?'#162035':'transparent',color:selLb===l?'#CBD5E1':'#4A5A6E',transition:'all 0.15s'}}>
-                        {l}M
-                      </button>
-                    ))}
+                  <div style={{display:'flex',alignItems:'center',gap:6,height:30}}>
+                    <span style={{fontSize:11,fontWeight:500,color:'#4A5A6E',whiteSpace:'nowrap'}}>Period</span>
+                    {availablePeriods.length>0?(
+                      <select value={selPeriod} onChange={e=>setSelPeriod(e.target.value)}
+                        style={{height:30,fontSize:11,fontWeight:500,border:'1px solid #253550',borderRadius:5,padding:'0 28px 0 10px',background:'#162035',color:'#CBD5E1',outline:'none',cursor:'pointer',fontFamily:"'Inter',system-ui,sans-serif",appearance:'none',backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%234A5A6E' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center',minWidth:90}}>
+                        {availablePeriods.map(p=>(
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    ):(
+                      <span style={{fontSize:11,color:'#2A3040',fontStyle:'italic'}}>—</span>
+                    )}
                   </div>
                 )}
 
@@ -1689,48 +1688,6 @@ export default function CommandCenter() {
 
                     return (
                       <div>
-                        {/* ── Period + Lookback filter bar ─────────────── */}
-                        <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 0',marginBottom:4,flexWrap:'wrap'}}>
-
-                          {/* Lookback label */}
-                          <span style={{fontSize:11,fontWeight:600,color:'#4A5A6E',textTransform:'uppercase',letterSpacing:'0.08em',flexShrink:0}}>Lookback</span>
-
-                          {/* Lookback pills */}
-                          <div style={{display:'flex',background:'#0B1220',borderRadius:6,border:'1px solid #1E2D45',overflow:'hidden'}}>
-                            {[['1','QoQ 1M'],['3','QoQ 3M'],['12','YoY 12M']].map(([val,lbl])=>(
-                              <button key={val} onClick={()=>setSelLb(Number(val))}
-                                style={{padding:'6px 14px',fontSize:12,fontWeight:selLb===Number(val)?600:400,border:'none',borderBottom:`2px solid ${selLb===Number(val)?'#CBD5E1':'transparent'}`,cursor:'pointer',background:selLb===Number(val)?'#162035':'transparent',color:selLb===Number(val)?'#CBD5E1':'#4A5A6E',transition:'all 0.12s',whiteSpace:'nowrap'}}>
-                                {lbl}
-                              </button>
-                            ))}
-                          </div>
-
-                          {/* Divider */}
-                          <div style={{width:1,height:22,background:'#1E2D45',flexShrink:0}}/>
-
-                          {/* Period label */}
-                          <span style={{fontSize:11,fontWeight:600,color:'#4A5A6E',textTransform:'uppercase',letterSpacing:'0.08em',flexShrink:0}}>Period</span>
-
-                          {/* Period dropdown — all real data periods, latest default */}
-                          {availablePeriods.length>0&&(
-                            <select value={selPeriod} onChange={e=>setSelPeriod(e.target.value)}
-                              style={{height:34,fontSize:12,fontWeight:500,border:'1px solid #1E2D45',borderRadius:6,padding:'0 32px 0 12px',background:'#162035',color:'#CBD5E1',outline:'none',cursor:'pointer',fontFamily:"'Inter',system-ui,sans-serif",appearance:'none',backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234A5A6E' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,backgroundRepeat:'no-repeat',backgroundPosition:'right 10px center'}}>
-                              {availablePeriods.map(p=>(
-                                <option key={p} value={p}>{p}</option>
-                              ))}
-                            </select>
-                          )}
-
-                          {/* Selected period badge */}
-                          {selPeriod&&(
-                            <div style={{display:'flex',alignItems:'center',gap:6,padding:'4px 10px',borderRadius:6,background:'#162035',border:'1px solid #253550'}}>
-                              <span style={{width:6,height:6,borderRadius:'50%',background:'#4ADE80',flexShrink:0}}/>
-                              <span style={{fontSize:11,color:'#CBD5E1',fontWeight:500}}>{selPeriod}</span>
-                              <span style={{fontSize:10,color:'#4A5A6E',marginLeft:4}}>{selLb}M lookback</span>
-                            </div>
-                          )}
-                        </div>
-
                         {/* ── Sub-tab bar ───────────────────────────────── */}
                         <div style={{display:'flex',borderBottom:'1px solid #1E2D45',marginBottom:20}}>
                           {SUB_TABS.map(t=>(
