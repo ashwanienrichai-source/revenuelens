@@ -593,6 +593,62 @@ export default function CommandCenter() {
   const ret      = bdg?.retention
   const wfall    = bdg?.waterfall || []
   const fyYears  = results?.metadata?.fiscal_years || results?.fiscal_years || []
+
+  // ── Effective by_period: use bdg.by_period if available, else build from output+kpi_matrix ──
+  const effectiveByPeriod = useMemo(() => {
+    // If bdg.by_period exists and has data, use it directly
+    if (bdg?.by_period?.length > 0) return bdg.by_period
+
+    // Otherwise build from results.output (raw bridge output rows)
+    if (!results?.output?.length) return []
+
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const normP = (s) => {
+      if (!s) return ''
+      const m = String(s).trim().match(/^([A-Za-z]{3})-(\d{2,4})$/)
+      if (m) { let y=parseInt(m[2]); if(y<100) y=y<50?2000+y:1900+y; return `${m[1]}-${y}` }
+      const iso = String(s).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+      if (iso) { const mi=parseInt(iso[2])-1; return `${MONTHS[mi]}-${iso[1]}` }
+      return String(s).trim()
+    }
+
+    // Find date column and bridge classification + value columns in output
+    const firstRow = results.output[0]
+    const dateKey = Object.keys(firstRow).find(k => /^date$/i.test(k) || /period/i.test(k) || /month/i.test(k))
+    const catKey  = Object.keys(firstRow).find(k => /bridge.class/i.test(k) || /classification/i.test(k) || /category/i.test(k))
+    const valKey  = Object.keys(firstRow).find(k => /bridge.value/i.test(k) || /^value$/i.test(k) || /amount/i.test(k))
+
+    if (!dateKey || !catKey || !valKey) {
+      // Fallback: build from kpi_matrix
+      return (results.kpi_matrix || []).map(r => ({
+        _period: normP(r.period),
+        'Beginning ARR': r.beginning_arr ?? r.beginning ?? 0,
+        'Ending ARR':    r.ending_arr   ?? r.ending   ?? 0,
+        'New Logo':      r.new_logo     ?? 0,
+        'Upsell':        r.upsell       ?? 0,
+        'Downsell':      r.downsell     ?? 0,
+        'Churn':         r.churn        ?? 0,
+        'Cross-sell':    r.cross_sell   ?? r['cross-sell'] ?? 0,
+        'Lapsed':        r.lapsed       ?? 0,
+        'Returning':     r.returning    ?? 0,
+        'Churn-Partial': r.churn_partial ?? r['churn-partial'] ?? 0,
+      })).filter(r => r['Beginning ARR'] > 0 || r['Ending ARR'] > 0)
+    }
+
+    // Group output rows by normalized period
+    const periodMap = new Map()
+    results.output.forEach(row => {
+      const period = normP(row[dateKey])
+      if (!period) return
+      if (!periodMap.has(period)) periodMap.set(period, { _period: period })
+      const pRow = periodMap.get(period)
+      const cat = String(row[catKey] || '').trim()
+      const val = parseFloat(row[valKey]) || 0
+      if (cat) pRow[cat] = (pRow[cat] || 0) + val
+    })
+
+    return Array.from(periodMap.values())
+  }, [bdg, results])
   // ── Monthly trend data — fill gaps so trend is always continuous ──────────
   const kpiRows = useMemo(() => {
     const raw = results?.kpi_matrix || []
@@ -743,6 +799,9 @@ export default function CommandCenter() {
       }
     }
 
+    // Source 0: effectiveByPeriod — built from by_period or output
+    ;(bdg?.by_period || []).forEach(r => add(r?._period))
+
     // Source 1: kpi_matrix — always present, period field
     ;(results.kpi_matrix || []).forEach(r => {
       add(r?.period)
@@ -807,9 +866,9 @@ export default function CommandCenter() {
 
   // Filtered by_period data based on selPeriod
   const filteredByPeriod = useMemo(() => {
-    if (!bdg?.by_period?.length) return []
-    if (!selPeriod) return bdg.by_period
-    return bdg.by_period.filter(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
+    if (!effectiveByPeriod?.length) return []
+    if (!selPeriod) return effectiveByPeriod
+    return effectiveByPeriod.filter(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
   }, [bdg, selPeriod])
 
   // kpiRowsWindowed — trend charts show last selLb months ending at selPeriod
@@ -903,8 +962,8 @@ export default function CommandCenter() {
   // ── Waterfall with period + dimension filter + canonical ordering applied ──
   const selectedWfall = useMemo(() => {
     let base = wfall
-    if (selPeriod && bdg?.by_period?.length) {
-      const row = bdg.by_period.find(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
+    if (selPeriod && effectiveByPeriod?.length) {
+      const row = effectiveByPeriod.find(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
       if (row) {
         const BOUNDARY_KEYS = new Set(['_period','Beginning ARR','Ending ARR','Beginning MRR','Ending MRR'])
         base = Object.keys(row)
@@ -923,8 +982,8 @@ export default function CommandCenter() {
 
   // ── Period-specific KPI values — respect selected granularity + period ──
   const retForPeriod = useMemo(() => {
-    if (!selPeriod || !bdg?.by_period?.length) return ret
-    const row = bdg.by_period.find(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
+    if (!selPeriod || !effectiveByPeriod?.length) return ret
+    const row = effectiveByPeriod.find(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
     if (!row) return ret
 
     const BOUNDARY_KEYS = new Set(['_period','Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','beginning','ending'])
@@ -1742,8 +1801,8 @@ export default function CommandCenter() {
 
                     // raw PV rows from full wfall (not filtered)
                     const pvSource = (()=>{
-                      if (selPeriod && bdg?.by_period?.length) {
-                        const row = bdg.by_period.find(x => normalizePeriod(x._period) === normalizePeriod(selPeriod))
+                      if (selPeriod && effectiveByPeriod?.length) {
+                        const row = effectiveByPeriod.find(x => normalizePeriod(x._period) === normalizePeriod(selPeriod))
                         if (row) return Object.keys(row).filter(k=>PV_KEYS.has(k)).map(k=>({category:k,value:row[k]||0}))
                       }
                       return (wfall||[]).filter(x=>PV_KEYS.has(x.category))
@@ -1772,7 +1831,7 @@ export default function CommandCenter() {
                     const reconGap = netChg - coreSum
 
                     // trend data
-                    const trendData = (bdg?.by_period||[]).filter(x=>x['Beginning ARR']>0||x['beginning']>0)
+                    const trendData = (effectiveByPeriod||[]).filter(x=>x['Beginning ARR']>0||x['beginning']>0)
 
                     const fs  = v => v===0?'—':(v>0?'+':'')+fmt(v)
                     const fc  = v => v>0?'#4ADE80':v<0?'#F87171':'#64748B'
@@ -2086,7 +2145,7 @@ export default function CommandCenter() {
                     // Build monthly bridge matrix from by_period data
                     // Columns: last selLb months up to selPeriod (or latest)
                     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-                    const allPeriods = bdg?.by_period || []
+                    const allPeriods = effectiveByPeriod || []
                     if (!allPeriods.length) return null
 
                     // Parse 'Mon-YY' → sort key
