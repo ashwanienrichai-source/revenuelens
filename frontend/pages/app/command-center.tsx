@@ -685,48 +685,44 @@ export default function CommandCenter() {
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     const raw = new Set()
 
-    // Source 1: _period from every lookback's by_period
-    if (results?.bridge) {
-      Object.values(results.bridge).forEach(b => {
-        if (b?.by_period) {
-          b.by_period.forEach(r => {
-            const p = r?._period
-            if (typeof p === 'string' && p.trim()) raw.add(p.trim())
-          })
-        }
-      })
-    }
-
-    // Source 2: period from kpi_matrix (fallback if by_period is absent)
-    if (raw.size === 0 && results?.kpi_matrix?.length) {
-      results.kpi_matrix.forEach(r => {
-        if (r?.period && typeof r.period === 'string') raw.add(r.period.trim())
-      })
-    }
-
-    if (raw.size === 0) return []
-
-    // Parser: handles both 'Mon-YY' (Dec-25) and 'Mon-YYYY' (Dec-2025)
+    // Parser handles Mon-YY (Dec-25), Mon-YYYY (Dec-2025), any separator
     const parse = (s) => {
-      if (!s || !s.includes('-')) return null
-      const parts = s.split('-')
+      if (!s || typeof s !== 'string') return null
+      const parts = s.trim().split('-')
       if (parts.length < 2) return null
       const mon = parts[0]
-      const yrRaw = parts.slice(1).join('-') // handles 'Dec-2025'
+      const yrRaw = parts.slice(1).join('')
       const mi = MONTHS.indexOf(mon)
       if (mi < 0) return null
       const yrNum = parseInt(yrRaw, 10)
       if (isNaN(yrNum) || yrNum <= 0) return null
-      // handle both 2-digit (25 → 2025) and 4-digit (2025)
       const fullYr = yrNum < 100 ? (yrNum < 50 ? 2000 + yrNum : 1900 + yrNum) : yrNum
       if (fullYr < 2000 || fullYr > 2099) return null
       return fullYr * 100 + mi
     }
 
-    const valid = Array.from(raw).filter(p => parse(p) !== null)
-    if (valid.length === 0) return []
+    const add = (p) => { if (p && typeof p === 'string' && p.trim() && parse(p.trim()) !== null) raw.add(p.trim()) }
 
-    return valid.sort((a, b) => parse(a) - parse(b))
+    // Source 1: kpi_matrix — most reliable, always present
+    ;(results?.kpi_matrix || []).forEach(r => add(r?.period))
+
+    // Source 2: by_period from every lookback bucket
+    if (results?.bridge) {
+      Object.values(results.bridge).forEach(b => {
+        ;(b?.by_period || []).forEach(r => add(r?._period))
+      })
+    }
+
+    // Source 3: pivot periods
+    if (results?.pivot) {
+      Object.values(results.pivot).forEach(p => {
+        ;(p?.bridge_pivot?.periods || []).forEach(add)
+        ;(p?.kpi_table || []).forEach(r => add(r?.period))
+      })
+    }
+
+    if (raw.size === 0) return []
+    return Array.from(raw).filter(p => parse(p) !== null).sort((a, b) => parse(a) - parse(b))
   }, [results])
 
   // Filtered by_period data based on selPeriod
@@ -898,10 +894,14 @@ export default function CommandCenter() {
     return map
   }, [topCusts])
 
-  // Auto-select latest period when periods first become available
+  // Auto-select latest period whenever results change or periods populate
   useEffect(() => {
-    if (availablePeriods.length > 0 && !selPeriod) {
-      setSelPeriod(availablePeriods[availablePeriods.length - 1])
+    if (availablePeriods.length > 0) {
+      const latest = availablePeriods[availablePeriods.length - 1]
+      // Set to latest if nothing selected, or if current selection not in list
+      if (!selPeriod || !availablePeriods.includes(selPeriod)) {
+        setSelPeriod(latest)
+      }
     }
   }, [availablePeriods])
 
