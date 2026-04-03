@@ -685,38 +685,47 @@ export default function CommandCenter() {
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     const raw = new Set()
 
-    // Collect all real _period values from every lookback window
+    // Source 1: _period from every lookback's by_period
     if (results?.bridge) {
       Object.values(results.bridge).forEach(b => {
         if (b?.by_period) {
           b.by_period.forEach(r => {
             const p = r?._period
-            if (typeof p === 'string' && p.trim() && p.includes('-')) raw.add(p.trim())
+            if (typeof p === 'string' && p.trim()) raw.add(p.trim())
           })
         }
       })
     }
+
+    // Source 2: period from kpi_matrix (fallback if by_period is absent)
+    if (raw.size === 0 && results?.kpi_matrix?.length) {
+      results.kpi_matrix.forEach(r => {
+        if (r?.period && typeof r.period === 'string') raw.add(r.period.trim())
+      })
+    }
+
     if (raw.size === 0) return []
 
-    // Strict parser: 'Mon-YY' → {valid, sortKey}
+    // Parser: handles both 'Mon-YY' (Dec-25) and 'Mon-YYYY' (Dec-2025)
     const parse = (s) => {
-      const parts = (s||'').split('-')
-      if (parts.length !== 2) return null
-      const [mon, yr] = parts
+      if (!s || !s.includes('-')) return null
+      const parts = s.split('-')
+      if (parts.length < 2) return null
+      const mon = parts[0]
+      const yrRaw = parts.slice(1).join('-') // handles 'Dec-2025'
       const mi = MONTHS.indexOf(mon)
-      if (mi < 0) return null                         // not a real month name
-      const yrNum = parseInt(yr, 10)
-      if (isNaN(yrNum) || yrNum <= 0) return null     // catches 'Jan-0', 'Jan-NaN'
-      const fullYr = yrNum < 50 ? 2000 + yrNum : 1900 + yrNum
-      if (fullYr < 2000 || fullYr > 2099) return null  // sanity range
+      if (mi < 0) return null
+      const yrNum = parseInt(yrRaw, 10)
+      if (isNaN(yrNum) || yrNum <= 0) return null
+      // handle both 2-digit (25 → 2025) and 4-digit (2025)
+      const fullYr = yrNum < 100 ? (yrNum < 50 ? 2000 + yrNum : 1900 + yrNum) : yrNum
+      if (fullYr < 2000 || fullYr > 2099) return null
       return fullYr * 100 + mi
     }
 
-    // Filter to only valid, real period strings
     const valid = Array.from(raw).filter(p => parse(p) !== null)
     if (valid.length === 0) return []
 
-    // Sort chronologically
     return valid.sort((a, b) => parse(a) - parse(b))
   }, [results])
 
@@ -1385,16 +1394,16 @@ export default function CommandCenter() {
                 {!isCohort&&(
                   <div style={{display:'flex',alignItems:'center',gap:6,height:30}}>
                     <span style={{fontSize:11,fontWeight:500,color:'#4A5A6E',whiteSpace:'nowrap'}}>Period</span>
-                    {availablePeriods.length>0?(
-                      <select value={selPeriod} onChange={e=>setSelPeriod(e.target.value)}
-                        style={{height:30,fontSize:11,fontWeight:500,border:'1px solid #253550',borderRadius:5,padding:'0 28px 0 10px',background:'#162035',color:'#CBD5E1',outline:'none',cursor:'pointer',fontFamily:"'Inter',system-ui,sans-serif",appearance:'none',backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%234A5A6E' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center',minWidth:90}}>
-                        {availablePeriods.map(p=>(
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </select>
-                    ):(
-                      <span style={{fontSize:11,color:'#2A3040',fontStyle:'italic'}}>—</span>
-                    )}
+                    <select
+                      value={selPeriod}
+                      onChange={e=>setSelPeriod(e.target.value)}
+                      disabled={availablePeriods.length===0}
+                      style={{height:30,fontSize:11,fontWeight:500,border:'1px solid #253550',borderRadius:5,padding:'0 28px 0 10px',background:'#162035',color:availablePeriods.length>0?'#CBD5E1':'#3D5068',outline:'none',cursor:availablePeriods.length>0?'pointer':'default',fontFamily:"'Inter',system-ui,sans-serif",appearance:'none',backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%234A5A6E' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center',minWidth:100}}>
+                      {availablePeriods.length===0
+                        ? <option value="">— run analysis —</option>
+                        : availablePeriods.map(p=><option key={p} value={p}>{p}</option>)
+                      }
+                    </select>
                   </div>
                 )}
 
