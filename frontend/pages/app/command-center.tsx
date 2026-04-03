@@ -758,7 +758,7 @@ export default function CommandCenter() {
   //
   // Price/Volume: NEVER shown in bridge — belongs in diagnostics/pricing tab only
 
-  const PRICE_VOLUME_CATS = new Set(['Price Impact','Volume Impact','Price','Volume'])
+  const PRICE_VOLUME_CATS = new Set(['Price Impact','Volume Impact','Price on Volume','Price','Volume'])
 
   const CUSTOMER_LEVEL_CATS = new Set([
     'New Logo', 'Upsell', 'Downsell', 'Churn'
@@ -1734,6 +1734,115 @@ export default function CommandCenter() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* ── Price / Volume Decomposition ─────────────────── */}
+                  {(()=>{
+                    const PV_KEYS = new Set(['Price Impact','Volume Impact','Price on Volume'])
+                    const rawPV = (wfall||[]).filter(r => PV_KEYS.has(r.category))
+                    const pvSource = (()=>{
+                      if (selPeriod && bdg?.by_period?.length) {
+                        const row = bdg.by_period.find(r => r._period === selPeriod)
+                        if (row) return Object.keys(row)
+                          .filter(k => PV_KEYS.has(k))
+                          .map(k => ({ category: k, value: row[k] || 0 }))
+                      }
+                      return rawPV
+                    })()
+                    if (!pvSource.length) return null
+
+                    const sum = (cat, sign) => pvSource
+                      .filter(r => r.category === cat && (sign === 'pos' ? r.value > 0 : r.value < 0))
+                      .reduce((s,r) => s + r.value, 0)
+
+                    const upPrice  = sum('Price Impact','pos')
+                    const upVol    = sum('Volume Impact','pos')
+                    const upPov    = sum('Price on Volume','pos')
+                    const dnPrice  = sum('Price Impact','neg')
+                    const dnVol    = sum('Volume Impact','neg')
+                    const dnPov    = sum('Price on Volume','neg')
+
+                    const totPrice = pvSource.filter(r=>r.category==='Price Impact').reduce((s,r)=>s+r.value,0)
+                    const totVol   = pvSource.filter(r=>r.category==='Volume Impact').reduce((s,r)=>s+r.value,0)
+                    const totPov   = pvSource.filter(r=>r.category==='Price on Volume').reduce((s,r)=>s+r.value,0)
+                    const netPV    = totPrice + totVol + totPov
+
+                    const upsellNet   = selectedWfall.find(r=>r.category==='Upsell')?.value   || 0
+                    const downsellNet = selectedWfall.find(r=>r.category==='Downsell')?.value || 0
+
+                    const fs = v => v === 0 ? '—' : (v > 0 ? '+' : '') + fmt(v)
+                    const fc = v => v > 0 ? '#4ADE80' : v < 0 ? '#F87171' : '#64748B'
+
+                    const Row = ({label, val, indent}) => (
+                      <tr style={{borderBottom:`1px solid ${T.border}`}}>
+                        <td style={{padding:'8px 20px',paddingLeft:indent?34:20,color:indent?T.text2:T.text,fontSize:12,fontWeight:indent?400:500}}>
+                          {indent&&<span style={{display:'inline-block',width:5,height:5,borderRadius:'50%',background:'#253550',marginRight:8,verticalAlign:'middle'}}/>}
+                          {label}
+                        </td>
+                        <td style={{textAlign:'right',padding:'8px 20px',fontFamily:T.mono,fontSize:12,fontWeight:500,color:fc(val)}}>
+                          {fs(val)}
+                        </td>
+                      </tr>
+                    )
+
+                    return (
+                      <div style={{...S.cardF}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:`1px solid ${T.border}`,flexWrap:'wrap',gap:12}}>
+                          <div>
+                            <div style={{fontSize:14,fontWeight:700,color:'#FFFFFF',letterSpacing:'-0.01em'}}>Price / Volume Decomposition</div>
+                            <div style={{fontSize:11,color:T.text2,marginTop:2}}>Sub-components of Upsell & Downsell — not included in core bridge sum</div>
+                          </div>
+                          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                            {[
+                              {label:'Price Effect', val:totPrice},
+                              {label:'Volume Effect',val:totVol},
+                              {label:'Net P×V',      val:netPV},
+                            ].map(c=>(
+                              <div key={c.label} style={{padding:'6px 12px',borderRadius:6,background:T.bgRaised,border:`1px solid ${T.border}`,textAlign:'right'}}>
+                                <div style={{fontSize:9,color:T.text3,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>{c.label}</div>
+                                <div style={{fontSize:13,fontWeight:700,fontFamily:T.mono,color:fc(c.val)}}>{fs(c.val)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:`1px solid ${T.border}`}}>
+                          <div style={{borderRight:`1px solid ${T.border}`}}>
+                            <div style={{padding:'9px 20px',background:T.bgRaised,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:8}}>
+                              <span style={{fontSize:11,fontWeight:700,color:'#4ADE80'}}>Upsell</span>
+                              <span style={{fontSize:11,color:T.text2,fontFamily:T.mono}}>{fs(upsellNet)}</span>
+                            </div>
+                            <table style={{borderCollapse:'collapse',width:'100%'}}>
+                              <tbody>
+                                <Row label="Net Upsell"         val={upsellNet} />
+                                <Row label="→ Price component"  val={upPrice}   indent={true} />
+                                <Row label="→ Volume component" val={upVol}     indent={true} />
+                                <Row label="→ Price × Volume"   val={upPov}     indent={true} />
+                              </tbody>
+                            </table>
+                          </div>
+                          <div>
+                            <div style={{padding:'9px 20px',background:T.bgRaised,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:8}}>
+                              <span style={{fontSize:11,fontWeight:700,color:'#F87171'}}>Downsell</span>
+                              <span style={{fontSize:11,color:T.text2,fontFamily:T.mono}}>{fs(downsellNet)}</span>
+                            </div>
+                            <table style={{borderCollapse:'collapse',width:'100%'}}>
+                              <tbody>
+                                <Row label="Net Downsell"       val={downsellNet} />
+                                <Row label="→ Price component"  val={dnPrice}     indent={true} />
+                                <Row label="→ Volume component" val={dnVol}       indent={true} />
+                                <Row label="→ Price × Volume"   val={dnPov}       indent={true} />
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                        <div style={{padding:'10px 20px',display:'flex',alignItems:'center',gap:8,background:T.bgRaised}}>
+                          <Info size={11} color={T.text3} style={{flexShrink:0}}/>
+                          <span style={{fontSize:11,color:T.text3,lineHeight:1.5}}>
+                            These rows are sub-decompositions of Upsell/Downsell. Excluded from the reconciliation sum above to prevent double-counting. Net Upsell + Net Downsell already captures the full movement.
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {/* ── Pivot tables (QoQ + YoY) below the main view ─── */}
                   {results?.pivot?.[String(selLb)]?.bridge_pivot&&(
