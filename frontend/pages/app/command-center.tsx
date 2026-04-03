@@ -566,6 +566,7 @@ export default function CommandCenter() {
   const [selDims, setSelDims]       = useState('customer')   // 'customer'|'product'|'region'
   const [selPeriod, setSelPeriod]   = useState('')           // e.g. 'Jan-25' — empty = latest
   const [rerunning, setRerunning]   = useState(false)
+  const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
 
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
@@ -1610,11 +1611,11 @@ export default function CommandCenter() {
 
               {/* MRR: SUMMARY + BRIDGE — consolidated tab matching screenshot */}
               {!isCohort&&activeTab==='summary'&&(
-                <div style={{display:'flex',flexDirection:'column',gap:20}}>
+                <div style={{display:'flex',flexDirection:'column',gap:0}}>
 
                   {/* ── AI narrative insight bar ─────────────────────── */}
                   {narrative&&(
-                    <div style={{padding:'12px 18px',background:'#0F1A2E',border:'1px solid #1E2D45',borderLeft:'3px solid #3D5068',borderRadius:6,display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{padding:'12px 18px',background:'#0F1A2E',border:'1px solid #1E2D45',borderLeft:'3px solid #3D5068',borderRadius:6,display:'flex',alignItems:'center',gap:10,margin:'0 0 16px'}}>
                       <Info size={12} color="#64748B" style={{flexShrink:0}}/>
                       <p style={{margin:0,fontSize:13,color:'#FFFFFF',lineHeight:1.55,fontWeight:400}}>{narrative}</p>
                     </div>
@@ -1622,264 +1623,363 @@ export default function CommandCenter() {
 
                   {/* ── Metadata chip ────────────────────────────────── */}
                   {results?.metadata&&(
-                    <div style={{padding:'7px 14px',borderRadius:8,border:'1px solid #253550',background:'#162035',display:'inline-flex',alignItems:'center',gap:8,alignSelf:'flex-start'}}>
+                    <div style={{padding:'7px 14px',borderRadius:8,border:'1px solid #253550',background:'#162035',display:'inline-flex',alignItems:'center',gap:8,alignSelf:'flex-start',marginBottom:16}}>
                       <span style={{fontSize:11,color:'#FFFFFF',fontWeight:600}}>{results.metadata.dimensions?.length>0?`Customer × ${results.metadata.dimensions.join(' × ')}`:'Customer level'}</span>
                       <span style={{color:'#E5E7EB'}}>·</span>
                       <span style={{fontSize:11,color:'#7B8EA8'}}>{results.metadata.row_count?.toLocaleString()} rows</span>
                     </div>
                   )}
 
-                  {/* ── Reconciliation warning ───────────────────────── */}
-                  {bridgeOk && !bridgeOk.valid && (
-                    <div style={{padding:'10px 14px',background:'#1A1400',border:'1px solid #3A2E00',borderRadius:6,display:'flex',alignItems:'center',gap:8}}>
-                      <AlertCircle size={11} color="#FCD34D"/>
-                      <span style={{fontSize:11,color:'#FCD34D',fontWeight:400}}>
-                        Reconciliation gap: movements sum {fmt(bridgeOk.total)}, expected {fmt(bridgeOk.expected)} (Δ {fmt(Math.abs(bridgeOk.diff))})
-                      </span>
-                    </div>
-                  )}
-
-                  {/* ── Hero: Waterfall Bridge chart ─────────────────── */}
-                  <div style={{...S.cardF}}>
-                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #1E2D45'}}>
-                      <div>
-                        <div style={{fontSize:14,fontWeight:700,color:'#FFFFFF',letterSpacing:'-0.01em'}}>
-                          ARR Bridge: {periodType==='Annual'?'YoY':'QoQ'} · {selLb}M{selPeriod?` · ${selPeriod}`:''}
-                        </div>
-                        <div style={{fontSize:11,color:'#7B8EA8',marginTop:2}}>Movement from beginning to ending ARR</div>
-                      </div>
-                      {/* Legend */}
-                      <div style={{display:'flex',alignItems:'center',gap:14,fontSize:10,color:'#7B8EA8'}}>
-                        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#4ADE80',display:'inline-block'}}/> Expansion</span>
-                        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#F87171',display:'inline-block'}}/> Contraction</span>
-                        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#3D5068',display:'inline-block'}}/> Baseline</span>
-                      </div>
-                    </div>
-                    <div style={{padding:'20px 20px 8px'}}>
-                      {(()=>{
-                        const movements = selectedWfall.filter(r=>!['Beginning MRR','Ending MRR','Beginning ARR','Ending ARR'].includes(r.category))
-                        const beginning = {category:'Beginning ARR', value:toARR((retForPeriod||ret)?.beginning)||0}
-                        const ending    = {category:'Ending ARR',    value:toARR((retForPeriod||ret)?.ending)||0}
-                        const fullData  = [beginning, ...movements, ending]
-                        return <WaterfallBridge data={fullData} showBoundary={true}/>
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* ── Movement Breakdown Details table ─────────────── */}
-                  <div style={{...S.cardF}}>
-                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}>
-                      <div style={{fontSize:14,fontWeight:700,color:'#FFFFFF',letterSpacing:'-0.01em'}}>Movement Breakdown Details</div>
-                      {isAdmin&&<button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:600,color:'#4ADE80',background:'transparent',border:'none',cursor:'pointer',padding:'4px 0'}}>
-                        <Download size={12}/> Export Data
-                      </button>}
-                    </div>
-                    <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                      <thead>
-                        <tr style={{background:'#162035'}}>
-                          {['Category','Count','ARR Impact','% Change'].map((h,i)=>(
-                            <th key={h} style={{textAlign:i===0?'left':'right',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#7B8EA8',borderBottom:'1px solid #1E2D45',whiteSpace:'nowrap'}}>
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedWfall.filter(r=>!['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR'].includes(r.category)).sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)).map((row,i)=>{
-                          const total=selectedWfall.filter(r=>!['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR'].includes(r.category)).reduce((s,r)=>s+Math.abs(r.value),0)
-                          const isPos=row.value>=0
-                          return (
-                            <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}
-                              onMouseEnter={e=>e.currentTarget.style.background='#111827'}
-                              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                              {/* Category */}
-                              <td style={{padding:'12px 20px',display:'flex',alignItems:'center',gap:10}}>
-                                <span style={{width:8,height:8,borderRadius:'50%',background:BC[row.category]||'#6B7280',flexShrink:0}}/>
-                                <span style={{fontWeight:600,color:'#FFFFFF',fontSize:13}}>{row.category}</span>
-                              </td>
-                              {/* Count — from bridge data if available */}
-                              <td style={{textAlign:'right',padding:'12px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:'#7B8EA8'}}>
-                                {row.count!=null?row.count.toLocaleString():'—'}
-                              </td>
-                              {/* ARR Impact */}
-                              <td style={{textAlign:'right',padding:'12px 20px',fontWeight:700,fontSize:13,fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:isPos?'#16A34A':'#DC2626'}}>
-                                {isPos?'+':''}{fmt(row.value)}
-                              </td>
-                              {/* % of total */}
-                              <td style={{textAlign:'right',padding:'12px 20px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:'#7B8EA8'}}>
-                                {total>0?`${isPos?'+':''}${((row.value/total)*100).toFixed(1)}%`:'—'}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                        {/* Total row */}
-                        {selectedWfall.length>0&&(()=>{
-                          const mvts=selectedWfall.filter(r=>!['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR'].includes(r.category))
-                          const totalImpact=mvts.reduce((s,r)=>s+r.value,0)
-                          const totalCount=mvts.reduce((s,r)=>s+(r.count||0),0)
-                          const totalAbs=mvts.reduce((s,r)=>s+Math.abs(r.value),0)
-                          return (
-                            <tr style={{background:'#162035',borderTop:'1px solid #253550'}}>
-                              <td style={{padding:'12px 20px',fontWeight:700,color:'#FFFFFF',fontSize:13}}>Total Bridge Impact</td>
-                              <td style={{textAlign:'right',padding:'12px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:12,fontWeight:700,color:'#FFFFFF'}}>{totalCount>0?totalCount.toLocaleString():'—'}</td>
-                              <td style={{textAlign:'right',padding:'12px 20px',fontWeight:700,fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:totalImpact>=0?'#16A34A':'#DC2626'}}>
-                                {totalImpact>=0?'+':''}{fmt(totalImpact)}
-                              </td>
-                              <td style={{textAlign:'right',padding:'12px 20px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:'#7B8EA8'}}>
-                                {totalAbs>0?`${((totalImpact/totalAbs)*100).toFixed(1)}%`:'—'}
-                              </td>
-                            </tr>
-                          )
-                        })()}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* ── Price / Volume Decomposition ─────────────────── */}
+                  {/* ══ 4-TAB DASHBOARD ══════════════════════════════════ */}
                   {(()=>{
-                    const PV_KEYS = new Set(['Price Impact','Volume Impact','Price on Volume'])
-                    const rawPV = (wfall||[]).filter(r => PV_KEYS.has(r.category))
+                    // ── inner tab state ──────────────────────────────────
+                    // We use a module-level ref trick: store in a hidden div's dataset
+                    // Actually we lift this as a useState at component level below via summarySubTab
+                    const CORE_CATS = ['New Logo','Cross-sell','Returning','Upsell','Downsell','Churn','Churn-Partial','Churn Partial','Lapsed']
+                    const PV_KEYS   = new Set(['Price Impact','Volume Impact','Price on Volume'])
+
+                    // ── data helpers ─────────────────────────────────────
+                    const r        = retForPeriod || ret
+                    const beg      = r?.beginning || 0
+                    const end      = r?.ending    || 0
+                    const netChg   = end - beg
+                    const grossRet = beg > 0 ? ((beg + (selectedWfall.filter(x=>x.value<0).reduce((s,x)=>s+x.value,0))) / beg * 100) : (r?.grr || 0)
+                    const netRet   = beg > 0 ? (end / beg * 100) : (r?.nrr || 0)
+
+                    // raw PV rows from full wfall (not filtered)
                     const pvSource = (()=>{
                       if (selPeriod && bdg?.by_period?.length) {
-                        const row = bdg.by_period.find(r => r._period === selPeriod)
-                        if (row) return Object.keys(row)
-                          .filter(k => PV_KEYS.has(k))
-                          .map(k => ({ category: k, value: row[k] || 0 }))
+                        const row = bdg.by_period.find(x => x._period === selPeriod)
+                        if (row) return Object.keys(row).filter(k=>PV_KEYS.has(k)).map(k=>({category:k,value:row[k]||0}))
                       }
-                      return rawPV
+                      return (wfall||[]).filter(x=>PV_KEYS.has(x.category))
                     })()
-                    if (!pvSource.length) return null
 
-                    const sum = (cat, sign) => pvSource
-                      .filter(r => r.category === cat && (sign === 'pos' ? r.value > 0 : r.value < 0))
-                      .reduce((s,r) => s + r.value, 0)
-
-                    const upPrice  = sum('Price Impact','pos')
-                    const upVol    = sum('Volume Impact','pos')
-                    const upPov    = sum('Price on Volume','pos')
-                    const dnPrice  = sum('Price Impact','neg')
-                    const dnVol    = sum('Volume Impact','neg')
-                    const dnPov    = sum('Price on Volume','neg')
-
-                    const totPrice = pvSource.filter(r=>r.category==='Price Impact').reduce((s,r)=>s+r.value,0)
-                    const totVol   = pvSource.filter(r=>r.category==='Volume Impact').reduce((s,r)=>s+r.value,0)
-                    const totPov   = pvSource.filter(r=>r.category==='Price on Volume').reduce((s,r)=>s+r.value,0)
+                    const sumPV = (cat, sign) => pvSource.filter(x=>x.category===cat&&(sign==='pos'?x.value>0:x.value<0)).reduce((s,x)=>s+x.value,0)
+                    const upPrice  = sumPV('Price Impact','pos')
+                    const upVol    = sumPV('Volume Impact','pos')
+                    const upPov    = sumPV('Price on Volume','pos')
+                    const dnPrice  = sumPV('Price Impact','neg')
+                    const dnVol    = sumPV('Volume Impact','neg')
+                    const dnPov    = sumPV('Price on Volume','neg')
+                    const totPrice = pvSource.filter(x=>x.category==='Price Impact').reduce((s,x)=>s+x.value,0)
+                    const totVol   = pvSource.filter(x=>x.category==='Volume Impact').reduce((s,x)=>s+x.value,0)
+                    const totPov   = pvSource.filter(x=>x.category==='Price on Volume').reduce((s,x)=>s+x.value,0)
                     const netPV    = totPrice + totVol + totPov
 
-                    const upsellNet   = selectedWfall.find(r=>r.category==='Upsell')?.value   || 0
-                    const downsellNet = selectedWfall.find(r=>r.category==='Downsell')?.value || 0
+                    const upsellNet   = selectedWfall.find(x=>x.category==='Upsell')?.value   || 0
+                    const downsellNet = selectedWfall.find(x=>x.category==='Downsell')?.value || 0
 
-                    const fs = v => v === 0 ? '—' : (v > 0 ? '+' : '') + fmt(v)
-                    const fc = v => v > 0 ? '#4ADE80' : v < 0 ? '#F87171' : '#64748B'
+                    // core movements sum (no PV)
+                    const coreMovements = selectedWfall.filter(x=>!['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR'].includes(x.category))
+                    const coreSum  = coreMovements.reduce((s,x)=>s+x.value,0)
+                    const pvSum    = pvSource.reduce((s,x)=>s+x.value,0)
+                    const wrongSum = coreSum + pvSum
+                    const reconGap = netChg - coreSum
 
-                    const Row = ({label, val, indent}) => (
-                      <tr style={{borderBottom:`1px solid ${T.border}`}}>
-                        <td style={{padding:'8px 20px',paddingLeft:indent?34:20,color:indent?T.text2:T.text,fontSize:12,fontWeight:indent?400:500}}>
-                          {indent&&<span style={{display:'inline-block',width:5,height:5,borderRadius:'50%',background:'#253550',marginRight:8,verticalAlign:'middle'}}/>}
-                          {label}
-                        </td>
-                        <td style={{textAlign:'right',padding:'8px 20px',fontFamily:T.mono,fontSize:12,fontWeight:500,color:fc(val)}}>
-                          {fs(val)}
-                        </td>
-                      </tr>
-                    )
+                    // trend data
+                    const trendData = (bdg?.by_period||[]).filter(x=>x['Beginning ARR']>0||x['beginning']>0)
+
+                    const fs  = v => v===0?'—':(v>0?'+':'')+fmt(v)
+                    const fc  = v => v>0?'#4ADE80':v<0?'#F87171':'#64748B'
+                    const fsp = v => v==null?'—':`${v.toFixed(1)}%`
+                    const fcp = v => v>=100?'#4ADE80':v>=80?'#4ADE80':'#F87171'
+
+                    const SUB_TABS = ['ARR Bridge','Price / Volume','Trends','Reconciliation']
 
                     return (
-                      <div style={{...S.cardF}}>
-                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:`1px solid ${T.border}`,flexWrap:'wrap',gap:12}}>
-                          <div>
-                            <div style={{fontSize:14,fontWeight:700,color:'#FFFFFF',letterSpacing:'-0.01em'}}>Price / Volume Decomposition</div>
-                            <div style={{fontSize:11,color:T.text2,marginTop:2}}>Sub-components of Upsell & Downsell — not included in core bridge sum</div>
-                          </div>
-                          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                            {[
-                              {label:'Price Effect', val:totPrice},
-                              {label:'Volume Effect',val:totVol},
-                              {label:'Net P×V',      val:netPV},
-                            ].map(c=>(
-                              <div key={c.label} style={{padding:'6px 12px',borderRadius:6,background:T.bgRaised,border:`1px solid ${T.border}`,textAlign:'right'}}>
-                                <div style={{fontSize:9,color:T.text3,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>{c.label}</div>
-                                <div style={{fontSize:13,fontWeight:700,fontFamily:T.mono,color:fc(c.val)}}>{fs(c.val)}</div>
+                      <div>
+                        {/* ── Sub-tab bar ───────────────────────────────── */}
+                        <div style={{display:'flex',borderBottom:'1px solid #1E2D45',marginBottom:20}}>
+                          {SUB_TABS.map(t=>(
+                            <button key={t} onClick={()=>setSummarySubTab(t)}
+                              style={{padding:'10px 18px',fontSize:13,fontWeight:summarySubTab===t?600:400,border:'none',borderBottom:`2px solid ${summarySubTab===t?'#CBD5E1':'transparent'}`,background:'transparent',color:summarySubTab===t?'#CBD5E1':'#4A5A6E',cursor:'pointer',transition:'all 0.12s',whiteSpace:'nowrap'}}>
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* ══ TAB: ARR Bridge ══════════════════════════════ */}
+                        {summarySubTab==='ARR Bridge'&&(
+                          <div style={{display:'flex',flexDirection:'column',gap:20}}>
+
+                            {/* Reconciliation warning */}
+                            {bridgeOk&&!bridgeOk.valid&&(
+                              <div style={{padding:'10px 14px',background:'#1A1400',border:'1px solid #3A2E00',borderRadius:6,display:'flex',alignItems:'center',gap:8}}>
+                                <AlertCircle size={11} color="#FCD34D"/>
+                                <span style={{fontSize:11,color:'#FCD34D'}}>Reconciliation gap: movements sum {fmt(bridgeOk.total)}, expected {fmt(bridgeOk.expected)} (Δ {fmt(Math.abs(bridgeOk.diff))})</span>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:`1px solid ${T.border}`}}>
-                          <div style={{borderRight:`1px solid ${T.border}`}}>
-                            <div style={{padding:'9px 20px',background:T.bgRaised,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:8}}>
-                              <span style={{fontSize:11,fontWeight:700,color:'#4ADE80'}}>Upsell</span>
-                              <span style={{fontSize:11,color:T.text2,fontFamily:T.mono}}>{fs(upsellNet)}</span>
+                            )}
+
+                            {/* Waterfall chart */}
+                            <div style={{...S.cardF}}>
+                              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #1E2D45'}}>
+                                <div>
+                                  <div style={{fontSize:14,fontWeight:700,color:'#FFFFFF',letterSpacing:'-0.01em'}}>ARR Bridge: {periodType==='Annual'?'YoY':'QoQ'} · {selLb}M{selPeriod?` · ${selPeriod}`:''}</div>
+                                  <div style={{fontSize:11,color:'#7B8EA8',marginTop:2}}>Movement from beginning to ending ARR</div>
+                                </div>
+                                <div style={{display:'flex',alignItems:'center',gap:14,fontSize:10,color:'#7B8EA8'}}>
+                                  <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#4ADE80',display:'inline-block'}}/> Expansion</span>
+                                  <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#F87171',display:'inline-block'}}/> Contraction</span>
+                                  <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#3D5068',display:'inline-block'}}/> Baseline</span>
+                                </div>
+                              </div>
+                              <div style={{padding:'20px 20px 8px'}}>
+                                {(()=>{
+                                  const movements = selectedWfall.filter(x=>!['Beginning MRR','Ending MRR','Beginning ARR','Ending ARR'].includes(x.category))
+                                  const fullData  = [{category:'Beginning ARR',value:toARR(beg)||0},...movements,{category:'Ending ARR',value:toARR(end)||0}]
+                                  return <WaterfallBridge data={fullData} showBoundary={true}/>
+                                })()}
+                              </div>
                             </div>
-                            <table style={{borderCollapse:'collapse',width:'100%'}}>
-                              <tbody>
-                                <Row label="Net Upsell"         val={upsellNet} />
-                                <Row label="→ Price component"  val={upPrice}   indent={true} />
-                                <Row label="→ Volume component" val={upVol}     indent={true} />
-                                <Row label="→ Price × Volume"   val={upPov}     indent={true} />
-                              </tbody>
-                            </table>
-                          </div>
-                          <div>
-                            <div style={{padding:'9px 20px',background:T.bgRaised,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:8}}>
-                              <span style={{fontSize:11,fontWeight:700,color:'#F87171'}}>Downsell</span>
-                              <span style={{fontSize:11,color:T.text2,fontFamily:T.mono}}>{fs(downsellNet)}</span>
+
+                            {/* Movement breakdown table */}
+                            <div style={{...S.cardF}}>
+                              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}>
+                                <div style={{fontSize:14,fontWeight:700,color:'#FFFFFF',letterSpacing:'-0.01em'}}>Movement Breakdown</div>
+                                {isAdmin&&<button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:600,color:'#4ADE80',background:'transparent',border:'none',cursor:'pointer'}}><Download size={12}/> Export</button>}
+                              </div>
+                              <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
+                                <thead>
+                                  <tr style={{background:'#162035'}}>
+                                    {['Category','Amount','% of Beg ARR'].map((h,i)=>(
+                                      <th key={h} style={{textAlign:i===0?'left':'right',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#7B8EA8',borderBottom:'1px solid #1E2D45',whiteSpace:'nowrap'}}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {/* Beginning ARR row */}
+                                  <tr style={{borderBottom:'1px solid #1E2D45',background:'#162035'}}>
+                                    <td style={{padding:'10px 20px',fontWeight:700,color:'#FFFFFF',fontSize:13}}>Beginning ARR</td>
+                                    <td style={{textAlign:'right',padding:'10px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:'#FFFFFF'}}>{fmt(toARR(beg))}</td>
+                                    <td style={{textAlign:'right',padding:'10px 20px',color:'#64748B',fontSize:12}}>—</td>
+                                  </tr>
+                                  {/* Core movement rows */}
+                                  {coreMovements.sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)).map((row,i)=>(
+                                    <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}
+                                      onMouseEnter={e=>e.currentTarget.style.background='#111827'}
+                                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                      <td style={{padding:'10px 20px',display:'flex',alignItems:'center',gap:10}}>
+                                        <span style={{width:8,height:8,borderRadius:'50%',background:BC[row.category]||'#6B7280',flexShrink:0}}/>
+                                        <span style={{fontWeight:500,color:'#E2E8F0',fontSize:13}}>{row.category}</span>
+                                      </td>
+                                      <td style={{textAlign:'right',padding:'10px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:600,color:row.value>=0?'#4ADE80':'#F87171'}}>
+                                        {row.value===0?'—':(row.value>0?'+':'')+fmt(toARR(row.value))}
+                                      </td>
+                                      <td style={{textAlign:'right',padding:'10px 20px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:'#64748B'}}>
+                                        {beg>0?`${Math.abs(row.value/beg*100).toFixed(1)}%`:'—'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  {/* Ending ARR row */}
+                                  <tr style={{borderTop:'1px solid #253550',background:'#162035'}}>
+                                    <td style={{padding:'10px 20px',fontWeight:700,color:'#4ADE80',fontSize:13}}>Ending ARR</td>
+                                    <td style={{textAlign:'right',padding:'10px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:'#4ADE80'}}>{fmt(toARR(end))}</td>
+                                    <td style={{textAlign:'right',padding:'10px 20px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:'#64748B'}}>{beg>0?`${(end/beg*100).toFixed(1)}%`:'—'}</td>
+                                  </tr>
+                                  {/* Reconciliation check */}
+                                  <tr style={{background:'#0D1525'}}>
+                                    <td style={{padding:'8px 20px',fontSize:11,color:'#4A5A6E'}}>Reconciliation check</td>
+                                    <td colSpan={2} style={{textAlign:'right',padding:'8px 20px',fontSize:11}}>
+                                      <span style={{color:Math.abs(reconGap)<1?'#4ADE80':'#F87171',fontWeight:600}}>
+                                        {Math.abs(reconGap)<1?'✓ $0 gap — balanced':`⚠ Gap: ${fmt(reconGap)}`}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
                             </div>
-                            <table style={{borderCollapse:'collapse',width:'100%'}}>
-                              <tbody>
-                                <Row label="Net Downsell"       val={downsellNet} />
-                                <Row label="→ Price component"  val={dnPrice}     indent={true} />
-                                <Row label="→ Volume component" val={dnVol}       indent={true} />
-                                <Row label="→ Price × Volume"   val={dnPov}       indent={true} />
-                              </tbody>
-                            </table>
+
+                            {/* Pivot tables */}
+                            {results?.pivot?.[String(selLb)]?.bridge_pivot&&(
+                              <div style={{...S.card}}>
+                                <BridgePivotTable pivot={results.pivot[String(selLb)].bridge_pivot} title="ARR Waterfall" lookbackLabel={`${selLb}M Lookback`} showPct={false}/>
+                                <CustomerCountPivot pivot={results.pivot[String(selLb)].customer_pivot}/>
+                              </div>
+                            )}
+                            {results?.pivot?.['12']?.bridge_pivot&&selLb!==12&&(
+                              <div style={{...S.card}}>
+                                <BridgePivotTable pivot={results.pivot['12'].bridge_pivot} title="ARR Waterfall" lookbackLabel="YoY (12M)" showPct={true}/>
+                                <CustomerCountPivot pivot={results.pivot['12'].customer_pivot}/>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                        <div style={{padding:'10px 20px',display:'flex',alignItems:'center',gap:8,background:T.bgRaised}}>
-                          <Info size={11} color={T.text3} style={{flexShrink:0}}/>
-                          <span style={{fontSize:11,color:T.text3,lineHeight:1.5}}>
-                            These rows are sub-decompositions of Upsell/Downsell. Excluded from the reconciliation sum above to prevent double-counting. Net Upsell + Net Downsell already captures the full movement.
-                          </span>
-                        </div>
+                        )}
+
+                        {/* ══ TAB: Price / Volume ══════════════════════════ */}
+                        {summarySubTab==='Price / Volume'&&(
+                          <div style={{display:'flex',flexDirection:'column',gap:20}}>
+
+                            {/* Summary chips */}
+                            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10}}>
+                              {[
+                                {label:'Total Price Effect', val:totPrice},
+                                {label:'Total Volume Effect',val:totVol},
+                                {label:'Net P×V Effect',     val:netPV},
+                                {label:'Upsell net',         val:upsellNet},
+                                {label:'Downsell net',       val:downsellNet},
+                                {label:'Net Expansion',      val:upsellNet+downsellNet},
+                              ].map(c=>(
+                                <div key={c.label} style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,padding:'12px 14px'}}>
+                                  <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'#4A5A6E',marginBottom:6}}>{c.label}</div>
+                                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:17,fontWeight:700,color:fc(c.val)}}>{fs(c.val)}</div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Decomposition table */}
+                            <div style={{...S.cardF}}>
+                              <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}>
+                                <div style={{fontSize:13,fontWeight:700,color:'#FFFFFF'}}>Upsell/Downsell decomposition</div>
+                              </div>
+                              <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
+                                <thead>
+                                  <tr style={{background:'#162035'}}>
+                                    {['Component','Amount','% of Net'].map((h,i)=>(
+                                      <th key={h} style={{textAlign:i===0?'left':'right',padding:'9px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#7B8EA8',borderBottom:'1px solid #1E2D45'}}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {[
+                                    {label:'Upsell (net)',        val:upsellNet,   indent:false, base:null},
+                                    {label:'→ Price component',   val:upPrice,     indent:true,  base:Math.abs(upsellNet)},
+                                    {label:'→ Volume component',  val:upVol,       indent:true,  base:Math.abs(upsellNet)},
+                                    {label:'→ Price-on-Volume',   val:upPov,       indent:true,  base:Math.abs(upsellNet)},
+                                    {label:'Downsell (net)',      val:downsellNet, indent:false, base:null},
+                                    {label:'→ Price component',   val:dnPrice,     indent:true,  base:Math.abs(downsellNet)},
+                                    {label:'→ Volume component',  val:dnVol,       indent:true,  base:Math.abs(downsellNet)},
+                                    {label:'→ Price-on-Volume',   val:dnPov,       indent:true,  base:Math.abs(downsellNet)},
+                                  ].map((row,i)=>(
+                                    <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}
+                                      onMouseEnter={e=>e.currentTarget.style.background='#111827'}
+                                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                      <td style={{padding:'10px 20px',paddingLeft:row.indent?36:20,color:row.indent?'#94A3B8':'#E2E8F0',fontWeight:row.indent?400:600,fontSize:13,display:'flex',alignItems:'center',gap:8}}>
+                                        {!row.indent&&<span style={{width:8,height:8,borderRadius:'50%',background:row.val>=0?'#4ADE80':'#F87171',flexShrink:0}}/>}
+                                        {row.indent&&<span style={{color:'#3D5068',fontSize:12}}>→</span>}
+                                        {row.label.replace('→ ','')}
+                                      </td>
+                                      <td style={{textAlign:'right',padding:'10px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:600,color:fc(row.val)}}>
+                                        {row.val===0?'—':(row.val>0?'+':'')+fmt(row.val)}
+                                      </td>
+                                      <td style={{textAlign:'right',padding:'10px 20px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:'#64748B'}}>
+                                        {row.base&&row.base>0?`${(Math.abs(row.val)/row.base*100).toFixed(1)}%`:'—'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              {/* Footer note */}
+                              <div style={{padding:'12px 20px',background:'#0D1525',borderTop:'1px solid #1E2D45',display:'flex',alignItems:'flex-start',gap:8}}>
+                                <Info size={11} color="#4A5A6E" style={{flexShrink:0,marginTop:2}}/>
+                                <span style={{fontSize:11,color:'#4A5A6E',lineHeight:1.6}}>
+                                  <strong style={{color:'#64748B'}}>Note on reconciliation:</strong> Price Impact, Volume Impact, and Price-on-Volume rows are sub-decompositions of Upsell/Downsell — they share the same units. Including them in the core bridge sum double-counts the Upsell/Downsell movement. Only the 8 core categories (New Logo, Cross-sell, Returning, Upsell, Downsell, Churn, Churn-Partial, Lapsed) are summed in the bridge reconciliation above.
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ══ TAB: Trends ══════════════════════════════════ */}
+                        {summarySubTab==='Trends'&&(
+                          <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                            <div style={{fontSize:11,color:'#4A5A6E',marginBottom:12}}>
+                              All {trendData.length} periods with Beginning ARR &gt; 0 · selected period highlighted
+                            </div>
+                            {[
+                              {key:'Upsell',        color:'#4ADE80'},
+                              {key:'Downsell',      color:'#F87171'},
+                              {key:'New Logo',      color:'#4ADE80'},
+                              {key:'Churn',         color:'#DC2626'},
+                              {key:'Churn-Partial', color:'#F87171'},
+                              {key:'Lapsed',        color:'#CA8A04'},
+                              {key:'Returning',     color:'#86EFAC'},
+                              {key:'Cross-sell',    color:'#4ADE80'},
+                            ].map(cfg=>{
+                              const vals = trendData.map(r=>r[cfg.key]||0)
+                              if (vals.every(v=>v===0)) return null
+                              const maxAbs = Math.max(...vals.map(Math.abs),1)
+                              const W=560,H=72,pad=8
+                              const pts = vals.map((v,i)=>({
+                                x: pad+(i/(Math.max(vals.length-1,1)))*(W-2*pad),
+                                y: H/2-(v/maxAbs)*(H/2-pad)
+                              }))
+                              const path = pts.map((p,i)=>(i===0?`M${p.x.toFixed(1)},${p.y.toFixed(1)}`:`L${p.x.toFixed(1)},${p.y.toFixed(1)}`)).join(' ')
+                              const selIdx = selPeriod ? trendData.findIndex(r=>r._period===selPeriod) : -1
+                              return (
+                                <div key={cfg.key} style={{marginBottom:12}}>
+                                  <div style={{fontSize:11,color:'#64748B',marginBottom:2,fontWeight:500}}>{cfg.key}</div>
+                                  <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
+                                    <line x1={pad} y1={H/2} x2={W-pad} y2={H/2} stroke="#1E2D45" strokeWidth={0.5}/>
+                                    <path d={path} fill="none" stroke={cfg.color} strokeWidth={1.5} opacity={0.9}/>
+                                    {pts.map((p,i)=>(
+                                      <circle key={i} cx={p.x} cy={p.y} r={i===selIdx?4:2.5}
+                                        fill={i===selIdx?'#FFFFFF':cfg.color}
+                                        stroke={i===selIdx?cfg.color:'none'}
+                                        strokeWidth={i===selIdx?1.5:0}/>
+                                    ))}
+                                  </svg>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {/* ══ TAB: Reconciliation ══════════════════════════ */}
+                        {summarySubTab==='Reconciliation'&&(
+                          <div style={{display:'flex',flexDirection:'column',gap:20}}>
+
+                            {/* Checklist table */}
+                            <div style={{...S.cardF}}>
+                              <table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}>
+                                <tbody>
+                                  {[
+                                    {label:'Beginning ARR',               val:fmt(toARR(beg)),          pass:true},
+                                    {label:'Ending ARR',                  val:fmt(toARR(end)),          pass:true},
+                                    {label:'Expected delta (End − Beg)',  val:fs(netChg),               pass:true},
+                                    {label:'Core 8 movements sum',        val:fs(coreSum),              pass:Math.abs(reconGap)<1},
+                                    {label:'Reconciliation gap (core only)', val: Math.abs(reconGap)<1?'$0':fmt(reconGap), pass:Math.abs(reconGap)<1},
+                                    {label:'If Price/Vol included (wrong)', val:fs(wrongSum),            pass:false},
+                                    {label:'Gap if Price/Vol included',    val:fmt(netChg-wrongSum),     pass:false},
+                                  ].map((row,i)=>(
+                                    <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
+                                      <td style={{padding:'12px 20px',color:'#E2E8F0',fontSize:13}}>{row.label}</td>
+                                      <td style={{padding:'12px 20px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,fontSize:13,color:'#FFFFFF'}}>{row.val}</td>
+                                      <td style={{padding:'12px 20px',textAlign:'right',whiteSpace:'nowrap'}}>
+                                        <span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:4,background:row.pass?'rgba(74,222,128,0.1)':'rgba(248,113,113,0.1)',color:row.pass?'#4ADE80':'#F87171',border:`1px solid ${row.pass?'rgba(74,222,128,0.2)':'rgba(248,113,113,0.2)'}`}}>
+                                          {row.pass?'✓ pass':'✗ fail'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {/* Fix cards */}
+                            <div>
+                              <div style={{fontSize:11,fontWeight:600,color:'#4A5A6E',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>Changes needed in your Excel/Alteryx workflow</div>
+                              {[
+                                {sev:'HIGH', sevColor:'#F87171', sevBg:'rgba(248,113,113,0.08)', title:'Include Price/Volume in net sum',                  body:'Filter to 8 core categories only. Exclude Price Impact, Volume Impact, Price on Volume from movement total.'},
+                                {sev:'HIGH', sevColor:'#F87171', sevBg:'rgba(248,113,113,0.08)', title:'Lapsed Bridge Value = 0 (reads current MRR)',       body:'Lapsed value = −BeginningARR (negative of Prior ARR). Current MRR is 0 for lapsed units — use the Beg ARR row, not current.'},
+                                {sev:'MED',  sevColor:'#FCD34D', sevBg:'rgba(252,211,77,0.08)',  title:'Returning Bridge Value = delta instead of full current', body:'Returning BridgeValue = Current ARR in full. Prior=0 for returning units, so no Beginning ARR row exists. Bridge value = full current period ARR.'},
+                                {sev:'MED',  sevColor:'#FCD34D', sevBg:'rgba(252,211,77,0.08)',  title:'Lapsed re-entry period misclassified as Returning', body:'If 12M lookback prior > 0 (unit existed 12M ago), re-entry is Downsell, not Returning. Returning only fires when prior = 0 (lookback window falls inside the zero-gap).'},
+                                {sev:'LOW',  sevColor:'#64748B', sevBg:'rgba(100,116,139,0.08)', title:'Other In/Out absent despite Channel/Region data',   body:'Zero Other In/Out rows currently. Channel-shifted units fall into New Logo/Churn instead. Implement migration detection if needed.'},
+                              ].map((c,i)=>(
+                                <div key={i} style={{marginBottom:10,padding:'12px 16px',borderLeft:`3px solid ${c.sevColor}`,background:c.sevBg,borderRadius:'0 6px 6px 0'}}>
+                                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                                    <span style={{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:3,background:c.sevBg,color:c.sevColor,border:`1px solid ${c.sevColor}22`,letterSpacing:'0.06em'}}>{c.sev}</span>
+                                    <span style={{fontSize:12,fontWeight:600,color:'#E2E8F0'}}>{c.title}</span>
+                                  </div>
+                                  <div style={{fontSize:11,color:'#64748B',lineHeight:1.6}}>{c.body}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )
                   })()}
-
-                  {/* ── Pivot tables (QoQ + YoY) below the main view ─── */}
-                  {results?.pivot?.[String(selLb)]?.bridge_pivot&&(
-                    <div style={{...S.card}}>
-                      <BridgePivotTable pivot={results.pivot[String(selLb)].bridge_pivot} title="ARR Waterfall" lookbackLabel={`${selLb}M Lookback`} showPct={false}/>
-                      <CustomerCountPivot pivot={results.pivot[String(selLb)].customer_pivot}/>
-                    </div>
-                  )}
-                  {results?.pivot?.['12']?.bridge_pivot&&selLb!==12&&(
-                    <div style={{...S.card}}>
-                      <BridgePivotTable pivot={results.pivot['12'].bridge_pivot} title="ARR Waterfall" lookbackLabel="YoY (12M)" showPct={true}/>
-                      <CustomerCountPivot pivot={results.pivot['12'].customer_pivot}/>
-                    </div>
-                  )}
-
-                  {/* ── Bridge trend chart (stacked bars over time) ───── */}
-                  {bdg?.by_period?.length>0&&(
-                    <div style={{...S.card}}>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-                        <div style={{...S.label}}>Bridge Trend Over Time</div>
-                        <span style={{fontSize:10,color:'#7B8EA8'}}>{periodType} · {selLb}M lookback</span>
-                      </div>
-                      <div style={{height:240}}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={(()=>{const all=bdg?.by_period||[];if(!selPeriod||!selLb)return all;const ai=all.findIndex(r=>r._period===selPeriod);const a=ai>=0?ai:all.length-1;return all.slice(Math.max(0,a-selLb+1),a+1)})()} margin={{left:8,right:8,bottom:8}}>
-                            <XAxis dataKey="_period" tick={{fontSize:10,fill:'#6B7280'}} axisLine={false} tickLine={false}/>
-                            <YAxis tickFormatter={fmt} tick={{fontSize:10,fill:'#9CA3AF'}} width={48} axisLine={false} tickLine={false}/>
-                            <Tooltip formatter={v=>fmt(Number(v))} contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:7,fontSize:11,color:'#FFFFFF'}}/>
-                            
-                            {['New Logo','Upsell','Cross-sell','Returning','Downsell','Churn','Churn Partial'].map(cat=>(
-                              <Bar key={cat} dataKey={cat} stackId="a" fill={BC[cat]||'#6B7280'} name={cat}/>
-                            ))}
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
