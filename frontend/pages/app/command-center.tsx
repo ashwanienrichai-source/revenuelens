@@ -682,54 +682,134 @@ export default function CommandCenter() {
   // Reads _period strings from ALL lookback buckets, validates format, sorts chronologically.
   // Format enforced: 'Mon-YY' e.g. 'Jan-22', 'Dec-25'. Invalid entries are discarded.
   const availablePeriods = useMemo(() => {
-    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    const raw = new Set()
+    if (!results) return []
 
-    // Parser handles Mon-YY (Dec-25), Mon-YYYY (Dec-2025), any separator
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+    // Parse any date string into a sort key — handles Mon-YY, Mon-YYYY, YYYY-MM-DD, MM/DD/YYYY
     const parse = (s) => {
       if (!s || typeof s !== 'string') return null
-      const parts = s.trim().split('-')
-      if (parts.length < 2) return null
-      const mon = parts[0]
-      const yrRaw = parts.slice(1).join('')
-      const mi = MONTHS.indexOf(mon)
-      if (mi < 0) return null
-      const yrNum = parseInt(yrRaw, 10)
-      if (isNaN(yrNum) || yrNum <= 0) return null
-      const fullYr = yrNum < 100 ? (yrNum < 50 ? 2000 + yrNum : 1900 + yrNum) : yrNum
-      if (fullYr < 2000 || fullYr > 2099) return null
-      return fullYr * 100 + mi
+      const str = s.trim()
+
+      // Format: Mon-YY or Mon-YYYY  e.g. Dec-25, Dec-2025
+      const monYear = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
+      if (monYear) {
+        const mi = MONTHS.indexOf(monYear[1])
+        if (mi < 0) return null
+        let yr = parseInt(monYear[2], 10)
+        if (yr < 100) yr = yr < 50 ? 2000 + yr : 1900 + yr
+        if (yr < 2000 || yr > 2099) return null
+        return yr * 100 + mi
+      }
+
+      // Format: YYYY-MM-DD or MM/DD/YYYY
+      const isoDate = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+      if (isoDate) {
+        const yr = parseInt(isoDate[1], 10)
+        const mi = parseInt(isoDate[2], 10) - 1
+        if (yr < 2000 || yr > 2099 || mi < 0 || mi > 11) return null
+        return yr * 100 + mi
+      }
+
+      return null
     }
 
-    const add = (p) => { if (p && typeof p === 'string' && p.trim() && parse(p.trim()) !== null) raw.add(p.trim()) }
+    // Convert any date to Mon-YYYY display format
+    const toDisplay = (s) => {
+      const str = s.trim()
+      const monYear = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
+      if (monYear) {
+        let yr = parseInt(monYear[2], 10)
+        if (yr < 100) yr = yr < 50 ? 2000 + yr : 1900 + yr
+        return `${monYear[1]}-${yr}`
+      }
+      const isoDate = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+      if (isoDate) {
+        const yr = parseInt(isoDate[1], 10)
+        const mi = parseInt(isoDate[2], 10) - 1
+        return `${MONTHS[mi]}-${yr}`
+      }
+      return str
+    }
 
-    // Source 1: kpi_matrix — most reliable, always present
-    ;(results?.kpi_matrix || []).forEach(r => add(r?.period))
+    const raw = new Map() // display string → sort key
 
-    // Source 2: by_period from every lookback bucket
-    if (results?.bridge) {
+    const add = (s) => {
+      if (!s || typeof s !== 'string' || !s.trim()) return
+      const key = parse(s.trim())
+      if (key !== null) {
+        const display = toDisplay(s.trim())
+        if (!raw.has(display)) raw.set(display, key)
+      }
+    }
+
+    // Source 1: kpi_matrix — always present, period field
+    ;(results.kpi_matrix || []).forEach(r => {
+      add(r?.period)
+    })
+
+    // Source 2: by_period from every lookback
+    if (results.bridge) {
       Object.values(results.bridge).forEach(b => {
         ;(b?.by_period || []).forEach(r => add(r?._period))
       })
     }
 
-    // Source 3: pivot periods
-    if (results?.pivot) {
+    // Source 3: pivot table periods
+    if (results.pivot) {
       Object.values(results.pivot).forEach(p => {
         ;(p?.bridge_pivot?.periods || []).forEach(add)
         ;(p?.kpi_table || []).forEach(r => add(r?.period))
       })
     }
 
+    // Source 4: output rows — date column (most reliable for bridge output files)
+    if (results.output?.length > 0) {
+      const firstRow = results.output[0]
+      // Find the date column key
+      const dateKey = Object.keys(firstRow).find(k =>
+        /^date$/i.test(k) || /period/i.test(k) || /month/i.test(k) ||
+        /^dt$/i.test(k) || /activity.date/i.test(k)
+      )
+      if (dateKey) {
+        results.output.forEach(r => add(r?.[dateKey]))
+      }
+    }
+
     if (raw.size === 0) return []
-    return Array.from(raw).filter(p => parse(p) !== null).sort((a, b) => parse(a) - parse(b))
+
+    // Sort chronologically by sort key, return display strings
+    return Array.from(raw.entries())
+      .sort((a, b) => a[1] - b[1])
+      .map(([display]) => display)
   }, [results])
+
+  // Normalize any period string to Mon-YYYY for consistent comparison
+  // Dec-22 → Dec-2022, Dec-2022 → Dec-2022, 2022-12-31 → Dec-2022
+  const normalizePeriod = (s) => {
+    if (!s || typeof s !== 'string') return ''
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const str = s.trim()
+    const monYear = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
+    if (monYear) {
+      let yr = parseInt(monYear[2], 10)
+      if (yr < 100) yr = yr < 50 ? 2000 + yr : 1900 + yr
+      return `${monYear[1]}-${yr}`
+    }
+    const isoDate = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (isoDate) {
+      const yr = parseInt(isoDate[1], 10)
+      const mi = parseInt(isoDate[2], 10) - 1
+      if (mi >= 0 && mi < 12) return `${MONTHS[mi]}-${yr}`
+    }
+    return str
+  }
 
   // Filtered by_period data based on selPeriod
   const filteredByPeriod = useMemo(() => {
     if (!bdg?.by_period?.length) return []
     if (!selPeriod) return bdg.by_period
-    return bdg.by_period.filter(r => r._period === selPeriod)
+    return bdg.by_period.filter(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
   }, [bdg, selPeriod])
 
   // kpiRowsWindowed — trend charts show last selLb months ending at selPeriod
@@ -823,7 +903,7 @@ export default function CommandCenter() {
   const selectedWfall = useMemo(() => {
     let base = wfall
     if (selPeriod && bdg?.by_period?.length) {
-      const row = bdg.by_period.find(r => r._period === selPeriod)
+      const row = bdg.by_period.find(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
       if (row) {
         // All possible movement categories from the row (exclude _period key and boundary keys)
         const BOUNDARY_KEYS = new Set(['_period','Beginning ARR','Ending ARR','Beginning MRR','Ending MRR'])
@@ -843,7 +923,7 @@ export default function CommandCenter() {
   const retForPeriod = useMemo(() => {
     // Without a specific period, use the overall retention (covers full lookback)
     if (!selPeriod || !bdg?.by_period?.length) return ret
-    const row = bdg.by_period.find(r => r._period === selPeriod)
+    const row = bdg.by_period.find(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
     if (!row) return ret
 
     // Build movement items from row, apply same dimension filter as selectedWfall
@@ -1657,7 +1737,7 @@ export default function CommandCenter() {
                     // raw PV rows from full wfall (not filtered)
                     const pvSource = (()=>{
                       if (selPeriod && bdg?.by_period?.length) {
-                        const row = bdg.by_period.find(x => x._period === selPeriod)
+                        const row = bdg.by_period.find(x => normalizePeriod(x._period) === normalizePeriod(selPeriod))
                         if (row) return Object.keys(row).filter(k=>PV_KEYS.has(k)).map(k=>({category:k,value:row[k]||0}))
                       }
                       return (wfall||[]).filter(x=>PV_KEYS.has(x.category))
@@ -1913,7 +1993,7 @@ export default function CommandCenter() {
                                 y: H/2-(v/maxAbs)*(H/2-pad)
                               }))
                               const path = pts.map((p,i)=>(i===0?`M${p.x.toFixed(1)},${p.y.toFixed(1)}`:`L${p.x.toFixed(1)},${p.y.toFixed(1)}`)).join(' ')
-                              const selIdx = selPeriod ? trendData.findIndex(r=>r._period===selPeriod) : -1
+                              const selIdx = selPeriod ? trendData.findIndex(r=>normalizePeriod(r._period)===normalizePeriod(selPeriod)) : -1
                               return (
                                 <div key={cfg.key} style={{marginBottom:12}}>
                                   <div style={{fontSize:11,color:'#64748B',marginBottom:2,fontWeight:500}}>{cfg.key}</div>
@@ -2017,7 +2097,7 @@ export default function CommandCenter() {
 
                     // Find index of selPeriod (or last)
                     const anchorIdx = selPeriod
-                      ? sorted.findIndex(r=>r._period===selPeriod)
+                      ? sorted.findIndex(r=>normalizePeriod(r._period)===normalizePeriod(selPeriod))
                       : sorted.length - 1
                     const anchor = anchorIdx >= 0 ? anchorIdx : sorted.length - 1
 
