@@ -850,7 +850,8 @@ export default function CommandCenter() {
     'New Logo', 'Upsell', 'Downsell', 'Churn'
   ])
   const PRODUCT_LEVEL_CATS = new Set([
-    'New Logo', 'Upsell', 'Cross-sell', 'Downsell', 'Churn Partial', 'Churn-Partial', 'Churn',
+    'New Logo', 'Upsell', 'Cross-sell', 'Cross_sell', 'Downsell', 
+    'Churn Partial', 'Churn-Partial', 'Churn_Partial', 'Churn',
     'Other In', 'Other Out', 'Returning', 'Lapsed', 'Add on', 'Add-on'
   ])
   const REGION_LEVEL_CATS = new Set([
@@ -905,29 +906,34 @@ export default function CommandCenter() {
     if (selPeriod && bdg?.by_period?.length) {
       const row = bdg.by_period.find(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
       if (row) {
-        // All possible movement categories from the row (exclude _period key and boundary keys)
         const BOUNDARY_KEYS = new Set(['_period','Beginning ARR','Ending ARR','Beginning MRR','Ending MRR'])
         base = Object.keys(row)
           .filter(k => !BOUNDARY_KEYS.has(k))
-          .map(k => ({ category: k, value: row[k] || 0 }))
+          .map(k => ({
+            // Normalize underscore category names e.g. Churn_Partial → Churn-Partial, Cross_sell → Cross-sell
+            category: k.replace(/_/g, '-').replace('Churn-Partial','Churn-Partial').replace('Cross-sell','Cross-sell'),
+            value: row[k] || 0
+          }))
           .filter(r => r.value !== 0)
       }
     }
-    // Filter by granularity rules (strips price/volume, enforces level visibility)
     const filtered = filterByDimension(base)
-    // Apply canonical ordering
     return applyCanonicalOrder(filtered)
   }, [selPeriod, bdg, wfall, selDims])
 
   // ── Period-specific KPI values — respect selected granularity + period ──
   const retForPeriod = useMemo(() => {
-    // Without a specific period, use the overall retention (covers full lookback)
     if (!selPeriod || !bdg?.by_period?.length) return ret
     const row = bdg.by_period.find(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
     if (!row) return ret
 
-    // Build movement items from row, apply same dimension filter as selectedWfall
     const BOUNDARY_KEYS = new Set(['_period','Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','beginning','ending'])
+
+    // Read Beginning/Ending ARR directly from the row (most accurate)
+    const rowBeg = row['Beginning ARR'] ?? row['Beginning MRR'] ?? row['beginning'] ?? ret?.beginning ?? 0
+    const rowEnd = row['Ending ARR']   ?? row['Ending MRR']   ?? row['ending']   ?? null
+
+    // Build movement items from row, apply same dimension filter as selectedWfall
     const rowItems = Object.keys(row)
       .filter(k => !BOUNDARY_KEYS.has(k))
       .map(k => ({ category: k, value: row[k] || 0 }))
@@ -935,15 +941,15 @@ export default function CommandCenter() {
 
     const newArr  = filtered.filter(r => r.value > 0).reduce((s,r) => s + r.value, 0)
     const lostArr = filtered.filter(r => r.value < 0).reduce((s,r) => s + r.value, 0)
-    const beg = ret?.beginning || 0
-    const end = beg + newArr + lostArr
+
+    const beg = rowBeg
+    const end = rowEnd !== null ? rowEnd : beg + newArr + lostArr
 
     return {
       beginning: beg,
       ending:    end,
       new_arr:   newArr,
       lost_arr:  lostArr,
-      // NRR = ending / beginning (includes expansion); GRR = (ending excl expansion) / beginning
       nrr:       beg > 0 ? (end / beg) * 100 : ret?.nrr,
       grr:       beg > 0 ? ((beg + lostArr) / beg) * 100 : ret?.grr,
     }
