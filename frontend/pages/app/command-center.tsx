@@ -797,8 +797,33 @@ export default function CommandCenter() {
   }
 
   function getMoverPeriod(row) {
-    return row?.Period || row?.period || ''
+    if (!row || typeof row !== 'object') return ''
+    if (row.Period || row.period) return row.Period || row.period
+    const key = Object.keys(row).find(k =>
+      /^period$/i.test(k) || /^date$/i.test(k) || /month/i.test(k) || /activity.date/i.test(k)
+    )
+    return key ? row[key] : ''
   }
+
+  function filterRowsBySelectedPeriod(rows) {
+    if (!Array.isArray(rows) || !rows.length || !selPeriod) return rows || []
+    const withPeriod = rows.filter(r => normalizePeriod(getMoverPeriod(r)))
+    if (!withPeriod.length) return rows
+    return rows.filter(r => normalizePeriod(getMoverPeriod(r)) === normalizePeriod(selPeriod))
+  }
+
+  const moversForPeriod = useMemo(() => {
+    if (!movers || typeof movers !== 'object') return {}
+    const out = {}
+    Object.entries(movers).forEach(([cat, rows]) => {
+      out[cat] = filterRowsBySelectedPeriod(rows || [])
+    })
+    return out
+  }, [movers, selPeriod])
+
+  const topCustsForPeriod = useMemo(() => {
+    return filterRowsBySelectedPeriod(topCusts || [])
+  }, [topCusts, selPeriod])
 
   // ── Available periods — actual data months only, chronological, no synthetic fill
   // Reads _period strings from ALL lookback buckets, validates format, sorts chronologically.
@@ -1103,19 +1128,19 @@ export default function CommandCenter() {
     const posCats = ['New Logo','Upsell','Cross-sell','Returning','Other In']
     const all = []
     for (const cat of posCats) {
-      if (movers[cat]?.length) movers[cat].forEach(r => all.push({...r, _cat:cat}))
+      if (moversForPeriod[cat]?.length) moversForPeriod[cat].forEach(r => all.push({...r, _cat:cat}))
     }
     return all.sort((a,b) => Math.abs(b.value||0) - Math.abs(a.value||0)).slice(0, 25)
-  }, [movers])
+  }, [moversForPeriod])
 
   const churnList = useMemo(() => {
     const negCats = ['Churn','Churn-Partial','Churn Partial','Lapsed','Downsell','Other Out']
     const all = []
     for (const cat of negCats) {
-      if (movers[cat]?.length) movers[cat].forEach(r => all.push({...r, _cat:cat}))
+      if (moversForPeriod[cat]?.length) moversForPeriod[cat].forEach(r => all.push({...r, _cat:cat}))
     }
     return all.sort((a,b) => Math.abs(b.value||0) - Math.abs(a.value||0)).slice(0, 25)
-  }, [movers])
+  }, [moversForPeriod])
 
   useEffect(() => {
     supabase.auth.getSession().then(({data:{session}}) => {
@@ -2693,12 +2718,12 @@ export default function CommandCenter() {
                   </div>
 
                   {/* ── All movers by category ────────────────────────── */}
-                  {Object.keys(movers).length>0&&(
+                  {Object.keys(moversForPeriod).length>0&&(
                     <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
                       {/* Category tabs */}
                       <div style={{display:'flex',alignItems:'center',gap:4,padding:'12px 16px',borderBottom:'1px solid #1E2D45',flexWrap:'wrap',background:'#0D1525'}}>
                         <span style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',marginRight:8}}>Filter:</span>
-                        {Object.keys(movers).map(cat=>(
+                        {Object.keys(moversForPeriod).map(cat=>(
                           <button key={cat} onClick={()=>setMoverCat(cat)} style={{
                             display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,
                             border:`1px solid ${moverCat===cat?'rgba(37,99,235,0.25)':'#E5E7EB'}`,
@@ -2707,17 +2732,17 @@ export default function CommandCenter() {
                           }}>
                             <span style={{width:6,height:6,borderRadius:'50%',background:BC[cat]||'#6B7280',flexShrink:0}}/>
                             {cat}
-                            <span style={{fontSize:9,background:'#162035',color:'#7B8EA8',padding:'1px 5px',borderRadius:10}}>{(movers[cat]||[]).length}</span>
+                            <span style={{fontSize:9,background:'#162035',color:'#7B8EA8',padding:'1px 5px',borderRadius:10}}>{(moversForPeriod[cat]||[]).length}</span>
                           </button>
                         ))}
                       </div>
                       {/* Table */}
-                      {moverCat&&movers[moverCat]?.length>0&&(
+                      {moverCat&&moversForPeriod[moverCat]?.length>0&&(
                         <div style={{overflowX:'auto'}}>
                           <table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}>
                             <thead>
                               <tr style={{background:'#162035',borderBottom:'2px solid #E5E7EB'}}>
-                                {Object.keys(movers[moverCat][0]).filter(k=>k!=='value'&&k!=='period'&&k!=='health'&&k!=='segment').map(k=>(
+                                {Object.keys(moversForPeriod[moverCat][0]).filter(k=>k!=='value'&&k!=='period'&&k!=='health'&&k!=='segment').map(k=>(
                                   <th key={k} style={{textAlign:'left',padding:'10px 16px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:'#7B8EA8',whiteSpace:'nowrap'}}>{k}</th>
                                 ))}
                                 <th style={{textAlign:'right',padding:'10px 16px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:'#7B8EA8'}}>Period</th>
@@ -2725,7 +2750,7 @@ export default function CommandCenter() {
                               </tr>
                             </thead>
                             <tbody>
-                              {movers[moverCat].slice(0,30).map((row,i)=>(
+                              {moversForPeriod[moverCat].slice(0,30).map((row,i)=>(
                                 <tr key={i} style={{borderBottom:'1px solid #1E2D45',transition:'background 0.1s'}}
                                   onMouseEnter={e=>e.currentTarget.style.background='#111827'}
                                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
@@ -2751,13 +2776,13 @@ export default function CommandCenter() {
               {!isCohort&&activeTab==='top_customers'&&(
                 <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,padding:0,overflow:'hidden'}}>
                   <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}><div style={{...S.label}}>Top Customers by Ending ARR</div></div>
-                  {topCusts.length>0?(
+                  {topCustsForPeriod.length>0?(
                     <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
                       <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
                         <th style={{textAlign:'left',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8'}}>#</th>
-                        {Object.keys(topCusts[0]).map(k=><th key={k} style={{textAlign:'left',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8'}}>{k}</th>)}
+                        {Object.keys(topCustsForPeriod[0]).map(k=><th key={k} style={{textAlign:'left',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8'}}>{k}</th>)}
                       </tr></thead>
-                      <tbody>{topCusts.map((row,i)=>(
+                      <tbody>{topCustsForPeriod.map((row,i)=>(
                         <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
                           <td style={{padding:'10px 20px',color:'#7B8EA8',fontWeight:600,fontSize:11}}>#{i+1}</td>
                           {Object.values(row).map((val,j)=>(
