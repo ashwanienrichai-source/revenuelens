@@ -57,6 +57,27 @@ const fmtPct = v => v != null ? `${v.toFixed(1)}%` : '—'
 // toARR: convert raw value to ARR based on revenue type
 // Used for all monetary display — if MRR, ×12; if ARR, passthrough
 // Called with the revenueType state variable via closure in component
+// ─── Period normalizer — module level so useMemo hooks can use it ─────────────
+// Handles Dec-22, Dec-2022, 2022-12-31 → always returns Mon-YYYY
+function normalizePeriod(s) {
+  if (!s || typeof s !== 'string') return ''
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const str = s.trim()
+  const monYear = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
+  if (monYear) {
+    let yr = parseInt(monYear[2], 10)
+    if (yr < 100) yr = yr < 50 ? 2000 + yr : 1900 + yr
+    return monYear[1] + '-' + yr
+  }
+  const isoDate = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoDate) {
+    const yr = parseInt(isoDate[1], 10)
+    const mi = parseInt(isoDate[2], 10) - 1
+    if (mi >= 0 && mi < 12) return MONTHS[mi] + '-' + yr
+  }
+  return str
+}
+
 function makeToARR(revenueType) {
   return (v) => revenueType === 'MRR' ? (v == null ? null : v * 12) : v
 }
@@ -621,7 +642,7 @@ export default function CommandCenter() {
     if (!dateKey || !catKey || !valKey) {
       // Fallback: build from kpi_matrix
       return (results.kpi_matrix || []).map(r => ({
-        _period: normP(r.period),
+        _period: normalizePeriod(r.period),
         'Beginning ARR': r.beginning_arr ?? r.beginning ?? 0,
         'Ending ARR':    r.ending_arr   ?? r.ending   ?? 0,
         'New Logo':      r.new_logo     ?? 0,
@@ -799,8 +820,8 @@ export default function CommandCenter() {
       }
     }
 
-    // Source 0: effectiveByPeriod — built from by_period or output
-    ;(bdg?.by_period || []).forEach(r => add(r?._period))
+    // Source 0: effectiveByPeriod — built from by_period or output (most complete)
+    ;(effectiveByPeriod || []).forEach(r => add(r?._period))
 
     // Source 1: kpi_matrix — always present, period field
     ;(results.kpi_matrix || []).forEach(r => {
@@ -841,28 +862,7 @@ export default function CommandCenter() {
     return Array.from(raw.entries())
       .sort((a, b) => a[1] - b[1])
       .map(([display]) => display)
-  }, [results])
-
-  // Normalize any period string to Mon-YYYY for consistent comparison
-  // Dec-22 → Dec-2022, Dec-2022 → Dec-2022, 2022-12-31 → Dec-2022
-  const normalizePeriod = (s) => {
-    if (!s || typeof s !== 'string') return ''
-    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    const str = s.trim()
-    const monYear = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
-    if (monYear) {
-      let yr = parseInt(monYear[2], 10)
-      if (yr < 100) yr = yr < 50 ? 2000 + yr : 1900 + yr
-      return `${monYear[1]}-${yr}`
-    }
-    const isoDate = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-    if (isoDate) {
-      const yr = parseInt(isoDate[1], 10)
-      const mi = parseInt(isoDate[2], 10) - 1
-      if (mi >= 0 && mi < 12) return `${MONTHS[mi]}-${yr}`
-    }
-    return str
-  }
+  }, [results, effectiveByPeriod])
 
   // Filtered by_period data based on selPeriod
   const filteredByPeriod = useMemo(() => {
@@ -879,7 +879,7 @@ export default function CommandCenter() {
 
     // Find anchor index (selPeriod position in kpiRows)
     const anchorIdx = selPeriod
-      ? kpiRows.findIndex(r => r.period === selPeriod)
+      ? kpiRows.findIndex(r => normalizePeriod(r.period) === normalizePeriod(selPeriod))
       : kpiRows.length - 1
     const anchor = anchorIdx >= 0 ? anchorIdx : kpiRows.length - 1
 
@@ -2205,7 +2205,7 @@ export default function CommandCenter() {
                               <tr style={{background:'#162035'}}>
                                 <th style={{textAlign:'left',padding:'9px 16px',fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#4A5A6E',whiteSpace:'nowrap',borderBottom:'1px solid #1E2D45',position:'sticky',left:0,background:'#162035',minWidth:160}}>Movement</th>
                                 {colPeriods.map(p=>(
-                                  <th key={p} style={{textAlign:'right',padding:'9px 12px',fontSize:9,fontWeight:p===selPeriod?700:500,letterSpacing:'0.06em',color:p===selPeriod?'#CBD5E1':'#4A5A6E',whiteSpace:'nowrap',borderBottom:'1px solid #1E2D45',background:p===selPeriod?'#1A2840':'#162035'}}>
+                                  <th key={p} style={{textAlign:'right',padding:'9px 12px',fontSize:9,fontWeight:normalizePeriod(p)===normalizePeriod(selPeriod)?700:500,letterSpacing:'0.06em',color:normalizePeriod(p)===normalizePeriod(selPeriod)?'#CBD5E1':'#4A5A6E',whiteSpace:'nowrap',borderBottom:'1px solid #1E2D45',background:p===selPeriod?'#1A2840':'#162035'}}>
                                     {p}
                                   </th>
                                 ))}
@@ -2224,7 +2224,7 @@ export default function CommandCenter() {
                                     {colPeriods.map(p=>{
                                       const v = lookup[p]?.[cat]
                                       const isPos = (v||0)>=0
-                                      const isCurrentPeriod = p===selPeriod
+                                      const isCurrentPeriod = normalizePeriod(p)===normalizePeriod(selPeriod)
                                       return (
                                         <td key={p} style={{textAlign:'right',padding:'8px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isCurrentPeriod?700:400,color:!v?'#2A3040':isPos?'#4ADE80':'#F87171',background:isCurrentPeriod?'rgba(26,40,64,0.6)':'transparent'}}>
                                           {v?fmt2(toARR(v)):'—'}
@@ -2242,7 +2242,7 @@ export default function CommandCenter() {
                                   const posSum = ['New Logo','Upsell','Cross-sell','Returning','Other In'].reduce((s,k)=>s+(row[k]||0),0)
                                   const negSum = ['Downsell','Churn Partial','Churn','Lapsed','Other Out'].reduce((s,k)=>s+(row[k]||0),0)
                                   const net = toARR(posSum+negSum)
-                                  const isCurrentPeriod = p===selPeriod
+                                  const isCurrentPeriod = normalizePeriod(p)===normalizePeriod(selPeriod)
                                   return (
                                     <td key={p} style={{textAlign:'right',padding:'9px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:700,color:net>=0?'#4ADE80':'#F87171',background:isCurrentPeriod?'rgba(26,40,64,0.8)':'#162035'}}>
                                       {net?fmt2(net):'—'}
@@ -2340,7 +2340,7 @@ export default function CommandCenter() {
                             ))}
                           </tr></thead>
                           <tbody>{kpiRows.map((row,i)=>{
-                            const isSelected = selPeriod && row.period === selPeriod
+                            const isSelected = selPeriod && normalizePeriod(row.period) === normalizePeriod(selPeriod)
                             return (
                               <tr key={i} style={{borderBottom:'1px solid #1E2D45',background:isSelected?'#162035':'transparent'}}
                                 onMouseEnter={e=>!isSelected&&(e.currentTarget.style.background='#111827')}
