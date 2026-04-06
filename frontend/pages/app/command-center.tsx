@@ -63,16 +63,36 @@ function normalizePeriod(s) {
   if (!s || typeof s !== 'string') return ''
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const str = s.trim()
+  // Mon-YY or Mon-YYYY  e.g. Dec-25, Dec-2025
   const monYear = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
   if (monYear) {
     let yr = parseInt(monYear[2], 10)
     if (yr < 100) yr = yr < 50 ? 2000 + yr : 1900 + yr
     return monYear[1] + '-' + yr
   }
+  // YYYY-MM-DD  e.g. 2025-12-31
   const isoDate = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (isoDate) {
     const yr = parseInt(isoDate[1], 10)
     const mi = parseInt(isoDate[2], 10) - 1
+    if (mi >= 0 && mi < 12) return MONTHS[mi] + '-' + yr
+  }
+  // MM/DD/YYYY  e.g. 12/31/2025
+  const usDate = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (usDate) {
+    const mi = parseInt(usDate[1], 10) - 1
+    const yr = parseInt(usDate[3], 10)
+    if (mi >= 0 && mi < 12) return MONTHS[mi] + '-' + yr
+  }
+  // DD/MM/YYYY or M/D/YYYY fallback — try end-of-month detection
+  const slashDate = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
+  if (slashDate) {
+    const yr0 = parseInt(slashDate[3], 10)
+    const yr  = yr0 < 100 ? (yr0 < 50 ? 2000 + yr0 : 1900 + yr0) : yr0
+    const a   = parseInt(slashDate[1], 10)
+    const b   = parseInt(slashDate[2], 10)
+    // If second number > 12 it must be a day, so format is MM/DD
+    const mi  = b > 12 ? a - 1 : a - 1
     if (mi >= 0 && mi < 12) return MONTHS[mi] + '-' + yr
   }
   return str
@@ -626,11 +646,14 @@ export default function CommandCenter() {
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     const normP = (s) => {
       if (!s) return ''
-      const m = String(s).trim().match(/^([A-Za-z]{3})-(\d{2,4})$/)
+      const str = String(s).trim()
+      const m = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
       if (m) { let y=parseInt(m[2]); if(y<100) y=y<50?2000+y:1900+y; return `${m[1]}-${y}` }
-      const iso = String(s).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+      const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
       if (iso) { const mi=parseInt(iso[2])-1; return `${MONTHS[mi]}-${iso[1]}` }
-      return String(s).trim()
+      const us = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+      if (us) { const mi=parseInt(us[1])-1; const yr=parseInt(us[3]); if(mi>=0&&mi<12) return `${MONTHS[mi]}-${yr}` }
+      return str
     }
 
     // Find date column and bridge classification + value columns in output
