@@ -656,9 +656,14 @@ export default function CommandCenter() {
       })).filter(r => r['Beginning ARR'] > 0 || r['Ending ARR'] > 0)
     }
 
-    // Group output rows by normalized period
+    // Find lookback column to filter rows to current selLb window only
+    const lbKey = Object.keys(firstRow).find(k => /lookback/i.test(k) && /month/i.test(k))
+
+    // Group output rows by normalized period, filtered to current lookback
     const periodMap = new Map()
     results.output.forEach(row => {
+      // Skip rows that dont belong to current lookback window
+      if (lbKey && String(row[lbKey]) !== String(selLb)) return
       const period = normP(row[dateKey])
       if (!period) return
       if (!periodMap.has(period)) periodMap.set(period, { _period: period })
@@ -669,7 +674,7 @@ export default function CommandCenter() {
     })
 
     return Array.from(periodMap.values())
-  }, [bdg, results])
+  }, [bdg, results, selLb])
   // ── Monthly trend data — fill gaps so trend is always continuous ──────────
   const kpiRows = useMemo(() => {
     const raw = results?.kpi_matrix || []
@@ -978,7 +983,7 @@ export default function CommandCenter() {
     }
     const filtered = filterByDimension(base)
     return applyCanonicalOrder(filtered)
-  }, [selPeriod, bdg, wfall, selDims])
+  }, [selPeriod, bdg, wfall, selDims, effectiveByPeriod])
 
   // ── Period-specific KPI values — respect selected granularity + period ──
   const retForPeriod = useMemo(() => {
@@ -1012,7 +1017,7 @@ export default function CommandCenter() {
       nrr:       beg > 0 ? (end / beg) * 100 : ret?.nrr,
       grr:       beg > 0 ? ((beg + lostArr) / beg) * 100 : ret?.grr,
     }
-  }, [selPeriod, bdg, ret, selDims])
+  }, [selPeriod, bdg, ret, selDims, effectiveByPeriod])
 
   // ── Bridge reconciliation status ──────────────────────────────────────
   const bridgeOk = useMemo(() => {
