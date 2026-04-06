@@ -806,105 +806,55 @@ export default function CommandCenter() {
   const availablePeriods = useMemo(() => {
     if (!results) return []
 
-    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-
-    // Parse any date string into a sort key — handles Mon-YY, Mon-YYYY, YYYY-MM-DD, MM/DD/YYYY
-    const parse = (s) => {
-      if (!s || typeof s !== 'string') return null
-      const str = s.trim()
-
-      // Format: Mon-YY or Mon-YYYY  e.g. Dec-25, Dec-2025
-      const monYear = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
-      if (monYear) {
-        const mi = MONTHS.indexOf(monYear[1])
-        if (mi < 0) return null
-        let yr = parseInt(monYear[2], 10)
-        if (yr < 100) yr = yr < 50 ? 2000 + yr : 1900 + yr
-        if (yr < 2000 || yr > 2099) return null
-        return yr * 100 + mi
-      }
-
-      // Format: YYYY-MM-DD or MM/DD/YYYY
-      const isoDate = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-      if (isoDate) {
-        const yr = parseInt(isoDate[1], 10)
-        const mi = parseInt(isoDate[2], 10) - 1
-        if (yr < 2000 || yr > 2099 || mi < 0 || mi > 11) return null
-        return yr * 100 + mi
-      }
-
-      return null
+    // Use normalizePeriod (module-level, handles ALL formats) for both parsing and display
+    // Sort key: extract year*100+month from a normalized Mon-YYYY string
+    const sortKey = (normalized) => {
+      const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+      const m = normalized.match(/^([A-Za-z]{3})-(\d{4})$/)
+      if (!m) return 0
+      return parseInt(m[2]) * 100 + MONTHS.indexOf(m[1])
     }
 
-    // Convert any date to Mon-YYYY display format
-    const toDisplay = (s) => {
-      const str = s.trim()
-      const monYear = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
-      if (monYear) {
-        let yr = parseInt(monYear[2], 10)
-        if (yr < 100) yr = yr < 50 ? 2000 + yr : 1900 + yr
-        return `${monYear[1]}-${yr}`
-      }
-      const isoDate = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-      if (isoDate) {
-        const yr = parseInt(isoDate[1], 10)
-        const mi = parseInt(isoDate[2], 10) - 1
-        return `${MONTHS[mi]}-${yr}`
-      }
-      return str
-    }
-
-    const raw = new Map() // display string → sort key
+    const seen = new Map() // normalized Mon-YYYY → sort key
 
     const add = (s) => {
       if (!s || typeof s !== 'string' || !s.trim()) return
-      const key = parse(s.trim())
-      if (key !== null) {
-        const display = toDisplay(s.trim())
-        if (!raw.has(display)) raw.set(display, key)
-      }
+      const normalized = normalizePeriod(s.trim())
+      // Only add if it resolved to Mon-YYYY format (meaning it was a real date)
+      if (!normalized || !normalized.match(/^[A-Za-z]{3}-\d{4}$/)) return
+      if (!seen.has(normalized)) seen.set(normalized, sortKey(normalized))
     }
 
-    // Source 0: effectiveByPeriod — built from by_period or output (most complete)
+    // Source 1: effectiveByPeriod _period keys (already normalized)
     ;(effectiveByPeriod || []).forEach(r => add(r?._period))
 
-    // Source 1: kpi_matrix — always present, period field
-    ;(results.kpi_matrix || []).forEach(r => {
-      add(r?.period)
-    })
+    // Source 2: kpi_matrix period field
+    ;(results.kpi_matrix || []).forEach(r => add(r?.period))
 
-    // Source 2: by_period from every lookback
+    // Source 3: by_period from every lookback bucket
     if (results.bridge) {
       Object.values(results.bridge).forEach(b => {
         ;(b?.by_period || []).forEach(r => add(r?._period))
       })
     }
 
-    // Source 3: pivot table periods
-    if (results.pivot) {
-      Object.values(results.pivot).forEach(p => {
-        ;(p?.bridge_pivot?.periods || []).forEach(add)
-        ;(p?.kpi_table || []).forEach(r => add(r?.period))
-      })
-    }
-
-    // Source 4: output rows — date column (most reliable for bridge output files)
+    // Source 4: output rows date column — handles MM/DD/YYYY and any format
     if (results.output?.length > 0) {
-      const firstRow = results.output[0]
-      // Find the date column key
-      const dateKey = Object.keys(firstRow).find(k =>
-        /^date$/i.test(k) || /period/i.test(k) || /month/i.test(k) ||
-        /^dt$/i.test(k) || /activity.date/i.test(k)
-      )
+      const cols = Object.keys(results.output[0])
+      const dateKey = cols.find(k => /^date$/i.test(k)) ||
+                      cols.find(k => /activity.date/i.test(k)) ||
+                      cols.find(k => /^dt$/i.test(k))
+      // Note: deliberately NOT matching 'month' or 'period' to avoid picking lookback columns
       if (dateKey) {
-        results.output.forEach(r => add(r?.[dateKey]))
+        // Only sample unique values for performance
+        const uniq = [...new Set(results.output.map(r => r?.[dateKey]).filter(Boolean))]
+        uniq.forEach(v => add(String(v)))
       }
     }
 
-    if (raw.size === 0) return []
+    if (seen.size === 0) return []
 
-    // Sort chronologically by sort key, return display strings
-    return Array.from(raw.entries())
+    return Array.from(seen.entries())
       .sort((a, b) => a[1] - b[1])
       .map(([display]) => display)
   }, [results, effectiveByPeriod])
