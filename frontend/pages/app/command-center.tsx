@@ -57,45 +57,73 @@ const fmtPct = v => v != null ? `${v.toFixed(1)}%` : '—'
 // toARR: convert raw value to ARR based on revenue type
 // Used for all monetary display — if MRR, ×12; if ARR, passthrough
 // Called with the revenueType state variable via closure in component
-// ─── Period normalizer — module level so useMemo hooks can use it ─────────────
-// Handles Dec-22, Dec-2022, 2022-12-31 → always returns Mon-YYYY
+// ─── Period normalizer — handles every real-world date format ────────────────
+// Input: any date string. Output: always Mon-YYYY (e.g. Dec-2025) or '' if unparseable.
+// Handles: Mon-YY, Mon-YYYY, Month YYYY, YYYY-MM-DD, YYYY/MM/DD,
+//          MM/DD/YYYY, MM/DD/YY, DD/MM/YYYY, DD-MM-YYYY,
+//          MM-YYYY, MM/YYYY, YYYYMM, Q4 2025, 2025Q4
 function normalizePeriod(s) {
-  if (!s || typeof s !== 'string') return ''
+  if (!s || typeof s !== 'string' || !s.trim()) return ''
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const MFULL  = ['january','february','march','april','may','june','july','august','september','october','november','december']
   const str = s.trim()
-  // Mon-YY or Mon-YYYY  e.g. Dec-25, Dec-2025
-  const monYear = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
-  if (monYear) {
-    let yr = parseInt(monYear[2], 10)
-    if (yr < 100) yr = yr < 50 ? 2000 + yr : 1900 + yr
-    return monYear[1] + '-' + yr
+  let m
+
+  // 1. Mon-YY or Mon-YYYY  →  Dec-25, Dec-2025
+  m = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
+  if (m) { let y=parseInt(m[2]); if(y<100) y=y<50?2000+y:1900+y; return m[1]+'-'+y }
+
+  // 2. Month YYYY or Mon YYYY  →  December 2025, Dec 2025
+  m = str.match(/^([A-Za-z]+)\s+(\d{4})$/)
+  if (m) {
+    const name=m[1].toLowerCase(), yr=parseInt(m[2])
+    const fi=MFULL.indexOf(name)
+    if (fi>=0) return MONTHS[fi]+'-'+yr
+    const si=MONTHS.map(x=>x.toLowerCase()).indexOf(name)
+    if (si>=0) return MONTHS[si]+'-'+yr
   }
-  // YYYY-MM-DD  e.g. 2025-12-31
-  const isoDate = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (isoDate) {
-    const yr = parseInt(isoDate[1], 10)
-    const mi = parseInt(isoDate[2], 10) - 1
-    if (mi >= 0 && mi < 12) return MONTHS[mi] + '-' + yr
+
+  // 3. YYYY-MM-DD  →  2025-12-31
+  m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (m) { const mi=parseInt(m[2])-1; if(mi>=0&&mi<12) return MONTHS[mi]+'-'+m[1] }
+
+  // 4. YYYY/MM/DD  →  2025/12/31
+  m = str.match(/^(\d{4})\/(\d{2})\/(\d{2})$/)
+  if (m) { const mi=parseInt(m[2])-1; if(mi>=0&&mi<12) return MONTHS[mi]+'-'+m[1] }
+
+  // 5. MM/DD/YYYY or M/D/YYYY  →  12/31/2025
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (m) { const mi=parseInt(m[1])-1,yr=parseInt(m[3]); if(mi>=0&&mi<12) return MONTHS[mi]+'-'+yr }
+
+  // 6. MM/DD/YY  →  12/31/25
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/)
+  if (m) { const mi=parseInt(m[1])-1; let yr=parseInt(m[3]); if(yr<100)yr=yr<50?2000+yr:1900+yr; if(mi>=0&&mi<12)return MONTHS[mi]+'-'+yr }
+
+  // 7. DD-MM-YYYY or DD/MM/YYYY — first number > 12 means it's a day
+  m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)
+  if (m) {
+    const a=parseInt(m[1]),b=parseInt(m[2]),yr=parseInt(m[3])
+    if (a>12&&b>=1&&b<=12) return MONTHS[b-1]+'-'+yr  // DD/MM/YYYY
+    if (b>12&&a>=1&&a<=12) return MONTHS[a-1]+'-'+yr  // MM/DD/YYYY
+    if (a>=1&&a<=12)       return MONTHS[a-1]+'-'+yr  // assume MM first
   }
-  // MM/DD/YYYY  e.g. 12/31/2025
-  const usDate = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (usDate) {
-    const mi = parseInt(usDate[1], 10) - 1
-    const yr = parseInt(usDate[3], 10)
-    if (mi >= 0 && mi < 12) return MONTHS[mi] + '-' + yr
-  }
-  // DD/MM/YYYY or M/D/YYYY fallback — try end-of-month detection
-  const slashDate = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
-  if (slashDate) {
-    const yr0 = parseInt(slashDate[3], 10)
-    const yr  = yr0 < 100 ? (yr0 < 50 ? 2000 + yr0 : 1900 + yr0) : yr0
-    const a   = parseInt(slashDate[1], 10)
-    const b   = parseInt(slashDate[2], 10)
-    // If second number > 12 it must be a day, so format is MM/DD
-    const mi  = b > 12 ? a - 1 : a - 1
-    if (mi >= 0 && mi < 12) return MONTHS[mi] + '-' + yr
-  }
-  return str
+
+  // 8. MM-YYYY or MM/YYYY  →  12-2025, 12/2025
+  m = str.match(/^(\d{1,2})[\/\-](\d{4})$/)
+  if (m) { const mi=parseInt(m[1])-1; if(mi>=0&&mi<12) return MONTHS[mi]+'-'+m[2] }
+
+  // 9. YYYYMM  →  202512
+  m = str.match(/^(\d{4})(\d{2})$/)
+  if (m) { const mi=parseInt(m[2])-1,yr=parseInt(m[1]); if(mi>=0&&mi<12) return MONTHS[mi]+'-'+yr }
+
+  // 10. Quarter: Q4 2025 or 2025Q4  →  quarter-end month
+  const QM = {'1':2,'2':5,'3':8,'4':11}
+  m = str.match(/^[Qq]([1-4])\s*(\d{4})$/)
+  if (m) return MONTHS[QM[m[1]]]+'-'+m[2]
+  m = str.match(/^(\d{4})\s*[Qq]([1-4])$/)
+  if (m) return MONTHS[QM[m[2]]]+'-'+m[1]
+
+  return str  // return as-is — caller decides what to do
 }
 
 function makeToARR(revenueType) {
@@ -643,18 +671,7 @@ export default function CommandCenter() {
     // Otherwise build from results.output (raw bridge output rows)
     if (!results?.output?.length) return []
 
-    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    const normP = (s) => {
-      if (!s) return ''
-      const str = String(s).trim()
-      const m = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
-      if (m) { let y=parseInt(m[2]); if(y<100) y=y<50?2000+y:1900+y; return `${m[1]}-${y}` }
-      const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-      if (iso) { const mi=parseInt(iso[2])-1; return `${MONTHS[mi]}-${iso[1]}` }
-      const us = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-      if (us) { const mi=parseInt(us[1])-1; const yr=parseInt(us[3]); if(mi>=0&&mi<12) return `${MONTHS[mi]}-${yr}` }
-      return str
-    }
+    // normalizePeriod handles all date formats (module-level function above)
 
     // Find date column and bridge classification + value columns in output
     const firstRow = results.output[0]
@@ -687,7 +704,7 @@ export default function CommandCenter() {
     results.output.forEach(row => {
       // Skip rows that dont belong to current lookback window
       if (lbKey && String(row[lbKey]) !== String(selLb)) return
-      const period = normP(row[dateKey])
+      const period = normalizePeriod(row[dateKey])
       if (!period) return
       if (!periodMap.has(period)) periodMap.set(period, { _period: period })
       const pRow = periodMap.get(period)
