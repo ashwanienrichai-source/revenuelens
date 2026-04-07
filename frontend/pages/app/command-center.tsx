@@ -663,28 +663,35 @@ export default function CommandCenter() {
   const wfall    = bdg?.waterfall || []
   const fyYears  = results?.metadata?.fiscal_years || results?.fiscal_years || []
 
-  // ── Effective by_period: always build from results.output (most granular, monthly data)
-  // NOTE: bdg.by_period is intentionally ignored — it contains annual aggregates (2022/2023/2024)
-  // not monthly periods, so it cannot drive period-level filtering.
+  // ── Effective by_period: build monthly period rows from ALL available sources
   const effectiveByPeriod = useMemo(() => {
+    // Log what the API actually returned so we can diagnose
+    console.log('[RL] effectiveByPeriod computing: output.length=', results?.output?.length, 'kpi_matrix.length=', results?.kpi_matrix?.length, 'bdg.by_period.length=', results?.bridge?.[String(selLb)]?.by_period?.length, 'sample output row=', results?.output?.[0])
+
     // PRIMARY: build from results.output (raw bridge output rows — always monthly)
     if (results?.output?.length > 0) {
       const firstRow = results.output[0]
       const cols = Object.keys(firstRow)
 
-      // Detect date column — match exact 'Date' first, then fallbacks (NOT 'month' to avoid Month Lookback)
+      // Detect date column — exact 'Date' match first, avoid 'Month Lookback'
       const dateKey = cols.find(k => /^date$/i.test(k)) ||
-                      cols.find(k => /^activity.date$/i.test(k)) ||
+                      cols.find(k => /^activity[_\s]?date$/i.test(k)) ||
                       cols.find(k => /^period$/i.test(k))
-      const catKey  = cols.find(k => /bridge.class/i.test(k) || /classification/i.test(k) || /category/i.test(k))
-      const valKey  = cols.find(k => /bridge.value/i.test(k) || /^value$/i.test(k) || /amount/i.test(k))
+      const catKey  = cols.find(k => /bridge[\s_]?class/i.test(k) || /^classification$/i.test(k) || /^category$/i.test(k))
+      const valKey  = cols.find(k => /bridge[\s_]?value/i.test(k) || /^value$/i.test(k) || /^amount$/i.test(k))
       const lbKey   = cols.find(k => /month/i.test(k) && /lookback/i.test(k))
+
+      console.log('[RL] effectiveByPeriod output keys: dateKey=', dateKey, 'catKey=', catKey, 'valKey=', valKey, 'lbKey=', lbKey, 'selLb=', selLb)
 
       if (dateKey && catKey && valKey) {
         const periodMap = new Map()
+        let skipped = 0
         results.output.forEach(row => {
           // Filter to current lookback window
-          if (lbKey && String(row[lbKey]) !== String(selLb)) return
+          if (lbKey) {
+            const rowLb = parseInt(row[lbKey])
+            if (rowLb !== selLb) { skipped++; return }
+          }
           const period = normalizePeriod(String(row[dateKey] || ''))
           if (!period || !period.match(/^[A-Za-z]{3}-\d{4}$/)) return
           if (!periodMap.has(period)) periodMap.set(period, { _period: period })
@@ -693,17 +700,23 @@ export default function CommandCenter() {
           const val = parseFloat(row[valKey]) || 0
           if (cat) pRow[cat] = (pRow[cat] || 0) + val
         })
-        if (periodMap.size > 0) return Array.from(periodMap.values())
+        console.log('[RL] effectiveByPeriod output build: periodMap.size=', periodMap.size, 'skipped=', skipped)
+        if (periodMap.size > 0) {
+          const arr = Array.from(periodMap.values())
+          console.log('[RL] effectiveByPeriod output result: periods=', arr.map(r=>r._period).slice(-3))
+          return arr
+        }
       }
     }
 
-    // FALLBACK: build from kpi_matrix (has monthly rows with known field names)
+    // FALLBACK: kpi_matrix — maps field names to bridge-compatible shape
     if (results?.kpi_matrix?.length > 0) {
-      return (results.kpi_matrix).map(r => ({
+      console.log('[RL] effectiveByPeriod: falling back to kpi_matrix, sample period=', results.kpi_matrix[0]?.period)
+      const rows = (results.kpi_matrix).map(r => ({
         _period:         normalizePeriod(r.period || ''),
-        'Beginning ARR': r.beginning_arr ?? r.beginning ?? 0,
-        'Ending ARR':    r.ending_arr   ?? r.ending   ?? 0,
-        'New Logo':      r.new_logo     ?? 0,
+        'Beginning ARR': r.beginning_arr ?? r.beginning_mrr ?? r.beginning ?? 0,
+        'Ending ARR':    r.ending_arr   ?? r.ending_mrr   ?? r.ending   ?? 0,
+        'New Logo':      r.new_logo     ?? r.new_arr      ?? 0,
         'Upsell':        r.upsell       ?? 0,
         'Downsell':      r.downsell     ?? 0,
         'Churn':         r.churn        ?? 0,
@@ -712,6 +725,8 @@ export default function CommandCenter() {
         'Returning':     r.returning    ?? 0,
         'Churn-Partial': r.churn_partial ?? r['churn-partial'] ?? 0,
       })).filter(r => r._period.match(/^[A-Za-z]{3}-\d{4}$/) && (r['Beginning ARR'] > 0 || r['Ending ARR'] > 0))
+      console.log('[RL] effectiveByPeriod kpi_matrix result: count=', rows.length, 'sample=', rows[0]?._period)
+      return rows
     }
 
     return []
