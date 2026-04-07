@@ -675,9 +675,7 @@ export default function CommandCenter() {
     reader.onload = (e) => {
       try {
         const text = e.target.result
-        const lines = text.split(/
-?
-/)
+        const lines = text.replace(/\r/g,'').split('\n')
         if (lines.length < 2) return
         const parseRow = (line) => {
           const result = []; let cur = '', inQ = false
