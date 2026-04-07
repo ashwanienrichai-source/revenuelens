@@ -663,15 +663,55 @@ export default function CommandCenter() {
   const wfall    = bdg?.waterfall || []
   const fyYears  = results?.metadata?.fiscal_years || results?.fiscal_years || []
 
+  // ── Raw file data — parsed directly from the uploaded CSV ──────────────────
+  // This bypasses API truncation (output capped at 1000 rows) and gives complete
+  // monthly period data for ALL 37 periods.
+  const [rawFileRows, setRawFileRows] = useState([])
+  useEffect(() => {
+    if (!file || !results) return
+    console.log('[RL] FileReader: starting read, file=', file?.name, 'size=', file?.size)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result
+        const lines = text.split(/\r?\n/)
+        if (lines.length < 2) return
+        // Parse header - handle quoted fields
+        const parseRow = (line) => {
+          const result = []
+          let cur = '', inQ = false
+          for (let i = 0; i < line.length; i++) {
+            const c = line[i]
+            if (c === '"') { inQ = !inQ }
+            else if (c === ',' && !inQ) { result.push(cur.trim()); cur = '' }
+            else { cur += c }
+          }
+          result.push(cur.trim())
+          return result
+        }
+        const headers = parseRow(lines[0])
+        const rows = []
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue
+          const vals = parseRow(lines[i])
+          if (vals.length < headers.length - 1) continue
+          const row = {}
+          headers.forEach((h, j) => { row[h] = vals[j] || '' })
+          rows.push(row)
+        }
+        setRawFileRows(rows)
+        console.log('[RL] rawFileRows: parsed', rows.length, 'rows, headers=', headers)
+      } catch(err) { console.error('[RL] rawFileRows parse error:', err) }
+    }
+    reader.readAsText(file)
+  }, [file, results])
+
   // ── Effective by_period ─────────────────────────────────────────────────────
   // Builds {_period, 'Beginning ARR', 'Ending ARR', movements...} for every month.
-  // Sources tried in order:
-  //   1. results.output  — raw bridge rows grouped by date+lb (most granular)
-  //   2. results.kpi_matrix — pre-aggregated monthly KPIs (reliable fallback)
+  // Uses raw file data (complete) → results.output (partial) → kpi_matrix (annual)
   const effectiveByPeriod = useMemo(() => {
     if (!results) return []
 
-    // Helper: pick first defined truthy value from an object across multiple key variants
     const pick = (obj, ...keys) => {
       for (const k of keys) {
         if (obj[k] !== undefined && obj[k] !== null) return obj[k]
@@ -679,91 +719,95 @@ export default function CommandCenter() {
       return undefined
     }
 
-    // ── SOURCE 1: results.output ──────────────────────────────────────────────
-    if (results.output?.length > 0) {
-      const firstRow = results.output[0]
+    // ── SOURCE 1: rawFileRows — parsed directly from uploaded file (complete) ──
+    // This is the most reliable source - skip all other sources if we have it
+    if (rawFileRows.length > 0) {
+      const firstRow = rawFileRows[0]
       const cols = Object.keys(firstRow)
+      const dateKey = cols.find(k => /^date$/i.test(k)) || cols.find(k => /^activity.?date$/i.test(k))
+      const catKey  = cols.find(k => /^bridge[\s_]?class/i.test(k) || /^classification$/i.test(k))
+      const valKey  = cols.find(k => /^bridge[\s_]?value$/i.test(k) || /^amount$/i.test(k))
+      const lbKey   = cols.find(k => /month[\s_]?lookback/i.test(k))
 
-      const dateKey = cols.find(k => /^date$/i.test(k)) ||
-                      cols.find(k => /activity.?date/i.test(k)) ||
-                      cols.find(k => /^period$/i.test(k))
-      const catKey  = cols.find(k => /^classification$/i.test(k)) ||
-                      cols.find(k => /bridge.?class/i.test(k)) ||
-                      cols.find(k => /^category$/i.test(k))
-      const valKey  = cols.find(k => /^amount$/i.test(k)) ||
-                      cols.find(k => /bridge.?value/i.test(k)) ||
-                      cols.find(k => /^value$/i.test(k))
-      const lbKey   = cols.find(k => /month.?lookback/i.test(k)) ||
-                      cols.find(k => /^lookback$/i.test(k))
-
-      console.log('[RL] ebp output: dateKey=',dateKey,'catKey=',catKey,'valKey=',valKey,'lbKey=',lbKey,'rows=',results.output.length)
+      console.log('[RL] ebp rawFile: dateKey=',dateKey,'catKey=',catKey,'valKey=',valKey,'lbKey=',lbKey,'rows=',rawFileRows.length)
 
       if (dateKey && catKey && valKey) {
         const periodMap = new Map()
-        let kept = 0, skipped = 0
-        results.output.forEach(row => {
+        rawFileRows.forEach(row => {
           if (lbKey) {
             const rowLb = parseInt(String(row[lbKey]))
-            if (rowLb !== selLb) { skipped++; return }
+            if (rowLb !== selLb) return
           }
           const period = normalizePeriod(String(row[dateKey] || ''))
           if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return
-          kept++
+          if (!periodMap.has(period)) periodMap.set(period, { _period: period })
+          const pRow = periodMap.get(period)
+          const cat = String(row[catKey] || '').trim()
+          const val = parseFloat(String(row[valKey]).replace(/,/g,'')) || 0
+          if (cat) pRow[cat] = (pRow[cat] || 0) + val
+        })
+        if (periodMap.size >= 12) {
+          const arr = Array.from(periodMap.values())
+          console.log('[RL] ebp rawFile result:', periodMap.size, 'periods, last=', arr[arr.length-1]?._period)
+          return arr
+        }
+      }
+    }
+
+    // ── SOURCE 2: results.output (may be truncated to 1000 rows) ─────────────
+    // Only try this if rawFileRows failed (shouldn't happen with valid CSV)
+    if (rawFileRows.length === 0 && results.output?.length > 0) {
+      const firstRow = results.output[0]
+      const cols = Object.keys(firstRow)
+      const dateKey = cols.find(k => /^date$/i.test(k)) || cols.find(k => /activity.?date/i.test(k)) || cols.find(k => /^period$/i.test(k))
+      const catKey  = cols.find(k => /^classification$/i.test(k)) || cols.find(k => /bridge.?class/i.test(k)) || cols.find(k => /^category$/i.test(k))
+      const valKey  = cols.find(k => /^amount$/i.test(k)) || cols.find(k => /bridge.?value/i.test(k)) || cols.find(k => /^value$/i.test(k))
+      const lbKey   = cols.find(k => /month.?lookback/i.test(k)) || cols.find(k => /^lookback$/i.test(k))
+      if (dateKey && catKey && valKey) {
+        const periodMap = new Map()
+        results.output.forEach(row => {
+          if (lbKey) { const rowLb = parseInt(String(row[lbKey])); if (rowLb !== selLb) return }
+          const period = normalizePeriod(String(row[dateKey] || ''))
+          if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return
           if (!periodMap.has(period)) periodMap.set(period, { _period: period })
           const pRow = periodMap.get(period)
           const cat = String(row[catKey] || '').trim()
           const val = parseFloat(String(row[valKey])) || 0
           if (cat) pRow[cat] = (pRow[cat] || 0) + val
         })
-        console.log('[RL] ebp output build: kept=',kept,'skipped=',skipped,'periods=',periodMap.size)
-        if (periodMap.size >= 12) {
-          // Only trust output if we have at least 12 periods (meaningful monthly data)
-          return Array.from(periodMap.values())
-        }
-        console.log('[RL] ebp output: too few periods ('+periodMap.size+'), falling back to kpi_matrix')
+        if (periodMap.size >= 12) return Array.from(periodMap.values())
       }
     }
 
-    // ── SOURCE 2: results.kpi_matrix ─────────────────────────────────────────
-    if (results.kpi_matrix?.length > 0) {
-      console.log('[RL] ebp kpi_matrix: count=',results.kpi_matrix.length,'first=',JSON.stringify(results.kpi_matrix[0]))
-
-      // kpi_matrix may have rows for multiple lookbacks — filter to selLb if possible
-      const lbField = Object.keys(results.kpi_matrix[0]).find(k =>
-        /lookback/i.test(k) || /^lb$/i.test(k) || /^window$/i.test(k)
-      )
-      const filtered = lbField
-        ? results.kpi_matrix.filter(r => parseInt(String(r[lbField])) === selLb)
-        : results.kpi_matrix
-
-      const rows = (filtered.length > 0 ? filtered : results.kpi_matrix).map(r => {
-        const period = normalizePeriod(
-          String(pick(r,'period','Period','month','date') || '')
-        )
+    // ── SOURCE 3: kpi_matrix (annual, last resort) ────────────────────────────
+    if (rawFileRows.length === 0 && results.kpi_matrix?.length > 0) {
+      const lbField = Object.keys(results.kpi_matrix[0]).find(k => /lookback/i.test(k) || /^lb$/i.test(k))
+      const filtered = lbField ? results.kpi_matrix.filter(r => parseInt(String(r[lbField])) === selLb) : results.kpi_matrix
+      const src = filtered.length > 0 ? filtered : results.kpi_matrix
+      const rows = src.map(r => {
+        const period = normalizePeriod(String(pick(r,'period','Period','month','date') || ''))
         if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return null
         return {
           _period:         period,
-          'Beginning ARR': pick(r,'beginning_arr','beginning','beg_arr','start_arr') ?? 0,
+          'Beginning ARR': pick(r,'beginning_arr','beginning','beg_arr') ?? 0,
           'Ending ARR':    pick(r,'ending_arr','ending','end_arr') ?? 0,
-          'New Logo':      pick(r,'new_logo','new_arr','new_logo_arr') ?? 0,
-          'Upsell':        pick(r,'upsell','expansion','upsell_arr') ?? 0,
-          'Downsell':      pick(r,'downsell','contraction','downsell_arr') ?? 0,
+          'New Logo':      pick(r,'new_logo','new_arr') ?? 0,
+          'Upsell':        pick(r,'upsell','expansion') ?? 0,
+          'Downsell':      pick(r,'downsell','contraction') ?? 0,
           'Churn':         pick(r,'churn','churn_arr') ?? 0,
-          'Cross-sell':    pick(r,'cross_sell','cross-sell','crosssell') ?? 0,
-          'Lapsed':        pick(r,'lapsed','lapsed_arr') ?? 0,
-          'Returning':     pick(r,'returning','returning_arr') ?? 0,
+          'Cross-sell':    pick(r,'cross_sell','cross-sell') ?? 0,
+          'Lapsed':        pick(r,'lapsed') ?? 0,
+          'Returning':     pick(r,'returning') ?? 0,
           'Churn-Partial': pick(r,'churn_partial','churn-partial') ?? 0,
-          _nrr:            pick(r,'nrr','net_retention','net_retention_rate') ?? null,
-          _grr:            pick(r,'grr','gross_retention','gross_retention_rate') ?? null,
+          _nrr:            pick(r,'nrr','net_retention') ?? null,
+          _grr:            pick(r,'grr','gross_retention') ?? null,
         }
       }).filter(Boolean)
-
-      console.log('[RL] ebp kpi_matrix result: count=',rows.length,'sample _period=',rows[0]?._period,'beg=',rows[0]?.['Beginning ARR'])
       if (rows.length > 0) return rows
     }
 
     return []
-  }, [results, selLb])
+  }, [results, selLb, rawFileRows])
   // ── Monthly trend data — fill gaps so trend is always continuous ──────────
   const kpiRows = useMemo(() => {
     const raw = results?.kpi_matrix || []
@@ -1627,7 +1671,7 @@ export default function CommandCenter() {
                 )}
 
                 {/* Reset */}
-                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('');setCohortResults(null)}}
+                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('');setCohortResults(null);setRawFileRows([])}}
                   style={{height:30,width:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:'1px solid #1E2D45',background:'transparent',cursor:'pointer',color:'#4A5A6E'}}
                   onMouseEnter={e=>{e.currentTarget.style.color='#CBD5E1';e.currentTarget.style.borderColor='#253550'}}
                   onMouseLeave={e=>{e.currentTarget.style.color='#4A5A6E';e.currentTarget.style.borderColor='#1E2D45'}}>
