@@ -665,8 +665,14 @@ export default function CommandCenter() {
 
   // ── Effective by_period: use bdg.by_period if available, else build from output+kpi_matrix ──
   const effectiveByPeriod = useMemo(() => {
-    // If bdg.by_period exists and has data, use it directly
-    if (bdg?.by_period?.length > 0) return bdg.by_period
+    // If bdg.by_period exists, normalize ALL _period values to Mon-YYYY before returning
+    // This ensures selPeriod always matches regardless of API date format
+    if (bdg?.by_period?.length > 0) {
+      return bdg.by_period.map(r => ({
+        ...r,
+        _period: normalizePeriod(r._period || r.period || '')
+      }))
+    }
 
     // Otherwise build from results.output (raw bridge output rows)
     if (!results?.output?.length) return []
