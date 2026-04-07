@@ -663,34 +663,44 @@ export default function CommandCenter() {
   const wfall    = bdg?.waterfall || []
   const fyYears  = results?.metadata?.fiscal_years || results?.fiscal_years || []
 
-  // ── Effective by_period: use bdg.by_period if available, else build from output+kpi_matrix ──
+  // ── Effective by_period: always build from results.output (most granular, monthly data)
+  // NOTE: bdg.by_period is intentionally ignored — it contains annual aggregates (2022/2023/2024)
+  // not monthly periods, so it cannot drive period-level filtering.
   const effectiveByPeriod = useMemo(() => {
-    // If bdg.by_period exists, normalize ALL _period values to Mon-YYYY before returning
-    if (bdg?.by_period?.length > 0) {
-      const normalized = bdg.by_period.map(r => ({
-        ...r,
-        _period: normalizePeriod(r._period || r.period || '')
-      }))
-      console.log('[RL] effectiveByPeriod: using bdg.by_period, count=', normalized.length, 'sample _period=', normalized[0]?._period)
-      return normalized
+    // PRIMARY: build from results.output (raw bridge output rows — always monthly)
+    if (results?.output?.length > 0) {
+      const firstRow = results.output[0]
+      const cols = Object.keys(firstRow)
+
+      // Detect date column — match exact 'Date' first, then fallbacks (NOT 'month' to avoid Month Lookback)
+      const dateKey = cols.find(k => /^date$/i.test(k)) ||
+                      cols.find(k => /^activity.date$/i.test(k)) ||
+                      cols.find(k => /^period$/i.test(k))
+      const catKey  = cols.find(k => /bridge.class/i.test(k) || /classification/i.test(k) || /category/i.test(k))
+      const valKey  = cols.find(k => /bridge.value/i.test(k) || /^value$/i.test(k) || /amount/i.test(k))
+      const lbKey   = cols.find(k => /month/i.test(k) && /lookback/i.test(k))
+
+      if (dateKey && catKey && valKey) {
+        const periodMap = new Map()
+        results.output.forEach(row => {
+          // Filter to current lookback window
+          if (lbKey && String(row[lbKey]) !== String(selLb)) return
+          const period = normalizePeriod(String(row[dateKey] || ''))
+          if (!period || !period.match(/^[A-Za-z]{3}-\d{4}$/)) return
+          if (!periodMap.has(period)) periodMap.set(period, { _period: period })
+          const pRow = periodMap.get(period)
+          const cat = String(row[catKey] || '').trim()
+          const val = parseFloat(row[valKey]) || 0
+          if (cat) pRow[cat] = (pRow[cat] || 0) + val
+        })
+        if (periodMap.size > 0) return Array.from(periodMap.values())
+      }
     }
 
-    // Otherwise build from results.output (raw bridge output rows)
-    if (!results?.output?.length) return []
-
-    // normalizePeriod handles all date formats (module-level function above)
-
-    // Find date column and bridge classification + value columns in output
-    const firstRow = results.output[0]
-    const dateKey = Object.keys(firstRow).find(k => /^date$/i.test(k) || /period/i.test(k) || /month/i.test(k))
-    const catKey  = Object.keys(firstRow).find(k => /bridge.class/i.test(k) || /classification/i.test(k) || /category/i.test(k))
-    const valKey  = Object.keys(firstRow).find(k => /bridge.value/i.test(k) || /^value$/i.test(k) || /amount/i.test(k))
-    console.log('[RL] effectiveByPeriod: building from output. dateKey=', dateKey, 'catKey=', catKey, 'valKey=', valKey, 'outputRows=', results.output.length)
-
-    if (!dateKey || !catKey || !valKey) {
-      // Fallback: build from kpi_matrix
-      return (results.kpi_matrix || []).map(r => ({
-        _period: normalizePeriod(r.period),
+    // FALLBACK: build from kpi_matrix (has monthly rows with known field names)
+    if (results?.kpi_matrix?.length > 0) {
+      return (results.kpi_matrix).map(r => ({
+        _period:         normalizePeriod(r.period || ''),
         'Beginning ARR': r.beginning_arr ?? r.beginning ?? 0,
         'Ending ARR':    r.ending_arr   ?? r.ending   ?? 0,
         'New Logo':      r.new_logo     ?? 0,
@@ -701,30 +711,11 @@ export default function CommandCenter() {
         'Lapsed':        r.lapsed       ?? 0,
         'Returning':     r.returning    ?? 0,
         'Churn-Partial': r.churn_partial ?? r['churn-partial'] ?? 0,
-      })).filter(r => r['Beginning ARR'] > 0 || r['Ending ARR'] > 0)
+      })).filter(r => r._period.match(/^[A-Za-z]{3}-\d{4}$/) && (r['Beginning ARR'] > 0 || r['Ending ARR'] > 0))
     }
 
-    // Find lookback column to filter rows to current selLb window only
-    const lbKey = Object.keys(firstRow).find(k => /lookback/i.test(k) && /month/i.test(k))
-
-    // Group output rows by normalized period, filtered to current lookback
-    const periodMap = new Map()
-    results.output.forEach(row => {
-      // Skip rows that dont belong to current lookback window
-      if (lbKey && String(row[lbKey]) !== String(selLb)) return
-      const period = normalizePeriod(row[dateKey])
-      if (!period) return
-      if (!periodMap.has(period)) periodMap.set(period, { _period: period })
-      const pRow = periodMap.get(period)
-      const cat = String(row[catKey] || '').trim()
-      const val = parseFloat(row[valKey]) || 0
-      if (cat) pRow[cat] = (pRow[cat] || 0) + val
-    })
-
-    const built = Array.from(periodMap.values())
-    console.log('[RL] effectiveByPeriod: built from output, count=', built.length, 'sample=', built[built.length-1]?._period)
-    return built
-  }, [bdg, results, selLb])
+    return []
+  }, [results, selLb])
   // ── Monthly trend data — fill gaps so trend is always continuous ──────────
   const kpiRows = useMemo(() => {
     const raw = results?.kpi_matrix || []
