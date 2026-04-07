@@ -673,13 +673,22 @@ export default function CommandCenter() {
       const firstRow = results.output[0]
       const cols = Object.keys(firstRow)
 
-      // Detect date column — exact 'Date' match first, avoid 'Month Lookback'
+      // Detect columns — handle both original CSV names and API-renamed versions
+      // Date: 'Date' | 'Activity_Date' | 'activity_date' | 'Period'
       const dateKey = cols.find(k => /^date$/i.test(k)) ||
-                      cols.find(k => /^activity[_\s]?date$/i.test(k)) ||
+                      cols.find(k => /activity.?date/i.test(k)) ||
                       cols.find(k => /^period$/i.test(k))
-      const catKey  = cols.find(k => /bridge[\s_]?class/i.test(k) || /^classification$/i.test(k) || /^category$/i.test(k))
-      const valKey  = cols.find(k => /bridge[\s_]?value/i.test(k) || /^value$/i.test(k) || /^amount$/i.test(k))
-      const lbKey   = cols.find(k => /month/i.test(k) && /lookback/i.test(k))
+      // Category: 'Classification' | 'Bridge Classification' | 'Bridge_Classification' | 'Category'
+      const catKey  = cols.find(k => /^classification$/i.test(k)) ||
+                      cols.find(k => /bridge.?class/i.test(k)) ||
+                      cols.find(k => /^category$/i.test(k))
+      // Value: 'amount' | 'Bridge Value' | 'Bridge_Value' | 'value'
+      const valKey  = cols.find(k => /^amount$/i.test(k)) ||
+                      cols.find(k => /bridge.?value/i.test(k)) ||
+                      cols.find(k => /^value$/i.test(k))
+      // Lookback: 'Month_Lookback' | 'Month Lookback' | 'lookback'
+      const lbKey   = cols.find(k => /month.?lookback/i.test(k)) ||
+                      cols.find(k => /^lookback$/i.test(k))
 
       console.log('[RL] effectiveByPeriod output keys: dateKey=', dateKey, 'catKey=', catKey, 'valKey=', valKey, 'lbKey=', lbKey, 'selLb=', selLb)
 
@@ -689,8 +698,10 @@ export default function CommandCenter() {
         results.output.forEach(row => {
           // Filter to current lookback window
           if (lbKey) {
-            const rowLb = parseInt(row[lbKey])
-            if (rowLb !== selLb) { skipped++; return }
+            // Compare as numbers — API may return string or number
+            const rowLb = parseInt(String(row[lbKey]))
+            const targetLb = parseInt(String(selLb))
+            if (rowLb !== targetLb) { skipped++; return }
           }
           const period = normalizePeriod(String(row[dateKey] || ''))
           if (!period || !period.match(/^[A-Za-z]{3}-\d{4}$/)) return
