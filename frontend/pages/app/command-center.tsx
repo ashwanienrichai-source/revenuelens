@@ -663,86 +663,103 @@ export default function CommandCenter() {
   const wfall    = bdg?.waterfall || []
   const fyYears  = results?.metadata?.fiscal_years || results?.fiscal_years || []
 
-  // ── Effective by_period: build monthly period rows from ALL available sources
+  // ── Effective by_period ─────────────────────────────────────────────────────
+  // Builds {_period, 'Beginning ARR', 'Ending ARR', movements...} for every month.
+  // Sources tried in order:
+  //   1. results.output  — raw bridge rows grouped by date+lb (most granular)
+  //   2. results.kpi_matrix — pre-aggregated monthly KPIs (reliable fallback)
   const effectiveByPeriod = useMemo(() => {
-    // Log what the API actually returned so we can diagnose
-    console.log('[RL] effectiveByPeriod computing: output.length=', results?.output?.length, 'kpi_matrix.length=', results?.kpi_matrix?.length, 'bdg.by_period.length=', results?.bridge?.[String(selLb)]?.by_period?.length, 'sample output row=', results?.output?.[0])
+    if (!results) return []
 
-    // PRIMARY: build from results.output (raw bridge output rows — always monthly)
-    if (results?.output?.length > 0) {
+    // Helper: pick first defined truthy value from an object across multiple key variants
+    const pick = (obj, ...keys) => {
+      for (const k of keys) {
+        if (obj[k] !== undefined && obj[k] !== null) return obj[k]
+      }
+      return undefined
+    }
+
+    // ── SOURCE 1: results.output ──────────────────────────────────────────────
+    if (results.output?.length > 0) {
       const firstRow = results.output[0]
       const cols = Object.keys(firstRow)
 
-      // Detect columns — handle both original CSV names and API-renamed versions
-      // Date: 'Date' | 'Activity_Date' | 'activity_date' | 'Period'
       const dateKey = cols.find(k => /^date$/i.test(k)) ||
                       cols.find(k => /activity.?date/i.test(k)) ||
                       cols.find(k => /^period$/i.test(k))
-      // Category: 'Classification' | 'Bridge Classification' | 'Bridge_Classification' | 'Category'
       const catKey  = cols.find(k => /^classification$/i.test(k)) ||
                       cols.find(k => /bridge.?class/i.test(k)) ||
                       cols.find(k => /^category$/i.test(k))
-      // Value: 'amount' | 'Bridge Value' | 'Bridge_Value' | 'value'
       const valKey  = cols.find(k => /^amount$/i.test(k)) ||
                       cols.find(k => /bridge.?value/i.test(k)) ||
                       cols.find(k => /^value$/i.test(k))
-      // Lookback: 'Month_Lookback' | 'Month Lookback' | 'lookback'
       const lbKey   = cols.find(k => /month.?lookback/i.test(k)) ||
                       cols.find(k => /^lookback$/i.test(k))
 
-      console.log('[RL] effectiveByPeriod output keys: dateKey=', dateKey, 'catKey=', catKey, 'valKey=', valKey, 'lbKey=', lbKey, 'selLb=', selLb)
-      // Show unique lbKey values to debug filtering
-      if (lbKey) {
-        const lbVals = [...new Set(results.output.slice(0,20).map(r=>r[lbKey]))]
-        console.log('[RL] effectiveByPeriod lbKey sample values (first 20 rows)=', lbVals)
-      }
+      console.log('[RL] ebp output: dateKey=',dateKey,'catKey=',catKey,'valKey=',valKey,'lbKey=',lbKey,'rows=',results.output.length)
 
       if (dateKey && catKey && valKey) {
         const periodMap = new Map()
-        let skipped = 0
+        let kept = 0, skipped = 0
         results.output.forEach(row => {
-          // Filter to current lookback window
           if (lbKey) {
-            // Compare as numbers — API may return string or number
             const rowLb = parseInt(String(row[lbKey]))
-            const targetLb = parseInt(String(selLb))
-            if (rowLb !== targetLb) { skipped++; return }
+            if (rowLb !== selLb) { skipped++; return }
           }
           const period = normalizePeriod(String(row[dateKey] || ''))
-          if (!period || !period.match(/^[A-Za-z]{3}-\d{4}$/)) return
+          if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return
+          kept++
           if (!periodMap.has(period)) periodMap.set(period, { _period: period })
           const pRow = periodMap.get(period)
           const cat = String(row[catKey] || '').trim()
-          const val = parseFloat(row[valKey]) || 0
+          const val = parseFloat(String(row[valKey])) || 0
           if (cat) pRow[cat] = (pRow[cat] || 0) + val
         })
-        console.log('[RL] effectiveByPeriod output build: periodMap.size=', periodMap.size, 'skipped=', skipped)
-        if (periodMap.size > 0) {
-          const arr = Array.from(periodMap.values())
-          console.log('[RL] effectiveByPeriod output result: periods=', arr.map(r=>r._period).slice(-3))
-          return arr
+        console.log('[RL] ebp output build: kept=',kept,'skipped=',skipped,'periods=',periodMap.size)
+        if (periodMap.size >= 12) {
+          // Only trust output if we have at least 12 periods (meaningful monthly data)
+          return Array.from(periodMap.values())
         }
+        console.log('[RL] ebp output: too few periods ('+periodMap.size+'), falling back to kpi_matrix')
       }
     }
 
-    // FALLBACK: kpi_matrix — maps field names to bridge-compatible shape
-    if (results?.kpi_matrix?.length > 0) {
-      console.log('[RL] effectiveByPeriod: falling back to kpi_matrix, count=', results.kpi_matrix.length, 'FULL FIRST ROW=', JSON.stringify(results.kpi_matrix[0]))
-      const rows = (results.kpi_matrix).map(r => ({
-        _period:         normalizePeriod(r.period || ''),
-        'Beginning ARR': r.beginning_arr ?? r.beginning_mrr ?? r.beginning ?? 0,
-        'Ending ARR':    r.ending_arr   ?? r.ending_mrr   ?? r.ending   ?? 0,
-        'New Logo':      r.new_logo     ?? r.new_arr      ?? 0,
-        'Upsell':        r.upsell       ?? 0,
-        'Downsell':      r.downsell     ?? 0,
-        'Churn':         r.churn        ?? 0,
-        'Cross-sell':    r.cross_sell   ?? r['cross-sell'] ?? 0,
-        'Lapsed':        r.lapsed       ?? 0,
-        'Returning':     r.returning    ?? 0,
-        'Churn-Partial': r.churn_partial ?? r['churn-partial'] ?? 0,
-      })).filter(r => r._period.match(/^[A-Za-z]{3}-\d{4}$/) && (r['Beginning ARR'] > 0 || r['Ending ARR'] > 0))
-      console.log('[RL] effectiveByPeriod kpi_matrix result: count=', rows.length, 'sample=', rows[0]?._period)
-      return rows
+    // ── SOURCE 2: results.kpi_matrix ─────────────────────────────────────────
+    if (results.kpi_matrix?.length > 0) {
+      console.log('[RL] ebp kpi_matrix: count=',results.kpi_matrix.length,'first=',JSON.stringify(results.kpi_matrix[0]))
+
+      // kpi_matrix may have rows for multiple lookbacks — filter to selLb if possible
+      const lbField = Object.keys(results.kpi_matrix[0]).find(k =>
+        /lookback/i.test(k) || /^lb$/i.test(k) || /^window$/i.test(k)
+      )
+      const filtered = lbField
+        ? results.kpi_matrix.filter(r => parseInt(String(r[lbField])) === selLb)
+        : results.kpi_matrix
+
+      const rows = (filtered.length > 0 ? filtered : results.kpi_matrix).map(r => {
+        const period = normalizePeriod(
+          String(pick(r,'period','Period','month','date') || '')
+        )
+        if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return null
+        return {
+          _period:         period,
+          'Beginning ARR': pick(r,'beginning_arr','beginning','beg_arr','start_arr') ?? 0,
+          'Ending ARR':    pick(r,'ending_arr','ending','end_arr') ?? 0,
+          'New Logo':      pick(r,'new_logo','new_arr','new_logo_arr') ?? 0,
+          'Upsell':        pick(r,'upsell','expansion','upsell_arr') ?? 0,
+          'Downsell':      pick(r,'downsell','contraction','downsell_arr') ?? 0,
+          'Churn':         pick(r,'churn','churn_arr') ?? 0,
+          'Cross-sell':    pick(r,'cross_sell','cross-sell','crosssell') ?? 0,
+          'Lapsed':        pick(r,'lapsed','lapsed_arr') ?? 0,
+          'Returning':     pick(r,'returning','returning_arr') ?? 0,
+          'Churn-Partial': pick(r,'churn_partial','churn-partial') ?? 0,
+          _nrr:            pick(r,'nrr','net_retention','net_retention_rate') ?? null,
+          _grr:            pick(r,'grr','gross_retention','gross_retention_rate') ?? null,
+        }
+      }).filter(Boolean)
+
+      console.log('[RL] ebp kpi_matrix result: count=',rows.length,'sample _period=',rows[0]?._period,'beg=',rows[0]?.['Beginning ARR'])
+      if (rows.length > 0) return rows
     }
 
     return []
@@ -1038,8 +1055,9 @@ export default function CommandCenter() {
       ending:    end,
       new_arr:   newArr,
       lost_arr:  lostArr,
-      nrr:       beg > 0 ? (end / beg) * 100 : ret?.nrr,
-      grr:       beg > 0 ? ((beg + lostArr) / beg) * 100 : ret?.grr,
+      // Use pre-computed nrr/grr from kpi_matrix if available (more accurate)
+      nrr:       row._nrr ?? (beg > 0 ? (end / beg) * 100 : ret?.nrr),
+      grr:       row._grr ?? (beg > 0 ? ((beg + lostArr) / beg) * 100 : ret?.grr),
     }
   }, [selPeriod, bdg, ret, selDims, effectiveByPeriod])
 
