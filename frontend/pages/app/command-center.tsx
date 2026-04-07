@@ -691,6 +691,11 @@ export default function CommandCenter() {
                       cols.find(k => /^lookback$/i.test(k))
 
       console.log('[RL] effectiveByPeriod output keys: dateKey=', dateKey, 'catKey=', catKey, 'valKey=', valKey, 'lbKey=', lbKey, 'selLb=', selLb)
+      // Show unique lbKey values to debug filtering
+      if (lbKey) {
+        const lbVals = [...new Set(results.output.slice(0,20).map(r=>r[lbKey]))]
+        console.log('[RL] effectiveByPeriod lbKey sample values (first 20 rows)=', lbVals)
+      }
 
       if (dateKey && catKey && valKey) {
         const periodMap = new Map()
@@ -722,7 +727,7 @@ export default function CommandCenter() {
 
     // FALLBACK: kpi_matrix — maps field names to bridge-compatible shape
     if (results?.kpi_matrix?.length > 0) {
-      console.log('[RL] effectiveByPeriod: falling back to kpi_matrix, sample period=', results.kpi_matrix[0]?.period)
+      console.log('[RL] effectiveByPeriod: falling back to kpi_matrix, count=', results.kpi_matrix.length, 'FULL FIRST ROW=', JSON.stringify(results.kpi_matrix[0]))
       const rows = (results.kpi_matrix).map(r => ({
         _period:         normalizePeriod(r.period || ''),
         'Beginning ARR': r.beginning_arr ?? r.beginning_mrr ?? r.beginning ?? 0,
