@@ -666,12 +666,13 @@ export default function CommandCenter() {
   // ── Effective by_period: use bdg.by_period if available, else build from output+kpi_matrix ──
   const effectiveByPeriod = useMemo(() => {
     // If bdg.by_period exists, normalize ALL _period values to Mon-YYYY before returning
-    // This ensures selPeriod always matches regardless of API date format
     if (bdg?.by_period?.length > 0) {
-      return bdg.by_period.map(r => ({
+      const normalized = bdg.by_period.map(r => ({
         ...r,
         _period: normalizePeriod(r._period || r.period || '')
       }))
+      console.log('[RL] effectiveByPeriod: using bdg.by_period, count=', normalized.length, 'sample _period=', normalized[0]?._period)
+      return normalized
     }
 
     // Otherwise build from results.output (raw bridge output rows)
@@ -684,6 +685,7 @@ export default function CommandCenter() {
     const dateKey = Object.keys(firstRow).find(k => /^date$/i.test(k) || /period/i.test(k) || /month/i.test(k))
     const catKey  = Object.keys(firstRow).find(k => /bridge.class/i.test(k) || /classification/i.test(k) || /category/i.test(k))
     const valKey  = Object.keys(firstRow).find(k => /bridge.value/i.test(k) || /^value$/i.test(k) || /amount/i.test(k))
+    console.log('[RL] effectiveByPeriod: building from output. dateKey=', dateKey, 'catKey=', catKey, 'valKey=', valKey, 'outputRows=', results.output.length)
 
     if (!dateKey || !catKey || !valKey) {
       // Fallback: build from kpi_matrix
@@ -719,7 +721,9 @@ export default function CommandCenter() {
       if (cat) pRow[cat] = (pRow[cat] || 0) + val
     })
 
-    return Array.from(periodMap.values())
+    const built = Array.from(periodMap.values())
+    console.log('[RL] effectiveByPeriod: built from output, count=', built.length, 'sample=', built[built.length-1]?._period)
+    return built
   }, [bdg, results, selLb])
   // ── Monthly trend data — fill gaps so trend is always continuous ──────────
   const kpiRows = useMemo(() => {
@@ -983,8 +987,10 @@ export default function CommandCenter() {
 
   // ── Period-specific KPI values — respect selected granularity + period ──
   const retForPeriod = useMemo(() => {
-    if (!selPeriod || !effectiveByPeriod?.length) return ret
+    console.log('[RL] retForPeriod: selPeriod=', selPeriod, 'effectiveByPeriod.length=', effectiveByPeriod?.length, 'sample _periods=', effectiveByPeriod?.slice(0,3).map(r=>r._period))
+    if (!selPeriod || !effectiveByPeriod?.length) { console.log('[RL] retForPeriod: early return - no selPeriod or empty effectiveByPeriod'); return ret }
     const row = effectiveByPeriod.find(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
+    console.log('[RL] retForPeriod: row found=', !!row, row ? 'BegARR='+row['Beginning ARR'] : 'NO MATCH')
     if (!row) return ret
 
     const BOUNDARY_KEYS = new Set(['_period','Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','beginning','ending'])
