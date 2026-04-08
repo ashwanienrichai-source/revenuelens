@@ -790,29 +790,70 @@ export default function CommandCenter() {
     }
 
     // ── SOURCE 4: client-side bridge from raw file (last resort) ─────────────
-    // Only used when API returns no monthly data at all.
-    // Classifies at ATOMIC level first (Cust+Prod+Chan+Reg), then rolls up to selDims.
-    // This ensures Cross-sell/Churn-Partial only appear at correct aggregation levels.
+    // Two sub-paths:
+    //   A) File has Bridge Classification column → group by date+lb+classification (exact, fast)
+    //   B) Pure MRR file (no pre-classified data) → atomic-first ARR snapshot bridge
     if (rawFileRows.length > 0) {
       const cols = Object.keys(rawFileRows[0])
-      // Detect column keys from file headers or fieldMap
+
+      // Common column detection
+      const dateKey = cols.find(k => /^date$/i.test(k)) ||
+                      cols.find(k => /activity.?date/i.test(k)) ||
+                      cols.find(k => /^period$/i.test(k)) ||
+                      fieldMap.date
+      const lbKey   = cols.find(k => /month.?lookback/i.test(k)) ||
+                      cols.find(k => /^lookback$/i.test(k))
+
+      // Check if file has pre-classified bridge data
+      const catKey  = cols.find(k => /^classification$/i.test(k)) ||
+                      cols.find(k => /bridge.?class/i.test(k)) ||
+                      cols.find(k => /^category$/i.test(k))
+      const valKey  = cols.find(k => /^amount$/i.test(k)) ||
+                      cols.find(k => /bridge.?value/i.test(k)) ||
+                      cols.find(k => /^value$/i.test(k))
+
+      // ── PATH A: pre-classified bridge output file ─────────────────────────
+      if (dateKey && catKey && valKey) {
+        console.log('[RL] ebp source4A: bridge output file, catKey=',catKey,'valKey=',valKey,'lbKey=',lbKey)
+        const periodMap = new Map()
+        rawFileRows.forEach(row => {
+          if (lbKey) {
+            const rowLb = parseInt(String(row[lbKey]))
+            if (rowLb !== selLb) return
+          }
+          const period = normalizePeriod(String(row[dateKey] || ''))
+          if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return
+          if (!periodMap.has(period)) periodMap.set(period, { _period: period })
+          const pRow = periodMap.get(period)
+          const cat = String(row[catKey] || '').trim()
+          const val = parseFloat(String(row[valKey])) || 0
+          if (cat) pRow[cat] = (pRow[cat] || 0) + val
+        })
+        if (periodMap.size >= 2) {
+          const arr = Array.from(periodMap.values()).sort((a,b) => pKey(a._period)-pKey(b._period))
+          console.log('[RL] ebp source4A result:', arr.length, 'periods, last=', arr[arr.length-1]?._period)
+          return arr
+        }
+      }
+
+      // ── PATH B: pure MRR file — atomic-first ARR snapshot bridge ──────────
+      // Used when file has no pre-classified bridge data (raw subscription snapshots).
+      // Classifies at atomic level (Cust+Prod+Chan+Reg), rolls up to selDims.
       const custKey    = cols.find(k => /customer.?name/i.test(k)) || cols.find(k => /^customer$/i.test(k)) || fieldMap.customer
-      const dateKey    = cols.find(k => /^date$/i.test(k)) || cols.find(k => /^period$/i.test(k)) || fieldMap.date
       const arrKey     = cols.find(k => /^arr$/i.test(k)) || cols.find(k => /^mrr$/i.test(k)) || cols.find(k => /^revenue$/i.test(k)) || fieldMap.revenue
       const productKey = cols.find(k => /^product/i.test(k)) || fieldMap.product || null
       const channelKey = cols.find(k => /^channel/i.test(k)) || fieldMap.channel || null
-      const regionKey  = cols.find(k => /^region/i.test(k)) || fieldMap.region  || null
-      console.log('[RL] ebp source4 rawFile: custKey=',custKey,'dateKey=',dateKey,'arrKey=',arrKey,'prod=',productKey,'chan=',channelKey,'reg=',regionKey)
+      const regionKey  = cols.find(k => /^region/i.test(k))  || fieldMap.region  || null
+      console.log('[RL] ebp source4B: MRR file, custKey=',custKey,'arrKey=',arrKey)
+
       if (custKey && dateKey && arrKey) {
-        // ── STEP 1: Build atomic snapshots ────────────────────────────────────
-        // Key = Customer + Product + Channel + Region (atomic level)
-        // snapshots: period → Map<atomicKey, {arr, cust, prod, chan, reg}>
-        const snapshots  = new Map() // period → Map<atomicKey, arr>
-        const custSnaps  = new Map() // period → Map<custKey, arr>  (for customer-level rollup)
+        const snapshots = new Map()   // period → Map<atomicKey, {arr,cust}>
+        const custSnaps = new Map()   // period → Map<cust, arr>
         const allPeriods = new Set()
+
         rawFileRows.forEach(row => {
           const period = normalizePeriod(String(row[dateKey] || ''))
-          if (!isMonthPeriod(period)) return
+          if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return
           const cust = String(row[custKey] || '').trim()
           const prod = productKey ? String(row[productKey] || '').trim() : ''
           const chan = channelKey ? String(row[channelKey] || '').trim() : ''
@@ -820,125 +861,72 @@ export default function CommandCenter() {
           const arr  = parseFloat(String(row[arrKey] || '0').replace(/,/g,'')) || 0
           if (!cust) return
           allPeriods.add(period)
-          // Atomic snapshot
-          const atomicK = [cust, prod, chan, reg].filter(Boolean).join('|||')
+          const atomicK = [cust,prod,chan,reg].filter(Boolean).join('|||')
           if (!snapshots.has(period)) snapshots.set(period, new Map())
           const snap = snapshots.get(period)
-          snap.set(atomicK, { arr: (snap.get(atomicK)?.arr||0) + arr, cust, prod, chan, reg })
-          // Customer-level snapshot (for customer rollup)
+          const existing = snap.get(atomicK) || {arr:0, cust}
+          snap.set(atomicK, {arr: existing.arr + arr, cust})
           if (!custSnaps.has(period)) custSnaps.set(period, new Map())
-          const cSnap = custSnaps.get(period)
-          cSnap.set(cust, (cSnap.get(cust)||0) + arr)
+          custSnaps.get(period).set(cust, (custSnaps.get(period).get(cust)||0) + arr)
         })
+
         if (allPeriods.size >= 2) {
           const sortedPeriods = Array.from(allPeriods).sort((a,b) => pKey(a)-pKey(b))
           const periodMap = new Map()
+
           sortedPeriods.forEach(period => {
             const priorDate = new Date(Math.floor(pKey(period)/100), pKey(period)%100, 1)
             priorDate.setMonth(priorDate.getMonth() - selLb)
-            const priorStr  = MONTHS_ARR[priorDate.getMonth()] + '-' + priorDate.getFullYear()
-            const priorK    = pKey(priorStr)
-
-            // ── STEP 2: Classify at ATOMIC level ──────────────────────────────
+            const priorStr = MONTHS_ARR[priorDate.getMonth()] + '-' + priorDate.getFullYear()
+            const priorK   = pKey(priorStr)
             const curAtomic  = snapshots.get(period)  || new Map()
             const prevAtomic = snapshots.get(priorStr) || new Map()
             const allAtomics = new Set([...curAtomic.keys(), ...prevAtomic.keys()])
 
-            // Atomic-level bridge accumulators
-            let beg=0, end=0, newLogo=0, crossSell=0, returning=0
-            let upsell=0, downsell=0, churnPartial=0, churn=0, lapsed=0, otherIn=0, otherOut=0
+            let beg=0,end=0,newLogo=0,crossSell=0,returning=0,upsell=0,downsell=0,churnPartial=0,churn=0,lapsed=0
 
             allAtomics.forEach(atomicKey => {
-              const curEntry  = curAtomic.get(atomicKey)
-              const prevEntry = prevAtomic.get(atomicKey)
-              const cur  = curEntry?.arr  || 0
-              const prev = prevEntry?.arr || 0
-              const custId = (curEntry||prevEntry)?.cust || ''
-              beg += prev
-              end += cur
+              const curE = curAtomic.get(atomicKey), prevE = prevAtomic.get(atomicKey)
+              const cur = curE?.arr||0, prev = prevE?.arr||0
+              const custId = (curE||prevE)?.cust||''
+              beg += prev; end += cur
 
-              if (prev === 0 && cur > 0) {
-                // Check full history for this atomic key before prior period
-                const hasAtomicHist = sortedPeriods.some(p =>
-                  pKey(p) < priorK && (snapshots.get(p)?.get(atomicKey)?.arr||0) > 0
-                )
-                if (hasAtomicHist) {
-                  returning += cur  // Returned: was in this exact atomic combo before → Returning
-                } else {
-                  // New to this atomic combo. Was the CUSTOMER already present in prior period?
-                  const custPrevARR = (custSnaps.get(priorStr)?.get(custId)||0)
-                  if (custPrevARR > 0) crossSell += cur  // Customer existed → Cross-sell
-                  else                 newLogo   += cur  // Customer brand new → New Logo
+              if (prev===0 && cur>0) {
+                const hasHist = sortedPeriods.some(p => pKey(p)<priorK && (snapshots.get(p)?.get(atomicKey)?.arr||0)>0)
+                if (hasHist) { returning += cur }
+                else {
+                  const custPrev = custSnaps.get(priorStr)?.get(custId)||0
+                  if (custPrev>0) crossSell += cur; else newLogo += cur
                 }
-              } else if (prev > 0 && cur === 0) {
-                // Atomic combo gone this period (was present in prior period).
-                const custCurARR = (custSnaps.get(period)?.get(custId)||0)
-                if (custCurARR > 0) {
-                  // Customer retained on other combos → Churn-Partial (partial revenue loss)
+              } else if (prev>0 && cur===0) {
+                const custCur = custSnaps.get(period)?.get(custId)||0
+                if (custCur>0) {
                   churnPartial += -prev
                 } else {
-                  // Customer fully gone. 
-                  // If they were absent for a gap BEFORE the prior period, call it Lapsed.
-                  // Otherwise standard Churn (present last period, gone now).
-                  // Check: was this atomic key absent in the period before priorStr?
-                  const periodBeforePrior = sortedPeriods
-                    .filter(p => pKey(p) < priorK)
-                    .sort((a,b) => pKey(b)-pKey(a))[0]  // most recent period before prior
-                  const wasAbsentBeforePrior = periodBeforePrior
-                    ? (snapshots.get(periodBeforePrior)?.get(atomicKey)?.arr||0) === 0
-                    : false
-                  const hadEarlierHistory = sortedPeriods.some(p =>
-                    pKey(p) < priorK && (snapshots.get(p)?.get(atomicKey)?.arr||0) > 0
-                  )
-                  if (wasAbsentBeforePrior && hadEarlierHistory) {
-                    lapsed += -prev  // Had a gap before prior → Lapsed (re-activated then gone again)
-                  } else {
-                    churn  += -prev  // Standard churn: present in prior period, gone now
-                  }
+                  const periodsBeforePrior = sortedPeriods.filter(p=>pKey(p)<priorK).sort((a,b)=>pKey(b)-pKey(a))
+                  const pbp = periodsBeforePrior[0]
+                  const wasAbsent = pbp ? (snapshots.get(pbp)?.get(atomicKey)?.arr||0)===0 : false
+                  const hadHist   = sortedPeriods.some(p=>pKey(p)<priorK && (snapshots.get(p)?.get(atomicKey)?.arr||0)>0)
+                  if (wasAbsent && hadHist) lapsed += -prev; else churn += -prev
                 }
-              } else if (cur > prev) {
-                upsell   += cur - prev
-              } else if (cur < prev) {
-                downsell += cur - prev
-              }
+              } else if (cur>prev) { upsell += cur-prev
+              } else if (cur<prev) { downsell += cur-prev }
             })
 
-            // ── STEP 3: Roll up to selected dimension level ────────────────────
-            // For customer level: aggregate atomic movements, suppress Cross-sell & Churn-Partial
-            // (these can't be observed when products are summed)
-            // At customer level, Cross-sell rolls into Upsell; Churn-Partial rolls into Downsell/Churn
-            const movements = (() => {
-              if (selDims === 'customer') {
-                // Customer level: product/channel detail lost — roll up correctly:
-                // Cross-sell → New Logo    (new product for existing customer looks like new ARR)
-                // Churn-Partial → Downsell (customer kept but lost a product = contraction)
-                // Churn stays Churn, Lapsed stays Lapsed
-                return {
-                  'New Logo':  newLogo + crossSell,
-                  'Upsell':    upsell,
-                  'Downsell':  downsell + churnPartial,  // Churn-Partial = partial revenue loss = Downsell
-                  'Churn':     churn,
-                  'Returning': returning,
-                  'Lapsed':    lapsed,
-                }
-              }
-              // Customer × Product or deeper: show all movements independently
-              return { 'New Logo':newLogo, 'Cross-sell':crossSell, 'Returning':returning,
-                       'Upsell':upsell, 'Downsell':downsell,
-                       'Churn-Partial':churnPartial, 'Churn':churn,
-                       'Lapsed':lapsed, 'Other In':otherIn, 'Other Out':otherOut }
-            })()
+            const movements = selDims==='customer'
+              ? { 'New Logo': newLogo+crossSell, 'Upsell': upsell,
+                  'Downsell': downsell+churnPartial, 'Churn': churn,
+                  'Returning': returning, 'Lapsed': lapsed }
+              : { 'New Logo':newLogo, 'Cross-sell':crossSell, 'Returning':returning,
+                  'Upsell':upsell, 'Downsell':downsell, 'Churn-Partial':churnPartial,
+                  'Churn':churn, 'Lapsed':lapsed }
 
-            periodMap.set(period, {
-              _period: period,
-              'Beginning ARR': beg,
-              'Ending ARR':    end,
-              ...movements,
-            })
+            periodMap.set(period, { _period:period, 'Beginning ARR':beg, 'Ending ARR':end, ...movements })
           })
+
           const result = Array.from(periodMap.values())
           if (result.length >= 2) {
-            console.log('[RL] ebp source4 rawFile bridge:', result.length, 'periods')
+            console.log('[RL] ebp source4B result:', result.length, 'periods')
             return result
           }
         }
