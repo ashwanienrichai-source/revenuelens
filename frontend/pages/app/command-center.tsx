@@ -863,18 +863,39 @@ export default function CommandCenter() {
                   pKey(p) < priorK && (snapshots.get(p)?.get(atomicKey)?.arr||0) > 0
                 )
                 if (hasAtomicHist) {
-                  returning += cur  // Was in this exact atomic combo before → Returning
+                  returning += cur  // Returned: was in this exact atomic combo before → Returning
                 } else {
                   // New to this atomic combo. Was the CUSTOMER already present in prior period?
                   const custPrevARR = (custSnaps.get(priorStr)?.get(custId)||0)
-                  if (custPrevARR > 0) crossSell += cur  // Customer existed → Cross-sell (new product/channel)
+                  if (custPrevARR > 0) crossSell += cur  // Customer existed → Cross-sell
                   else                 newLogo   += cur  // Customer brand new → New Logo
                 }
               } else if (prev > 0 && cur === 0) {
-                // Atomic combo gone. Is the customer still present this period?
+                // Atomic combo gone this period (was present in prior period).
                 const custCurARR = (custSnaps.get(period)?.get(custId)||0)
-                if (custCurARR > 0) churnPartial += -prev // Customer kept other products → Churn-Partial
-                else                lapsed       += -prev // Customer fully gone → Lapsed
+                if (custCurARR > 0) {
+                  // Customer retained on other combos → Churn-Partial (partial revenue loss)
+                  churnPartial += -prev
+                } else {
+                  // Customer fully gone. 
+                  // If they were absent for a gap BEFORE the prior period, call it Lapsed.
+                  // Otherwise standard Churn (present last period, gone now).
+                  // Check: was this atomic key absent in the period before priorStr?
+                  const periodBeforePrior = sortedPeriods
+                    .filter(p => pKey(p) < priorK)
+                    .sort((a,b) => pKey(b)-pKey(a))[0]  // most recent period before prior
+                  const wasAbsentBeforePrior = periodBeforePrior
+                    ? (snapshots.get(periodBeforePrior)?.get(atomicKey)?.arr||0) === 0
+                    : false
+                  const hadEarlierHistory = sortedPeriods.some(p =>
+                    pKey(p) < priorK && (snapshots.get(p)?.get(atomicKey)?.arr||0) > 0
+                  )
+                  if (wasAbsentBeforePrior && hadEarlierHistory) {
+                    lapsed += -prev  // Had a gap before prior → Lapsed (re-activated then gone again)
+                  } else {
+                    churn  += -prev  // Standard churn: present in prior period, gone now
+                  }
+                }
               } else if (cur > prev) {
                 upsell   += cur - prev
               } else if (cur < prev) {
@@ -888,17 +909,20 @@ export default function CommandCenter() {
             // At customer level, Cross-sell rolls into Upsell; Churn-Partial rolls into Downsell/Churn
             const movements = (() => {
               if (selDims === 'customer') {
-                // Roll Cross-sell into New Logo (same customer ARR increase, product detail lost)
-                // Roll Churn-Partial into Lapsed (revenue gone, customer status unknown without product detail)
+                // Customer level: product/channel detail lost — roll up correctly:
+                // Cross-sell → New Logo    (new product for existing customer looks like new ARR)
+                // Churn-Partial → Downsell (customer kept but lost a product = contraction)
+                // Churn stays Churn, Lapsed stays Lapsed
                 return {
-                  'New Logo':  newLogo + crossSell,    // Cross-sell looks like expansion at cust level
+                  'New Logo':  newLogo + crossSell,
                   'Upsell':    upsell,
-                  'Downsell':  downsell,
+                  'Downsell':  downsell + churnPartial,  // Churn-Partial = partial revenue loss = Downsell
+                  'Churn':     churn,
                   'Returning': returning,
-                  'Lapsed':    lapsed + churnPartial,  // Churn-Partial rolls into Lapsed at cust level
+                  'Lapsed':    lapsed,
                 }
               }
-              // Customer × Product or deeper: show all movements
+              // Customer × Product or deeper: show all movements independently
               return { 'New Logo':newLogo, 'Cross-sell':crossSell, 'Returning':returning,
                        'Upsell':upsell, 'Downsell':downsell,
                        'Churn-Partial':churnPartial, 'Churn':churn,
