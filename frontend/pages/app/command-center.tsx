@@ -349,40 +349,111 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
 }
 
 // ─── Waterfall Bridge ─────────────────────────────────────────────────────────
-function WaterfallBridge({data, showBoundary=false}) {
+// ─── Cumulative Waterfall Engine ─────────────────────────────────────────────
+// Builds a true floating-bar waterfall where movement bars start from their
+// cumulative running total — not from zero. Works at all aggregation levels.
+// Input: data = [{category, value}] with Beginning ARR first and Ending ARR last.
+// The engine computes start/end for each bar automatically.
+function buildWaterfallSteps(data) {
+  if (!data?.length) return []
+  const BOUNDARY = new Set(['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Prior ACV','Ending ACV'])
+  const steps = []
+  let running = 0
+
+  data.forEach(item => {
+    const { category, value } = item
+    if (category === 'Beginning ARR' || category === 'Beginning MRR') {
+      running = value
+      steps.push({ type:'start', category, value, barStart:0, barEnd:value, delta:value })
+    } else if (BOUNDARY.has(category)) {
+      // Ending bar: full bar from 0, value = running total (reconciliation check)
+      steps.push({ type:'end', category, value:running, barStart:0, barEnd:running, delta:0 })
+    } else if (value !== 0) {
+      const start = running
+      const end   = running + value
+      running     = end
+      steps.push({ type:'movement', category, value, barStart:Math.min(start,end), barEnd:Math.max(start,end), delta:value, runStart:start, runEnd:end })
+    }
+  })
+  return steps
+}
+
+function WaterfallBridge({data, showBoundary=false, height=280}) {
   if(!data?.length) return <div style={{height:180,display:'flex',alignItems:'center',justifyContent:'center',color:'#7B8EA8',fontSize:13}}>No bridge data</div>
 
   const BOUNDARY = new Set(['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Prior ACV','Ending ACV'])
-  const ORDER=['Beginning ARR','Beginning MRR','New Logo','Upsell','Cross-sell','Returning','Other In','Downsell','Churn Partial','Churn','Lapsed','Other Out','Ending ARR','Ending MRR']
-  const rows = showBoundary
-    ? [...data].sort((a,b)=>{ const ai=ORDER.indexOf(a.category); const bi=ORDER.indexOf(b.category); return (ai<0?99:ai)-(bi<0?99:bi) })
-    : data.filter(d=>!BOUNDARY.has(d.category) && d.value!==0)
+  const ORDER=['Beginning ARR','Beginning MRR','Churn','Churn-Partial','Churn_Partial','Churn Partial','Downsell','Upsell','Cross-sell','Cross_sell','New Logo','Lapsed','Returning','Other In','Other Out','Add on','Add-on','Ending ARR','Ending MRR']
 
-  const CustomTooltip=({active,payload})=>{
+  // Sort and filter input
+  const sorted = [...data].sort((a,b)=>{
+    const ai=ORDER.indexOf(a.category), bi=ORDER.indexOf(b.category)
+    return (ai<0?99:ai)-(bi<0?99:bi)
+  })
+  const filtered = showBoundary ? sorted : sorted.filter(d => !BOUNDARY.has(d.category) && d.value!==0)
+
+  // Reconstruct with boundary for step building
+  const beg = data.find(d=>BOUNDARY.has(d.category)&&d.value>0)
+  const end = data.find(d=>d.category==='Ending ARR'||d.category==='Ending MRR')
+  const movements = filtered.filter(d=>!BOUNDARY.has(d.category))
+  const fullForSteps = [
+    ...(beg?[beg]:[]),
+    ...movements,
+    ...(end?[end]:[]),
+  ]
+  const steps = buildWaterfallSteps(fullForSteps)
+  if(!steps.length) return null
+
+  // Chart needs two Bar series: transparent spacer + visible bar
+  const chartData = steps.map(s=>({
+    category:  s.category,
+    spacer:    s.type==='start'||s.type==='end' ? 0 : s.barStart,
+    bar:       s.barEnd - s.barStart,
+    value:     s.value,
+    delta:     s.delta,
+    type:      s.type,
+    runStart:  s.runStart,
+    runEnd:    s.runEnd,
+  }))
+
+  const getBarColor = (entry) => {
+    if (entry.type==='start'||entry.type==='end') return '#3D5068'
+    return entry.delta>=0 ? (BC[entry.category]||'#22C55E') : (BC[entry.category]||'#EF4444')
+  }
+
+  const CustomTooltip=({active,payload,label})=>{
     if(!active||!payload?.length) return null
-    const d=payload[0].payload
-    const isBound=BOUNDARY.has(d.category)
+    const d = payload.find(p=>p.dataKey==='bar')?.payload
+    if (!d) return null
+    const isBound = d.type==='start'||d.type==='end'
+    const displayVal = isBound ? d.value : d.delta
     return (
-      <div style={{background:'#0F1A2E',border:'1px solid var(--color-border)',borderRadius:8,padding:'8px 12px'}}>
-        <div style={{fontSize:11,fontWeight:600,color:'#7B8EA8',marginBottom:3}}>{d.category}</div>
-        <div style={{fontSize:15,fontWeight:700,color:isBound?'#6B7280':d.value>=0?'#16A34A':'#DC2626',fontFamily:"'JetBrains Mono',monospace"}}>
-          {isBound?'':d.value>=0?'+':''}{fmt(d.value)}
+      <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,padding:'8px 12px',boxShadow:'0 4px 12px rgba(0,0,0,0.4)'}}>
+        <div style={{fontSize:10,fontWeight:600,color:'#7B8EA8',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{d.category}</div>
+        <div style={{fontSize:15,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:isBound?'#E2E8F0':displayVal>=0?'#4ADE80':'#F87171'}}>
+          {isBound?'':displayVal>=0?'+':''}{fmt(displayVal)}
         </div>
+        {!isBound&&d.runStart!=null&&(
+          <div style={{fontSize:10,color:'#4A5A6E',marginTop:3}}>
+            {fmt(d.runStart)} → {fmt(d.runEnd)}
+          </div>
+        )}
       </div>
     )
   }
-  const getColor=(cat,val)=>BOUNDARY.has(cat)?'#9CA3AF':BC[cat]||(val>=0?'#22C55E':'#EF4444')
 
   return (
-    <div style={{height:260}}>
+    <div style={{height}}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={rows} margin={{top:8,right:8,bottom:48,left:8}}>
-          <XAxis dataKey="category" tick={{fontSize:9,fill:'#9CA3AF'}} angle={-35} textAnchor="end" interval={0} axisLine={false} tickLine={false}/>
-          <YAxis tickFormatter={fmt} tick={{fontSize:9,fill:'#9CA3AF'}} width={48} axisLine={false} tickLine={false}/>
+        <BarChart data={chartData} margin={{top:8,right:8,bottom:52,left:8}} barCategoryGap="25%">
+          <XAxis dataKey="category" tick={{fontSize:9,fill:'#9CA3AF'}} angle={-38} textAnchor="end" interval={0} axisLine={false} tickLine={false} height={56}/>
+          <YAxis tickFormatter={fmt} tick={{fontSize:9,fill:'#9CA3AF'}} width={52} axisLine={false} tickLine={false}/>
           <ReferenceLine y={0} stroke='#1A2840' strokeDasharray='3 3'/>
           <Tooltip content={<CustomTooltip/>} cursor={{fill:'rgba(255,255,255,0.02)'}}/>
-          <Bar dataKey="value" radius={[3,3,0,0]} maxBarSize={36}>
-            {rows.map((e,i)=><Cell key={i} fill={getColor(e.category,e.value)}/>)}
+          {/* Invisible spacer — lifts the visible bar to correct vertical position */}
+          <Bar dataKey="spacer" stackId="wf" fill="transparent" radius={0} maxBarSize={48}/>
+          {/* Visible bar — colored by movement type */}
+          <Bar dataKey="bar" stackId="wf" radius={[3,3,0,0]} maxBarSize={48}>
+            {chartData.map((e,i)=><Cell key={i} fill={getBarColor(e)}/>)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -1122,22 +1193,42 @@ export default function CommandCenter() {
   const PRICE_VOLUME_CATS = new Set(['Price Impact','Volume Impact','Price on Volume','Price','Volume'])
 
   const CUSTOMER_LEVEL_CATS = new Set([
-    'New Logo', 'Upsell', 'Downsell', 'Churn', 'Returning', 'Lapsed'
+    // Customer level: aggregate view — Cross-sell/Churn-Partial/Other-In/Out not visible
+    'New Logo', 'Returning', 'Upsell', 'Downsell', 'Churn', 'Lapsed'
   ])
   const PRODUCT_LEVEL_CATS = new Set([
-    'New Logo', 'Upsell', 'Cross-sell', 'Cross_sell', 'Downsell', 
-    'Churn Partial', 'Churn-Partial', 'Churn_Partial', 'Churn',
-    'Other In', 'Other Out', 'Returning', 'Lapsed', 'Add on', 'Add-on'
+    // Customer × Product level: Cross-sell and Churn-Partial visible, but not Other In/Out
+    'New Logo', 'Cross-sell', 'Cross_sell', 'Returning', 'Upsell',
+    'Downsell', 'Churn Partial', 'Churn-Partial', 'Churn_Partial', 'Churn', 'Lapsed',
+    'Add on', 'Add-on'
   ])
   const REGION_LEVEL_CATS = new Set([
     'New Logo', 'Upsell', 'Downsell', 'Churn', 'Other In', 'Other Out'
   ])
+  const ATOMIC_LEVEL_CATS = new Set([
+    // Atomic level: all movements including Other In/Out (channel/region shifts)
+    'New Logo', 'Cross-sell', 'Cross_sell', 'Returning', 'Upsell',
+    'Downsell', 'Churn Partial', 'Churn-Partial', 'Churn_Partial', 'Churn', 'Lapsed',
+    'Other In', 'Other Out', 'Add on', 'Add-on'
+  ])
 
   // Canonical display order for waterfall — always enforced regardless of API order
+  // Canonical waterfall order — matches spec for all aggregation levels
+  // Customer: Beginning → New Logo → Returning → Upsell → Downsell → Churn → Lapsed → Ending
+  // Cust×Prod: adds Cross-sell (after New Logo) and Churn-Partial (before Churn)
+  // Atomic: adds Other In (positive) and Other Out (negative)
   const CANONICAL_ORDER = [
     'Beginning ARR', 'Beginning MRR',
-    'New Logo', 'Upsell', 'Cross-sell', 'Returning', 'Add on', 'Add-on', 'Other In',
-    'Downsell', 'Churn Partial', 'Churn-Partial', 'Churn', 'Lapsed', 'Other Out',
+    'Churn', 'Churn-Partial', 'Churn_Partial', 'Churn Partial',
+    'Downsell',
+    'Upsell',
+    'Cross-sell', 'Cross_sell',
+    'New Logo',
+    'Lapsed',
+    'Returning',
+    'Other In',
+    'Other Out',
+    'Add on', 'Add-on',
     'Ending ARR', 'Ending MRR'
   ]
 
@@ -1145,14 +1236,15 @@ export default function CommandCenter() {
     if (!wfallData?.length) return []
     // Always strip price/volume — they never belong in the bridge
     const noPV = wfallData.filter(r => !PRICE_VOLUME_CATS.has(r.category))
+    // Level-aware movement selection — matches aggregation level exactly
     if (selDims === 'customer') {
-      // Customer level: only the 4 canonical movements
       return noPV.filter(r => CUSTOMER_LEVEL_CATS.has(r.category))
     }
     if (selDims === 'region') {
-      return noPV.filter(r => REGION_LEVEL_CATS.has(r.category))
+      // Atomic level: Customer × Product × Channel × Region — all movements
+      return noPV.filter(r => ATOMIC_LEVEL_CATS.has(r.category))
     }
-    // product or deeper: full movement set
+    // Customer × Product: Cross-sell and Churn-Partial visible
     return noPV.filter(r => PRODUCT_LEVEL_CATS.has(r.category))
   }
 
@@ -2099,9 +2191,18 @@ export default function CommandCenter() {
                               </div>
                               <div style={{padding:'20px 20px 8px'}}>
                                 {(()=>{
-                                  const movements = selectedWfall.filter(x=>!['Beginning MRR','Ending MRR','Beginning ARR','Ending ARR'].includes(x.category))
-                                  const fullData  = [{category:'Beginning ARR',value:toARR(beg)||0},...movements,{category:'Ending ARR',value:toARR(end)||0}]
-                                  return <WaterfallBridge data={fullData} showBoundary={true}/>
+                                  const BOUNDARY_WFALL = new Set(['Beginning MRR','Ending MRR','Beginning ARR','Ending ARR'])
+                                  // Normalize category names: underscore variants → hyphen (Cross_sell→Cross-sell etc)
+                                  const normalize = cat => cat.replace(/_/g,'-')
+                                  const movements = selectedWfall
+                                    .filter(x => !BOUNDARY_WFALL.has(x.category))
+                                    .map(x => ({...x, category: normalize(x.category)}))
+                                  const fullData = [
+                                    {category:'Beginning ARR', value:toARR(beg)||0},
+                                    ...movements,
+                                    {category:'Ending ARR',    value:toARR(end)||0},
+                                  ]
+                                  return <WaterfallBridge data={fullData} showBoundary={true} height={300}/>
                                 })()}
                               </div>
                             </div>
@@ -2194,7 +2295,7 @@ export default function CommandCenter() {
                                 const row = lookup[p] || {}
                                 Object.keys(row).forEach(k => { if (!BOUNDARY.has(k)) catSet.add(k) })
                               })
-                              const ORDER = ['New Logo','Upsell','Cross-sell','Returning','Downsell','Churn-Partial','Churn','Lapsed']
+                              const ORDER = ['Churn','Churn-Partial','Churn_Partial','Churn Partial','Downsell','Upsell','Cross-sell','Cross_sell','New Logo','Lapsed','Returning','Other In','Other Out']
                               const cats = [...catSet].sort((a,b) => {
                                 const ia = ORDER.indexOf(a), ib = ORDER.indexOf(b)
                                 return (ia<0?99:ia) - (ib<0?99:ib)
