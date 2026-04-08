@@ -2098,19 +2098,136 @@ export default function CommandCenter() {
                               </table>
                             </div>
 
-                            {/* Pivot tables */}
-                            {results?.pivot?.[String(selLb)]?.bridge_pivot&&(
-                              <div style={{...S.card}}>
-                                <BridgePivotTable pivot={results.pivot[String(selLb)].bridge_pivot} title="ARR Waterfall" lookbackLabel={`${selLb}M Lookback`} showPct={false}/>
-                                <CustomerCountPivot pivot={results.pivot[String(selLb)].customer_pivot}/>
-                              </div>
-                            )}
-                            {results?.pivot?.['12']?.bridge_pivot&&selLb!==12&&(
-                              <div style={{...S.card}}>
-                                <BridgePivotTable pivot={results.pivot['12'].bridge_pivot} title="ARR Waterfall" lookbackLabel="YoY (12M)" showPct={true}/>
-                                <CustomerCountPivot pivot={results.pivot['12'].customer_pivot}/>
-                              </div>
-                            )}
+                            {/* ── Month-aligned ARR Waterfall — Jul-2022 / Jul-2023 / Jul-2024 etc ── */}
+                            {(()=>{
+                              if (!effectiveByPeriod?.length || !selPeriod) return null
+
+                              // Extract selected month (e.g. 'Jul' from 'Jul-2024')
+                              const selMonth = selPeriod.split('-')[0]
+                              if (!selMonth || selMonth.length !== 3) return null
+
+                              // Find all periods matching the selected month across all years
+                              const monthCols = effectiveByPeriod
+                                .filter(r => r._period?.startsWith(selMonth + '-'))
+                                .map(r => r._period)
+                                .sort((a,b) => {
+                                  const ya = parseInt(a.split('-')[1]||'0')
+                                  const yb = parseInt(b.split('-')[1]||'0')
+                                  return ya - yb
+                                })
+
+                              if (monthCols.length < 1) return null
+
+                              // Build lookup: period → row data
+                              const lookup = {}
+                              effectiveByPeriod.forEach(r => { if (r._period) lookup[r._period] = r })
+
+                              // All movement categories across all month-columns
+                              const BOUNDARY = new Set(['_period','Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','_nrr','_grr'])
+                              const catSet = new Set()
+                              monthCols.forEach(p => {
+                                const row = lookup[p] || {}
+                                Object.keys(row).forEach(k => { if (!BOUNDARY.has(k)) catSet.add(k) })
+                              })
+                              const ORDER = ['New Logo','Upsell','Cross-sell','Returning','Downsell','Churn-Partial','Churn','Lapsed']
+                              const cats = [...catSet].sort((a,b) => {
+                                const ia = ORDER.indexOf(a), ib = ORDER.indexOf(b)
+                                return (ia<0?99:ia) - (ib<0?99:ib)
+                              })
+
+                              const fmt2 = v => { if(!v||v===0)return'—'; const a=Math.abs(v); const s=v<0?'':'+'; if(a>=1e6)return`${s}$${(v/1e6).toFixed(1)}M`; if(a>=1e3)return`${s}$${(v/1e3).toFixed(0)}K`; return`${s}$${v.toFixed(0)}` }
+                              const fmtAbs = v => fmt(v)
+
+                              return (
+                                <div style={{...S.card, padding:0, overflow:'hidden'}}>
+                                  <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45',display:'flex',alignItems:'center',gap:10}}>
+                                    <span style={{fontSize:13,fontWeight:700,color:'#E2E8F0'}}>ARR Waterfall</span>
+                                    <span style={{fontSize:10,color:'#4A5A6E'}}>{selMonth} across all years · {selLb}M Lookback</span>
+                                  </div>
+                                  <div style={{overflowX:'auto'}}>
+                                    <table style={{borderCollapse:'collapse',width:'100%',fontSize:12,minWidth:Math.max(monthCols.length*110+200,480)}}>
+                                      <thead>
+                                        <tr style={{background:'#162035',borderBottom:'1px solid #1E2D45'}}>
+                                          <th style={{textAlign:'left',padding:'9px 16px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#4A5A6E',position:'sticky',left:0,background:'#162035',minWidth:160}}>Bridge</th>
+                                          {monthCols.map(p=>(
+                                            <th key={p} style={{textAlign:'right',padding:'9px 14px',fontSize:10,fontWeight:p===selPeriod?700:500,color:p===selPeriod?'#CBD5E1':'#4A5A6E',whiteSpace:'nowrap',background:p===selPeriod?'#1A2840':'#162035'}}>
+                                              {p}
+                                            </th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {/* Beginning ARR */}
+                                        <tr style={{background:'#162035',borderBottom:'1px solid #1E2D45'}}>
+                                          <td style={{padding:'9px 16px',fontWeight:700,color:'#E2E8F0',position:'sticky',left:0,background:'#162035',fontSize:12}}>Beginning ARR</td>
+                                          {monthCols.map(p=>{
+                                            const v = lookup[p]?.['Beginning ARR']||0
+                                            const isSel = p===selPeriod
+                                            return <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:'#E2E8F0',background:isSel?'rgba(26,40,64,0.8)':'#162035'}}>{fmtAbs(v)}</td>
+                                          })}
+                                        </tr>
+                                        {/* Movement rows */}
+                                        {cats.map((cat,ri)=>{
+                                          const hasAny = monthCols.some(p => lookup[p]?.[cat] && lookup[p][cat]!==0)
+                                          if (!hasAny) return null
+                                          return (
+                                            <tr key={cat} style={{borderBottom:'1px solid #1E2D45',background:ri%2===0?'transparent':'#0D1525'}}>
+                                              <td style={{padding:'9px 16px',position:'sticky',left:0,background:ri%2===0?'#0F1A2E':'#0D1525',display:'flex',alignItems:'center',gap:8,whiteSpace:'nowrap'}}>
+                                                <span style={{width:7,height:7,borderRadius:'50%',background:BC[cat]||BC[cat.replace(/-/g,'_')]||'#64748B',flexShrink:0}}/>
+                                                <span style={{fontWeight:500,color:'#94A3B8',fontSize:12}}>{cat}</span>
+                                              </td>
+                                              {monthCols.map(p=>{
+                                                const v = lookup[p]?.[cat]||0
+                                                const isSel = p===selPeriod
+                                                const beg = lookup[p]?.['Beginning ARR']||1
+                                                return (
+                                                  <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isSel?700:400,color:!v||v===0?'#2A3040':v>0?'#4ADE80':'#F87171',background:isSel?'rgba(26,40,64,0.6)':'transparent'}}>
+                                                    {v===0?'—':fmt2(v)}
+                                                  </td>
+                                                )
+                                              })}
+                                            </tr>
+                                          )
+                                        })}
+                                        {/* Ending ARR */}
+                                        <tr style={{borderTop:'1px solid #253550',background:'#162035'}}>
+                                          <td style={{padding:'9px 16px',fontWeight:700,color:'#4ADE80',position:'sticky',left:0,background:'#162035',fontSize:12}}>Ending ARR</td>
+                                          {monthCols.map(p=>{
+                                            const v = lookup[p]?.['Ending ARR']||0
+                                            const isSel = p===selPeriod
+                                            return <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:'#4ADE80',background:isSel?'rgba(26,40,64,0.8)':'#162035'}}>{fmtAbs(v)}</td>
+                                          })}
+                                        </tr>
+                                        {/* NRR row */}
+                                        <tr style={{borderTop:'1px solid #1E2D45',background:'#0D1525'}}>
+                                          <td style={{padding:'8px 16px',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#4A5A6E',position:'sticky',left:0,background:'#0D1525'}}>Net Retention</td>
+                                          {monthCols.map(p=>{
+                                            const row = lookup[p]||{}
+                                            const beg = row['Beginning ARR']||0
+                                            const end = row['Ending ARR']||0
+                                            const nrr = row._nrr ?? (beg>0?(end/beg*100):null)
+                                            const isSel = p===selPeriod
+                                            return <td key={p} style={{textAlign:'right',padding:'8px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:900,color:nrr>=100?'#4ADE80':'#F87171',background:isSel?'rgba(26,40,64,0.5)':'transparent'}}>{nrr!=null?`${nrr.toFixed(1)}%`:'—'}</td>
+                                          })}
+                                        </tr>
+                                        {/* GRR row */}
+                                        <tr style={{borderTop:'1px solid #1E2D45',background:'#0D1525'}}>
+                                          <td style={{padding:'8px 16px',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#4A5A6E',position:'sticky',left:0,background:'#0D1525'}}>Gross Retention</td>
+                                          {monthCols.map(p=>{
+                                            const row = lookup[p]||{}
+                                            const beg = row['Beginning ARR']||0
+                                            const contractions = Object.keys(row).filter(k=>!BOUNDARY.has(k)&&(row[k]||0)<0).reduce((s,k)=>s+(row[k]||0),0)
+                                            const grr = row._grr ?? (beg>0?((beg+contractions)/beg*100):null)
+                                            const isSel = p===selPeriod
+                                            return <td key={p} style={{textAlign:'right',padding:'8px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:900,color:grr>=80?'#4ADE80':'#F87171',background:isSel?'rgba(26,40,64,0.5)':'transparent'}}>{grr!=null?`${grr.toFixed(1)}%`:'—'}</td>
+                                          })}
+                                        </tr>
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )
+                            })()}
                           </div>
                         )}
 
