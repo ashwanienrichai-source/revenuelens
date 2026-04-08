@@ -209,7 +209,11 @@ function genNarrative(ret, movers) {
   let s = `ARR ${trend} from ${fmt(beg)} to ${fmt(end)} (${delta>=0?'+':''}${pct}%).`
   if (nrr>=100) s += ` Net retention of ${fmtPct(nrr)} — expansion is outpacing churn.`
   else if (nrr>0) s += ` Net retention at ${fmtPct(nrr)} — needs attention.`
-  if (new_arr>0) s += ` New logos contributed ${fmt(new_arr)}.`
+  const returning = ret?.returning || 0
+  const lapsed    = ret?.lapsed    || 0
+  if (new_arr>0)    s += ` New logos contributed ${fmt(new_arr)}.`
+  if (returning>0)  s += ` Returning customers added ${fmt(returning)}.`
+  if (lapsed<0)     s += ` Lapsed: ${fmt(Math.abs(lapsed))}.`
   if (churn<0)   s += ` Churn impact: ${fmt(Math.abs(churn))}.`
   const exp = movers?.['Upsell']?.[0]||movers?.['New Logo']?.[0]
   const chr = movers?.['Churn']?.[0]
@@ -757,19 +761,13 @@ export default function CommandCenter() {
 
           sortedPeriods.forEach((period, idx) => {
             const curSnap = snapshots.get(period)
-            
-            // Find prior period (selLb months back)
+
+            // Find prior period (selLb months back) by date arithmetic
             const curKey = sortKey(period)
             const curYr  = Math.floor(curKey / 100)
             const curMo  = curKey % 100 // 0-indexed
-            const priorMo = curMo - selLb
-            const priorYr = curYr + Math.floor(priorMo / 12)
-            const priorMoNorm = ((priorMo % 12) + 12) % 12
-            const priorPeriod = MONTHS_ARR[priorMoNorm] + '-' + (priorYr + (priorMo < 0 && priorMoNorm > curMo ? 0 : 0))
-            // Simpler: subtract selLb months
             const priorDate = new Date(curYr, curMo, 1)
             priorDate.setMonth(priorDate.getMonth() - selLb)
-            const priorKey2 = priorDate.getFullYear() * 100 + priorDate.getMonth()
             const priorPeriodStr = MONTHS_ARR[priorDate.getMonth()] + '-' + priorDate.getFullYear()
             const priorSnap = snapshots.get(priorPeriodStr) || new Map()
 
@@ -784,20 +782,45 @@ export default function CommandCenter() {
               const prev = priorSnap.get(cust) || 0
               begARR += prev
               endARR += cur
-              if (prev === 0 && cur > 0)  newLogo  += cur        // New Logo
-              else if (prev > 0 && cur === 0) churn -= prev      // Churn (negative)
-              else if (cur > prev)        upsell   += cur - prev // Upsell
-              else if (cur < prev)        downsell += cur - prev // Downsell (negative)
+
+              // ── Classification order: Returning → New Logo → Upsell → Downsell → Churn → Lapsed ──
+
+              if (prev === 0 && cur > 0) {
+                // Customer has revenue now but not in prior period.
+                // Check if they had revenue in ANY period BEFORE the prior period.
+                // If yes → Returning. If no → New Logo.
+                const priorKey  = sortKey(priorPeriodStr)
+                const hasHistory = sortedPeriods.some(p => {
+                  if (sortKey(p) >= priorKey) return false   // only periods before prior
+                  return (snapshots.get(p)?.get(cust) || 0) > 0
+                })
+                if (hasHistory) returning += cur   // Returning: was gone, came back
+                else            newLogo   += cur   // New Logo: genuinely first time
+
+              } else if (prev > 0 && cur === 0) {
+                // Customer had revenue in prior period but has none now.
+                // Lapsed: moved to zero (not counted as Churn to avoid double-count).
+                lapsed += -prev                    // Lapsed (negative — revenue lost)
+
+              } else if (cur > prev) {
+                upsell   += cur - prev             // Upsell (positive delta)
+
+              } else if (cur < prev) {
+                downsell += cur - prev             // Downsell (negative delta)
+
+              }
+              // cur === prev && both > 0 → retained, no bridge movement (correct)
+              // cur === 0 && prev === 0 → customer absent both periods, skip (correct)
             })
 
             periodMap.set(period, {
-              _period: period,
+              _period:         period,
               'Beginning ARR': begARR,
               'Ending ARR':    endARR,
               'New Logo':      newLogo,
               'Upsell':        upsell,
               'Downsell':      downsell,
-              'Churn':         churn,
+              'Churn':         churn,      // kept for API-sourced data compatibility
               'Returning':     returning,
               'Lapsed':        lapsed,
             })
@@ -1058,7 +1081,7 @@ export default function CommandCenter() {
   const PRICE_VOLUME_CATS = new Set(['Price Impact','Volume Impact','Price on Volume','Price','Volume'])
 
   const CUSTOMER_LEVEL_CATS = new Set([
-    'New Logo', 'Upsell', 'Downsell', 'Churn'
+    'New Logo', 'Upsell', 'Downsell', 'Churn', 'Returning', 'Lapsed'
   ])
   const PRODUCT_LEVEL_CATS = new Set([
     'New Logo', 'Upsell', 'Cross-sell', 'Cross_sell', 'Downsell', 
@@ -2511,8 +2534,8 @@ export default function CommandCenter() {
                                 <td style={{padding:'9px 16px',position:'sticky',left:0,background:'#162035',fontWeight:700,color:'#E2E8F0',fontSize:11}}>Net Change</td>
                                 {colPeriods.map(p=>{
                                   const row = lookup[p]||{}
-                                  const posSum = ['New Logo','Upsell','Cross-sell','Returning','Other In'].reduce((s,k)=>s+(row[k]||0),0)
-                                  const negSum = ['Downsell','Churn Partial','Churn','Lapsed','Other Out'].reduce((s,k)=>s+(row[k]||0),0)
+                                  const posSum = ['New Logo','Upsell','Cross-sell','Returning','Other In'].reduce((s,k)=>s+(Math.max(row[k]||0,0)),0)
+                                  const negSum = ['Downsell','Churn Partial','Churn','Lapsed','Other Out'].reduce((s,k)=>s+(Math.min(row[k]||0,0)),0)
                                   const net = toARR(posSum+negSum)
                                   const isCurrentPeriod = normalizePeriod(p)===normalizePeriod(selPeriod)
                                   return (
