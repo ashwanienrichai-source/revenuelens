@@ -640,6 +640,7 @@ export default function CommandCenter() {
   const [selPeriod, setSelPeriod]   = useState('')           // e.g. 'Jan-25' — empty = latest
   const [rerunning, setRerunning]   = useState(false)
   const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
+  const [histChartWindow, setHistChartWindow] = useState(24)  // Historical perf chart window
 
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
@@ -1509,6 +1510,7 @@ export default function CommandCenter() {
   ] : [
     {id:'summary',label:'Summary'},
     {id:'retention_trend',label:'Detailed Bridge'},
+    {id:'historical_perf',label:'Historical Performance'},
     {id:'cohort_heatmap',label:'Cohorts'},
     {id:'top_movers',label:'Top Movers'},
     {id:'top_customers',label:'Customers'},
@@ -2472,6 +2474,274 @@ export default function CommandCenter() {
               )}
 
               {/* MRR: DETAILED BRIDGE + RETENTION TRENDS */}
+              {/* ══ HISTORICAL REVENUE PERFORMANCE ══════════════════════════ */}
+              {!isCohort&&activeTab==='historical_perf'&&(()=>{
+                // ── All data comes from effectiveByPeriod (same source as bridge) ──
+                const MONTHS_LIST = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                const pKeyHP = (p) => { const m=(p||'').match(/^([A-Za-z]{3})-(\d{4})$/); return m?parseInt(m[2])*100+MONTHS_LIST.indexOf(m[1]):0 }
+                const BOUNDARY = new Set(['_period','Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','_nrr','_grr','beginning','ending'])
+                const PV_CATS  = new Set(['Price Impact','Volume Impact','Price on Volume','Price','Volume'])
+
+                // ── Helper: compute metrics from one effectiveByPeriod row ──────
+                const metricsFromRow = (row) => {
+                  if (!row) return null
+                  const beg = row['Beginning ARR'] ?? row['beginning'] ?? 0
+                  const end = row['Ending ARR']    ?? row['ending']    ?? 0
+                  const movements = Object.keys(row)
+                    .filter(k => !BOUNDARY.has(k) && !PV_CATS.has(k))
+                    .map(k => ({ k, v: row[k]||0 }))
+                  // Expansion = positive non-PV movements (New Logo, Upsell, Cross-sell, Returning)
+                  const expansion   = movements.filter(x=>x.v>0).reduce((s,x)=>s+x.v,0)
+                  // Contraction = negative non-PV movements (Downsell, Churn, Churn-Partial, Lapsed)
+                  const contraction = movements.filter(x=>x.v<0).reduce((s,x)=>s+x.v,0)
+                  const upsell      = (row['Upsell']||row['Upsell_arr']||0)
+                  const crossSell   = (row['Cross-sell']||row['Cross_sell']||0)
+                  const downsell    = (row['Downsell']||0)
+                  const churn       = (row['Churn']||0) + (row['Churn-Partial']||row['Churn_Partial']||0) + (row['Lapsed']||0)
+                  const nrr  = row._nrr ?? (beg>0?(end/beg)*100:null)
+                  const grr  = row._grr ?? (beg>0?((beg+contraction)/beg)*100:null)
+                  const netExp = upsell + crossSell + downsell
+                  return { beg, end, expansion, contraction, upsell, crossSell, downsell, churn, nrr, grr, netExp }
+                }
+
+                // ── Selected period metrics (from retForPeriod — already computed) ──
+                const r   = retForPeriod || ret
+                const beg = r?.beginning || 0
+                const end = r?.ending    || 0
+                const nrr = r?.nrr  || 0
+                const grr = r?.grr  || 0
+                const selRow = effectiveByPeriod?.find(x => normalizePeriod(x._period)===normalizePeriod(selPeriod))
+                const expansion   = selRow ? Object.keys(selRow).filter(k=>!BOUNDARY.has(k)&&!PV_CATS.has(k)&&(selRow[k]||0)>0).reduce((s,k)=>s+(selRow[k]||0),0) : 0
+                const contraction = selRow ? Object.keys(selRow).filter(k=>!BOUNDARY.has(k)&&!PV_CATS.has(k)&&(selRow[k]||0)<0).reduce((s,k)=>s+(selRow[k]||0),0) : 0
+                const netExpansion = expansion + contraction
+                const nrrGrowth = nrr - 100
+
+                // ── Time series: sorted effectiveByPeriod rows ────────────────
+                const allSorted = [...(effectiveByPeriod||[])].sort((a,b)=>pKeyHP(a._period)-pKeyHP(b._period))
+
+                // ── Chart window: last N months up to selPeriod (or all) ──────
+                const selIdx = selPeriod ? allSorted.findIndex(r=>normalizePeriod(r._period)===normalizePeriod(selPeriod)) : allSorted.length-1
+                const anchor = selIdx>=0?selIdx:allSorted.length-1
+
+                // Time windows
+                const windows = [{label:'3M',n:3},{label:'6M',n:6},{label:'12M',n:12},{label:'24M',n:24}]
+                // Use selLb to determine default window
+                const chartWindow = histChartWindow
+                const setChartWindow = setHistChartWindow
+                const windowStart = Math.max(0, anchor - chartWindow + 1)
+                const chartData = allSorted.slice(windowStart, anchor+1).map(row => {
+                  const m = metricsFromRow(row)
+                  if (!m) return null
+                  return {
+                    period: row._period,
+                    nrr:    m.nrr ? parseFloat(m.nrr.toFixed(1)) : null,
+                    grr:    m.grr ? parseFloat(m.grr.toFixed(1)) : null,
+                    churnPct: m.beg>0 ? parseFloat((Math.abs(m.churn)/m.beg*100).toFixed(1)) : null,
+                    expansionPct: m.beg>0 ? parseFloat((m.expansion/m.beg*100).toFixed(1)) : null,
+                  }
+                }).filter(Boolean)
+
+                // ── Monthly Growth Audit table: all periods up to selPeriod ──
+                const auditRows = allSorted.slice(0, anchor+1).reverse().map(row => {
+                  const m = metricsFromRow(row)
+                  if (!m) return null
+                  return { period: row._period, ...m }
+                }).filter(Boolean)
+
+                // ── Seasonality: best and worst month by expansion% ───────────
+                const byMonth = {}
+                allSorted.forEach(row => {
+                  const mon = (row._period||'').split('-')[0]
+                  const m   = metricsFromRow(row)
+                  if (!mon || !m || !m.beg) return
+                  if (!byMonth[mon]) byMonth[mon] = []
+                  byMonth[mon].push(m.expansion/m.beg*100)
+                })
+                const monthAvg = Object.entries(byMonth).map(([mon,vals])=>({mon, avg:vals.reduce((s,v)=>s+v,0)/vals.length}))
+                monthAvg.sort((a,b)=>b.avg-a.avg)
+                const bestMon  = monthAvg[0]
+                const worstMon = monthAvg[monthAvg.length-1]
+
+                const fc = v => v>=0?'#4ADE80':'#F87171'
+                const fs = v => v==null?'—':(v>=0?'+':'')+v.toFixed(1)+'%'
+
+                return (
+                  <div style={{display:'flex',flexDirection:'column',gap:20}}>
+
+                    {/* ── Header ─────────────────────────────────────────── */}
+                    <div>
+                      <div style={{fontSize:20,fontWeight:800,color:'#E2E8F0',letterSpacing:'-0.02em'}}>Historical Revenue Performance</div>
+                      <div style={{fontSize:12,color:'#4A5A6E',marginTop:3}}>Longitudinal view of net retention and growth indicators · {selPeriod||'—'}</div>
+                    </div>
+
+                    {/* ── KPI Strip ──────────────────────────────────────── */}
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+                      {[
+                        {label:'NRR',        value:nrr?.toFixed(1)+'%',   sub:fs(nrrGrowth)+' vs 100%',         subGood:nrrGrowth>=0, accent:nrr>=100?'#4ADE80':'#F87171'},
+                        {label:'GRR',        value:grr?.toFixed(1)+'%',   sub:grr>=80?'Stable':'At Risk',       subGood:grr>=80,      accent:grr>=80?'#4ADE80':'#F87171'},
+                        {label:'Net Expansion', value:fmt(netExpansion),  sub:beg>0?fs(netExpansion/beg*100):null, subGood:netExpansion>=0, accent:'#CBD5E1'},
+                        {label:'LTV Proxy',  value:beg>0?(nrr/(100-grr+0.01)).toFixed(1)+'x':'—', sub:'NRR / Churn Rate', subGood:true, accent:'#CBD5E1'},
+                      ].map(k=>(
+                        <div key={k.label} style={{background:'#0F1A2E',border:`1px solid #1E2D45`,borderTop:`2px solid ${k.accent}`,borderRadius:6,padding:'14px 16px'}}>
+                          <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'#4A5A6E',marginBottom:8}}>{k.label}</div>
+                          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:22,fontWeight:700,color:k.accent,letterSpacing:'-0.02em'}}>{k.value}</div>
+                          {k.sub&&<div style={{marginTop:4,fontSize:10,color:k.subGood?'#4ADE80':'#F87171'}}>{k.sub}</div>}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* ── Main content: Chart + Seasonality ──────────────── */}
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 280px',gap:16}}>
+
+                      {/* Retention Dynamics chart */}
+                      <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,padding:'18px 20px'}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+                          <div>
+                            <div style={{fontSize:14,fontWeight:700,color:'#E2E8F0'}}>Retention Dynamics</div>
+                            <div style={{fontSize:11,color:'#4A5A6E',marginTop:2}}>NRR, GRR, Churn %, Expansion % over time</div>
+                          </div>
+                          <div style={{display:'flex',gap:4}}>
+                            {windows.map(w=>(
+                              <button key={w.label} onClick={()=>setChartWindow(w.n)}
+                                style={{padding:'3px 10px',fontSize:10,fontWeight:chartWindow===w.n?700:400,borderRadius:4,border:`1px solid ${chartWindow===w.n?'#CBD5E1':'#1E2D45'}`,background:chartWindow===w.n?'#162035':'transparent',color:chartWindow===w.n?'#CBD5E1':'#4A5A6E',cursor:'pointer'}}>
+                                {w.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{height:240}}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData} margin={{left:0,right:8,bottom:4,top:4}}>
+                              <XAxis dataKey="period" tick={{fontSize:9,fill:'#6B7280'}} interval="preserveStartEnd" axisLine={false} tickLine={false}/>
+                              <YAxis yAxisId="pct" tickFormatter={v=>`${v}%`} tick={{fontSize:9,fill:'#6B7280'}} width={42} axisLine={false} tickLine={false} domain={['dataMin - 5','dataMax + 5']}/>
+                              <ReferenceLine yAxisId="pct" y={100} stroke="#253550" strokeDasharray="4 3"/>
+                              <Tooltip
+                                contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:4,fontSize:11}}
+                                labelStyle={{color:'#64748B',fontSize:10,marginBottom:4}}
+                                formatter={(v,n)=>[v!=null?`${v.toFixed(1)}%`:'—',n]}/>
+                              <Legend iconType="circle" iconSize={6} wrapperStyle={{fontSize:10,color:'#94A3B8',paddingTop:8}}/>
+                              <Line yAxisId="pct" type="monotone" dataKey="nrr" stroke="#4ADE80" strokeWidth={2} dot={false} activeDot={{r:3}} name="NRR" connectNulls/>
+                              <Line yAxisId="pct" type="monotone" dataKey="grr" stroke="#94A3B8" strokeWidth={1.5} dot={false} activeDot={{r:3}} name="GRR" connectNulls strokeDasharray="4 2"/>
+                              <Line yAxisId="pct" type="monotone" dataKey="churnPct" stroke="#F87171" strokeWidth={1.5} dot={false} activeDot={{r:3}} name="Churn %" connectNulls/>
+                              <Line yAxisId="pct" type="monotone" dataKey="expansionPct" stroke="#22C55E" strokeWidth={1.5} dot={false} activeDot={{r:3}} name="Expansion %" connectNulls strokeDasharray="2 2"/>
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                        {/* Legend */}
+                        <div style={{display:'flex',gap:16,justifyContent:'center',marginTop:8}}>
+                          {[['NRR','#4ADE80'],['GRR','#94A3B8'],['Churn %','#F87171'],['Expansion %','#22C55E']].map(([lbl,col])=>(
+                            <span key={lbl} style={{display:'flex',alignItems:'center',gap:5,fontSize:10,color:'#64748B'}}>
+                              <span style={{width:14,height:2,background:col,borderRadius:2,display:'inline-block'}}/>
+                              {lbl}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Seasonality + Insight panel */}
+                      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                        {/* Predictive insight */}
+                        <div style={{background:'#0D1A2E',border:'1px solid #1E3A5A',borderRadius:6,padding:'14px 16px',flex:1}}>
+                          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                            <Sparkles size={11} color="#CBD5E1"/>
+                            <span style={{fontSize:11,fontWeight:600,color:'#CBD5E1'}}>Predictive Insight</span>
+                          </div>
+                          {chartData.length>=3&&(()=>{
+                            const recent = chartData.slice(-3).map(d=>d.nrr||0)
+                            const trend  = recent[2]-recent[0]
+                            const dir    = trend>0?'improved':'declined'
+                            const proj   = (recent[2]||0) + trend*2
+                            return (
+                              <div style={{fontSize:12,color:'#94A3B8',lineHeight:1.7}}>
+                                NRR has {dir} <strong style={{color:trend>0?'#4ADE80':'#F87171'}}>{Math.abs(trend).toFixed(1)} pts</strong> over {chartData.length} periods.
+                                {trend>0&&proj>100&&<> At this rate, projected NRR: <strong style={{color:'#4ADE80'}}>{proj.toFixed(0)}%</strong>.</>}
+                                {trend<=0&&<> Focus on expansion to reverse contraction trend.</>}
+                              </div>
+                            )
+                          })()}
+                          {chartData.length<3&&<div style={{fontSize:12,color:'#4A5A6E'}}>Need more periods for trend analysis.</div>}
+                        </div>
+
+                        {/* Seasonality */}
+                        <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,padding:'14px 16px'}}>
+                          <div style={{fontSize:11,fontWeight:600,color:'#CBD5E1',marginBottom:12}}>Seasonality Impact</div>
+                          {bestMon&&(
+                            <div style={{marginBottom:10}}>
+                              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:4}}>
+                                <span style={{color:'#94A3B8'}}>{bestMon.mon} Expansion</span>
+                                <span style={{color:'#4ADE80',fontWeight:600}}>+{bestMon.avg.toFixed(1)}%</span>
+                              </div>
+                              <div style={{height:4,background:'#1E2D45',borderRadius:2}}>
+                                <div style={{height:'100%',background:'#4ADE80',borderRadius:2,width:`${Math.min(bestMon.avg*4,100)}%`}}/>
+                              </div>
+                            </div>
+                          )}
+                          {worstMon&&(
+                            <div>
+                              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:4}}>
+                                <span style={{color:'#94A3B8'}}>{worstMon.mon} Risk</span>
+                                <span style={{color:'#F87171',fontWeight:600}}>{worstMon.avg.toFixed(1)}%</span>
+                              </div>
+                              <div style={{height:4,background:'#1E2D45',borderRadius:2}}>
+                                <div style={{height:'100%',background:'#F87171',borderRadius:2,width:`${Math.min(Math.abs(worstMon.avg)*4,100)}%`}}/>
+                              </div>
+                              <div style={{fontSize:10,color:'#3D5068',marginTop:6,lineHeight:1.5}}>
+                                {worstMon.mon} historically shows lowest expansion. Plan campaigns accordingly.
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Monthly Growth Audit ────────────────────────────── */}
+                    <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,overflow:'hidden'}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}>
+                        <div>
+                          <div style={{fontSize:14,fontWeight:700,color:'#E2E8F0'}}>Monthly Growth Audit</div>
+                          <div style={{fontSize:11,color:'#4A5A6E',marginTop:2}}>Expansion = Upsell + Cross-sell · Contraction = Downsell + Churn · All figures from bridge classification</div>
+                        </div>
+                        {isAdmin&&<button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:600,color:'#4ADE80',background:'transparent',border:'none',cursor:'pointer'}}><Download size={12}/> Export CSV</button>}
+                      </div>
+                      <div style={{overflowX:'auto'}}>
+                        <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
+                          <thead>
+                            <tr style={{background:'#162035',borderBottom:'1px solid #1E2D45'}}>
+                              {['Fiscal Month','Net Retention','Gross Retention','Expansion MRR','Contraction MRR','Momentum'].map((h,i)=>(
+                                <th key={h} style={{padding:'10px 16px',textAlign:i===0?'left':'right',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#4A5A6E',whiteSpace:'nowrap'}}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {auditRows.slice(0,24).map((row,i)=>{
+                              const isSel = normalizePeriod(row.period)===normalizePeriod(selPeriod)
+                              const momScore = row.nrr!=null?(row.nrr>=110?3:row.nrr>=100?2:1):0
+                              const momColor = momScore===3?'#4ADE80':momScore===2?'#CBD5E1':'#F87171'
+                              return (
+                                <tr key={i} style={{borderBottom:'1px solid #1E2D45',background:isSel?'#162035':'transparent'}}
+                                  onMouseEnter={e=>!isSel&&(e.currentTarget.style.background='#0D1525')}
+                                  onMouseLeave={e=>!isSel&&(e.currentTarget.style.background='transparent')}>
+                                  <td style={{padding:'11px 16px',fontWeight:isSel?700:500,color:isSel?'#E2E8F0':'#94A3B8',fontFamily:"'JetBrains Mono',monospace"}}>{row.period}</td>
+                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:row.nrr>=100?'#4ADE80':row.nrr>=80?'#FCD34D':'#F87171'}}>{row.nrr!=null?row.nrr.toFixed(1)+'%':'—'}</td>
+                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:row.grr>=80?'#4ADE80':'#F87171'}}>{row.grr!=null?row.grr.toFixed(1)+'%':'—'}</td>
+                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:'#4ADE80'}}>{row.expansion>0?'+'+fmt(row.expansion):'—'}</td>
+                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:'#F87171'}}>{row.contraction<0?fmt(row.contraction):'—'}</td>
+                                  <td style={{padding:'11px 16px',textAlign:'right'}}>
+                                    <span style={{display:'inline-flex',gap:2}}>
+                                      {[1,2,3].map(n=><span key={n} style={{width:5,height:14,borderRadius:1,background:n<=momScore?momColor:'#1E2D45',display:'inline-block'}}/>)}
+                                    </span>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
               {!isCohort&&activeTab==='retention_trend'&&(
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
 
