@@ -708,176 +708,67 @@ export default function CommandCenter() {
   }, [file, results])
 
   // ── Effective by_period ─────────────────────────────────────────────────────
-  // Builds {_period, 'Beginning ARR', 'Ending ARR', 'New Logo', 'Upsell', ...}
-  // for every month. Uses client-side bridge computation from raw file, 
-  // then falls back to API data.
+  // Source priority (most → least reliable):
+  //   1. results.output grouped by date+lb  — API bridge output rows, complete
+  //   2. results.bridge[lb].by_period       — API pre-aggregated per period
+  //   3. results.kpi_matrix                 — API annual summary (last resort)
+  //   4. rawFileRows client bridge           — only when API has no monthly data
   const effectiveByPeriod = useMemo(() => {
     if (!results) return []
 
     const MONTHS_ARR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const pKey = (p) => { const m = p?.match(/^([A-Za-z]{3})-(\d{4})$/); return m ? parseInt(m[2])*100+MONTHS_ARR.indexOf(m[1]) : 0 }
+    const isMonthPeriod = (p) => /^[A-Za-z]{3}-\d{4}$/.test(p||'')
 
-    // ── SOURCE 1: client-side bridge from raw MRR file ───────────────────────
-    if (rawFileRows.length > 0) {
-      const cols = Object.keys(rawFileRows[0])
-      
-      // Detect columns
-      const custKey = cols.find(k => /customer.?(name|id)?$/i.test(k) || /^customer$/i.test(k) || /account/i.test(k)) || fieldMap.customer
-      const dateKey = cols.find(k => /^date$/i.test(k) || /activity.?date/i.test(k) || /^period$/i.test(k)) || fieldMap.date
-      const arrKey  = cols.find(k => /^arr$/i.test(k) || /^mrr$/i.test(k) || /revenue/i.test(k) || /amount/i.test(k)) || fieldMap.revenue
-
-      console.log('[RL] ebp rawFile: custKey=',custKey,'dateKey=',dateKey,'arrKey=',arrKey)
-
-      if (custKey && dateKey && arrKey) {
-        // Build snapshot: {date → {customer → ARR}}
-        const snapshots = new Map() // normalized period → {customer → ARR}
-        const allPeriods = new Set()
-
-        rawFileRows.forEach(row => {
-          const period = normalizePeriod(String(row[dateKey] || ''))
-          if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return
-          const cust = String(row[custKey] || '').trim()
-          const arr  = parseFloat(String(row[arrKey] || '0').replace(/,/g,'')) || 0
-          if (!cust) return
-          allPeriods.add(period)
-          if (!snapshots.has(period)) snapshots.set(period, new Map())
-          // Sum ARR per customer per period (in case of multiple rows)
-          const snap = snapshots.get(period)
-          snap.set(cust, (snap.get(cust) || 0) + arr)
-        })
-
-        if (allPeriods.size < 2) {
-          console.log('[RL] ebp rawFile: not enough periods:', allPeriods.size)
-        } else {
-          // Sort periods chronologically
-          const sortKey = (p) => {
-            const m = p.match(/^([A-Za-z]{3})-(\d{4})$/)
-            if (!m) return 0
-            return parseInt(m[2]) * 100 + MONTHS_ARR.indexOf(m[1])
-          }
-          const sortedPeriods = Array.from(allPeriods).sort((a,b) => sortKey(a) - sortKey(b))
-
-          // Compute bridge for each period vs selLb months prior
-          const periodMap = new Map()
-
-          sortedPeriods.forEach((period, idx) => {
-            const curSnap = snapshots.get(period)
-
-            // Find prior period (selLb months back) by date arithmetic
-            const curKey = sortKey(period)
-            const curYr  = Math.floor(curKey / 100)
-            const curMo  = curKey % 100 // 0-indexed
-            const priorDate = new Date(curYr, curMo, 1)
-            priorDate.setMonth(priorDate.getMonth() - selLb)
-            const priorPeriodStr = MONTHS_ARR[priorDate.getMonth()] + '-' + priorDate.getFullYear()
-            const priorSnap = snapshots.get(priorPeriodStr) || new Map()
-
-            // All customers in either period
-            const allCusts = new Set([...curSnap.keys(), ...priorSnap.keys()])
-
-            let begARR = 0, endARR = 0
-            let newLogo = 0, upsell = 0, downsell = 0, churn = 0, returning = 0, lapsed = 0
-
-            allCusts.forEach(cust => {
-              const cur  = curSnap.get(cust)  || 0
-              const prev = priorSnap.get(cust) || 0
-              begARR += prev
-              endARR += cur
-
-              // ── Classification order: Returning → New Logo → Upsell → Downsell → Churn → Lapsed ──
-
-              if (prev === 0 && cur > 0) {
-                // Customer has revenue now but not in prior period.
-                // Check if they had revenue in ANY period BEFORE the prior period.
-                // If yes → Returning. If no → New Logo.
-                const priorKey  = sortKey(priorPeriodStr)
-                const hasHistory = sortedPeriods.some(p => {
-                  if (sortKey(p) >= priorKey) return false   // only periods before prior
-                  return (snapshots.get(p)?.get(cust) || 0) > 0
-                })
-                if (hasHistory) returning += cur   // Returning: was gone, came back
-                else            newLogo   += cur   // New Logo: genuinely first time
-
-              } else if (prev > 0 && cur === 0) {
-                // Customer had revenue in prior period but has none now.
-                // Lapsed: moved to zero (not counted as Churn to avoid double-count).
-                lapsed += -prev                    // Lapsed (negative — revenue lost)
-
-              } else if (cur > prev) {
-                upsell   += cur - prev             // Upsell (positive delta)
-
-              } else if (cur < prev) {
-                downsell += cur - prev             // Downsell (negative delta)
-
-              }
-              // cur === prev && both > 0 → retained, no bridge movement (correct)
-              // cur === 0 && prev === 0 → customer absent both periods, skip (correct)
-            })
-
-            periodMap.set(period, {
-              _period:         period,
-              'Beginning ARR': begARR,
-              'Ending ARR':    endARR,
-              'New Logo':      newLogo,
-              'Upsell':        upsell,
-              'Downsell':      downsell,
-              'Churn':         churn,      // kept for API-sourced data compatibility
-              'Returning':     returning,
-              'Lapsed':        lapsed,
-            })
-          })
-
-          const result = Array.from(periodMap.values())
-          console.log('[RL] ebp rawFile bridge: periods=', result.length, 'last=', result[result.length-1]?._period, 'beg=', result[result.length-1]?.['Beginning ARR'])
-          if (result.length >= 2) return result
-        }
-      }
-    }
-
-    // ── SOURCE 2: API by_period (normalize _period format) ───────────────────
-    const byPeriod = results?.bridge?.[String(selLb)]?.by_period
-    if (byPeriod?.length > 0) {
-      const normalized = byPeriod.map(r => ({
-        ...r,
-        _period: normalizePeriod(r._period || r.period || '')
-      })).filter(r => /^[A-Za-z]{3}-\d{4}$/.test(r._period))
-      if (normalized.length >= 2) {
-        console.log('[RL] ebp by_period:', normalized.length, 'periods, last=', normalized[normalized.length-1]?._period)
-        return normalized
-      }
-    }
-
-    // ── SOURCE 3: results.output (may be truncated) ───────────────────────────
+    // ── SOURCE 1: results.output — raw bridge output rows grouped by date+lb ──
     if (results.output?.length > 0) {
       const firstRow = results.output[0]
       const cols = Object.keys(firstRow)
-      const dateKey = cols.find(k => /^date$/i.test(k)) || cols.find(k => /activity.?date/i.test(k))
-      const catKey  = cols.find(k => /^classification$/i.test(k)) || cols.find(k => /bridge.?class/i.test(k))
-      const valKey  = cols.find(k => /^amount$/i.test(k)) || cols.find(k => /bridge.?value/i.test(k))
-      const lbKey   = cols.find(k => /month.?lookback/i.test(k))
+      const dateKey = cols.find(k => /^date$/i.test(k)) || cols.find(k => /activity.?date/i.test(k)) || cols.find(k => /^period$/i.test(k))
+      const catKey  = cols.find(k => /^classification$/i.test(k)) || cols.find(k => /bridge.?class/i.test(k)) || cols.find(k => /^category$/i.test(k))
+      const valKey  = cols.find(k => /^amount$/i.test(k)) || cols.find(k => /bridge.?value/i.test(k)) || cols.find(k => /^value$/i.test(k))
+      const lbKey   = cols.find(k => /month.?lookback/i.test(k)) || cols.find(k => /^lookback$/i.test(k))
       if (dateKey && catKey && valKey) {
         const periodMap = new Map()
         results.output.forEach(row => {
           if (lbKey && parseInt(String(row[lbKey])) !== selLb) return
           const period = normalizePeriod(String(row[dateKey] || ''))
-          if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return
+          if (!isMonthPeriod(period)) return
           if (!periodMap.has(period)) periodMap.set(period, { _period: period })
           const pRow = periodMap.get(period)
           const cat = String(row[catKey] || '').trim()
           const val = parseFloat(String(row[valKey])) || 0
           if (cat) pRow[cat] = (pRow[cat] || 0) + val
         })
-        if (periodMap.size >= 12) return Array.from(periodMap.values())
+        if (periodMap.size >= 12) {
+          const arr = Array.from(periodMap.values()).sort((a,b) => pKey(a._period)-pKey(b._period))
+          console.log('[RL] ebp source1 output:', arr.length, 'periods')
+          return arr
+        }
       }
     }
 
-    // ── SOURCE 4: kpi_matrix ──────────────────────────────────────────────────
+    // ── SOURCE 2: results.bridge[lb].by_period — API per-period aggregates ───
+    const byPeriod = results.bridge?.[String(selLb)]?.by_period
+    if (byPeriod?.length > 0) {
+      const normalized = byPeriod
+        .map(r => ({ ...r, _period: normalizePeriod(r._period || r.period || '') }))
+        .filter(r => isMonthPeriod(r._period))
+        .sort((a,b) => pKey(a._period)-pKey(b._period))
+      if (normalized.length >= 2) {
+        console.log('[RL] ebp source2 by_period:', normalized.length, 'periods')
+        return normalized
+      }
+    }
+
+    // ── SOURCE 3: kpi_matrix — API monthly KPI rows ───────────────────────────
     if (results.kpi_matrix?.length > 0) {
       const pick = (obj, ...keys) => { for (const k of keys) { if (obj[k] != null) return obj[k] } return undefined }
       const lbField = Object.keys(results.kpi_matrix[0]).find(k => /lookback/i.test(k))
       const src = lbField ? results.kpi_matrix.filter(r => parseInt(String(r[lbField])) === selLb) : results.kpi_matrix
       const rows = (src.length > 0 ? src : results.kpi_matrix).map(r => {
         const period = normalizePeriod(String(pick(r,'period','Period','month','date') || ''))
-        if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return null
+        if (!isMonthPeriod(period)) return null
         return {
           _period:         period,
           'Beginning ARR': pick(r,'beginning_arr','beginning','beg_arr') ?? 0,
@@ -886,11 +777,148 @@ export default function CommandCenter() {
           'Upsell':        pick(r,'upsell','expansion') ?? 0,
           'Downsell':      pick(r,'downsell','contraction') ?? 0,
           'Churn':         pick(r,'churn','churn_arr') ?? 0,
+          'Returning':     pick(r,'returning') ?? 0,
+          'Lapsed':        pick(r,'lapsed') ?? 0,
           _nrr:            pick(r,'nrr','net_retention') ?? null,
           _grr:            pick(r,'grr','gross_retention') ?? null,
         }
-      }).filter(Boolean)
-      if (rows.length > 0) return rows
+      }).filter(Boolean).sort((a,b) => pKey(a._period)-pKey(b._period))
+      if (rows.length >= 2) {
+        console.log('[RL] ebp source3 kpi_matrix:', rows.length, 'periods')
+        return rows
+      }
+    }
+
+    // ── SOURCE 4: client-side bridge from raw file (last resort) ─────────────
+    // Only used when API returns no monthly data at all.
+    // Classifies at ATOMIC level first (Cust+Prod+Chan+Reg), then rolls up to selDims.
+    // This ensures Cross-sell/Churn-Partial only appear at correct aggregation levels.
+    if (rawFileRows.length > 0) {
+      const cols = Object.keys(rawFileRows[0])
+      // Detect column keys from file headers or fieldMap
+      const custKey    = cols.find(k => /customer.?name/i.test(k)) || cols.find(k => /^customer$/i.test(k)) || fieldMap.customer
+      const dateKey    = cols.find(k => /^date$/i.test(k)) || cols.find(k => /^period$/i.test(k)) || fieldMap.date
+      const arrKey     = cols.find(k => /^arr$/i.test(k)) || cols.find(k => /^mrr$/i.test(k)) || cols.find(k => /^revenue$/i.test(k)) || fieldMap.revenue
+      const productKey = cols.find(k => /^product/i.test(k)) || fieldMap.product || null
+      const channelKey = cols.find(k => /^channel/i.test(k)) || fieldMap.channel || null
+      const regionKey  = cols.find(k => /^region/i.test(k)) || fieldMap.region  || null
+      console.log('[RL] ebp source4 rawFile: custKey=',custKey,'dateKey=',dateKey,'arrKey=',arrKey,'prod=',productKey,'chan=',channelKey,'reg=',regionKey)
+      if (custKey && dateKey && arrKey) {
+        // ── STEP 1: Build atomic snapshots ────────────────────────────────────
+        // Key = Customer + Product + Channel + Region (atomic level)
+        // snapshots: period → Map<atomicKey, {arr, cust, prod, chan, reg}>
+        const snapshots  = new Map() // period → Map<atomicKey, arr>
+        const custSnaps  = new Map() // period → Map<custKey, arr>  (for customer-level rollup)
+        const allPeriods = new Set()
+        rawFileRows.forEach(row => {
+          const period = normalizePeriod(String(row[dateKey] || ''))
+          if (!isMonthPeriod(period)) return
+          const cust = String(row[custKey] || '').trim()
+          const prod = productKey ? String(row[productKey] || '').trim() : ''
+          const chan = channelKey ? String(row[channelKey] || '').trim() : ''
+          const reg  = regionKey  ? String(row[regionKey]  || '').trim() : ''
+          const arr  = parseFloat(String(row[arrKey] || '0').replace(/,/g,'')) || 0
+          if (!cust) return
+          allPeriods.add(period)
+          // Atomic snapshot
+          const atomicK = [cust, prod, chan, reg].filter(Boolean).join('|||')
+          if (!snapshots.has(period)) snapshots.set(period, new Map())
+          const snap = snapshots.get(period)
+          snap.set(atomicK, { arr: (snap.get(atomicK)?.arr||0) + arr, cust, prod, chan, reg })
+          // Customer-level snapshot (for customer rollup)
+          if (!custSnaps.has(period)) custSnaps.set(period, new Map())
+          const cSnap = custSnaps.get(period)
+          cSnap.set(cust, (cSnap.get(cust)||0) + arr)
+        })
+        if (allPeriods.size >= 2) {
+          const sortedPeriods = Array.from(allPeriods).sort((a,b) => pKey(a)-pKey(b))
+          const periodMap = new Map()
+          sortedPeriods.forEach(period => {
+            const priorDate = new Date(Math.floor(pKey(period)/100), pKey(period)%100, 1)
+            priorDate.setMonth(priorDate.getMonth() - selLb)
+            const priorStr  = MONTHS_ARR[priorDate.getMonth()] + '-' + priorDate.getFullYear()
+            const priorK    = pKey(priorStr)
+
+            // ── STEP 2: Classify at ATOMIC level ──────────────────────────────
+            const curAtomic  = snapshots.get(period)  || new Map()
+            const prevAtomic = snapshots.get(priorStr) || new Map()
+            const allAtomics = new Set([...curAtomic.keys(), ...prevAtomic.keys()])
+
+            // Atomic-level bridge accumulators
+            let beg=0, end=0, newLogo=0, crossSell=0, returning=0
+            let upsell=0, downsell=0, churnPartial=0, churn=0, lapsed=0, otherIn=0, otherOut=0
+
+            allAtomics.forEach(atomicKey => {
+              const curEntry  = curAtomic.get(atomicKey)
+              const prevEntry = prevAtomic.get(atomicKey)
+              const cur  = curEntry?.arr  || 0
+              const prev = prevEntry?.arr || 0
+              const custId = (curEntry||prevEntry)?.cust || ''
+              beg += prev
+              end += cur
+
+              if (prev === 0 && cur > 0) {
+                // Check full history for this atomic key before prior period
+                const hasAtomicHist = sortedPeriods.some(p =>
+                  pKey(p) < priorK && (snapshots.get(p)?.get(atomicKey)?.arr||0) > 0
+                )
+                if (hasAtomicHist) {
+                  returning += cur  // Was in this exact atomic combo before → Returning
+                } else {
+                  // New to this atomic combo. Was the CUSTOMER already present in prior period?
+                  const custPrevARR = (custSnaps.get(priorStr)?.get(custId)||0)
+                  if (custPrevARR > 0) crossSell += cur  // Customer existed → Cross-sell (new product/channel)
+                  else                 newLogo   += cur  // Customer brand new → New Logo
+                }
+              } else if (prev > 0 && cur === 0) {
+                // Atomic combo gone. Is the customer still present this period?
+                const custCurARR = (custSnaps.get(period)?.get(custId)||0)
+                if (custCurARR > 0) churnPartial += -prev // Customer kept other products → Churn-Partial
+                else                lapsed       += -prev // Customer fully gone → Lapsed
+              } else if (cur > prev) {
+                upsell   += cur - prev
+              } else if (cur < prev) {
+                downsell += cur - prev
+              }
+            })
+
+            // ── STEP 3: Roll up to selected dimension level ────────────────────
+            // For customer level: aggregate atomic movements, suppress Cross-sell & Churn-Partial
+            // (these can't be observed when products are summed)
+            // At customer level, Cross-sell rolls into Upsell; Churn-Partial rolls into Downsell/Churn
+            const movements = (() => {
+              if (selDims === 'customer') {
+                // Roll Cross-sell into New Logo (same customer ARR increase, product detail lost)
+                // Roll Churn-Partial into Lapsed (revenue gone, customer status unknown without product detail)
+                return {
+                  'New Logo':  newLogo + crossSell,    // Cross-sell looks like expansion at cust level
+                  'Upsell':    upsell,
+                  'Downsell':  downsell,
+                  'Returning': returning,
+                  'Lapsed':    lapsed + churnPartial,  // Churn-Partial rolls into Lapsed at cust level
+                }
+              }
+              // Customer × Product or deeper: show all movements
+              return { 'New Logo':newLogo, 'Cross-sell':crossSell, 'Returning':returning,
+                       'Upsell':upsell, 'Downsell':downsell,
+                       'Churn-Partial':churnPartial, 'Churn':churn,
+                       'Lapsed':lapsed, 'Other In':otherIn, 'Other Out':otherOut }
+            })()
+
+            periodMap.set(period, {
+              _period: period,
+              'Beginning ARR': beg,
+              'Ending ARR':    end,
+              ...movements,
+            })
+          })
+          const result = Array.from(periodMap.values())
+          if (result.length >= 2) {
+            console.log('[RL] ebp source4 rawFile bridge:', result.length, 'periods')
+            return result
+          }
+        }
+      }
     }
 
     return []
