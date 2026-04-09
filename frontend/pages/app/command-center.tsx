@@ -162,7 +162,7 @@ const THEMES = {
 }
 
 // Active theme — resolved inside component via: const T = THEMES[themeMode]
- — will be driven by state in component, defaulting to dark
+// — will be driven by state in component, defaulting to dark
 // Usage: T.growth, T.bgSurface, T.textPrimary etc.
 
 // ─── Bridge color semantics ───────────────────────────────────────────────────
