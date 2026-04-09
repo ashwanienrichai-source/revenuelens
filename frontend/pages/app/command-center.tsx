@@ -343,7 +343,8 @@ function genNarrative(ret, movers) {
 }
 
 // ─── Upload Timer ─────────────────────────────────────────────────────────────
-function UploadTimer({active}) {
+function UploadTimer({active,theme=null}) {
+  const T = theme || THEMES.dark
   const [s,setS]=useState(0)
   useEffect(()=>{ if(!active){setS(0);return}; const t=setInterval(()=>setS(n=>n+1),1000); return()=>clearInterval(t) },[active])
   if(!active) return null
@@ -351,7 +352,7 @@ function UploadTimer({active}) {
   const msg=s<8?'Connecting…':s<25?'Waking API…':s<55?'Crunching numbers…':'Almost there…'
   return (
     <div className="mt-3">
-      <div className="flex justify-between mb-1"><span className="text-[10px] text-[#4A5A7A]">{msg}</span><span className="text-[10px] font-bold" style={{color:T.growth}}>{s}s</span></div>
+      <div className="flex justify-between mb-1"><span className="text-[10px]" style={{color:T.textMuted}}>{msg}</span><span className="text-[10px] font-bold" style={{color:T.growth}}>{s}s</span></div>
       <div className="h-1 rounded-full overflow-hidden" style={{background:T.borderDefault}}>
         <div className="h-full rounded-full transition-all duration-1000" style={{width:`${pct}%`,background:T.selectionBg}}/>
       </div>
@@ -361,15 +362,16 @@ function UploadTimer({active}) {
 }
 
 // ─── KPI Chip ─────────────────────────────────────────────────────────────────
-function KpiChip({label,value,sub,subGood,accent}) {
+function KpiChip({label,value,sub,subGood,accent,theme=null}) {
+  const T = theme || THEMES.dark
   const subColor = subGood===true?T.growth:subGood===false?T.decline:T.textTertiary
   const valColor = subGood===true&&(String(sub||'').includes('Healthy')||String(label||'').includes('Net'))?T.growth
     :subGood===false&&(String(sub||'').includes('Risk')||String(sub||'').includes('Alert'))?T.decline:T.textPrimary
   return (
     <div style={{
       background:  T.bgSurface,
-      border:      '1px solid #1E2D45',
-      borderTop:   accent ? '2px solid #253550' : '1px solid #1E2D45',
+      border:      `1px solid ${T.borderDefault}`,
+      borderTop:   accent ? `2px solid ${T.borderStrong}` : `1px solid ${T.borderDefault}`,
       borderRadius:6,
       padding:     '12px 14px',
     }}>
@@ -388,14 +390,15 @@ function KpiChip({label,value,sub,subGood,accent}) {
   )
 }
 // ─── Mover Card — enriched PE-grade analytics view ─────────────────────────
-function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingArr,beginningArr,region,product}) {
+function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingArr,beginningArr,region,product,theme=null}) {
+  const T = theme || THEMES.dark
   const abs   = Math.abs(value||0)
   const letter = String(customer||'?')[0].toUpperCase()
   const avatarColors = [
-    {bg:'rgba(45,212,191,0.12)', text:THEMES.dark.growth},
+    {bg:`${T.growth}1F`, text:T.growth},
     {bg:'rgba(148,163,184,0.1)',text:T.textSecondary},
     {bg:'rgba(251,191,36,0.1)', text:T.warning},
-    {bg:'rgba(248,113,113,0.1)',text:THEMES.dark.decline},
+    {bg:`${T.decline}1A`, text:T.decline},
     {bg:'rgba(167,139,250,0.1)',text:T.insight},
   ]
   const av = avatarColors[rank % avatarColors.length]
@@ -407,13 +410,12 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
     if (health != null) return Math.round(health)
     return null
   })()
-  const _t=THEMES.dark
-  const healthColor = healthScore==null?_t.textTertiary:healthScore>=100?_t.growth:healthScore>=80?_t.warning:_t.decline
+  const healthColor = healthScore==null?T.textTertiary:healthScore>=100?T.growth:healthScore>=80?T.warning:T.decline
 
   const flag = isRisk
     ? (healthScore!=null&&healthScore<50?'HIGH RISK':'AT RISK')
     : (healthScore!=null&&healthScore>=110?'EXPANDING':'OPPORTUNITY')
-  const flagColor = isRisk ? _t.decline : _t.growth
+  const flagColor = isRisk ? T.decline : T.growth
 
   const arrDisplay = arr||endingArr||(abs*5)
   const changeBarPct = arrDisplay>0 ? Math.min((abs/arrDisplay)*100, 100) : Math.min(abs/50000*100,100)
@@ -422,11 +424,11 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
     <div style={{
       padding:'12px 14px',borderRadius:6,
       background:T.bgSurface,
-      border:`1px solid ${isRisk?'rgba(248,113,113,0.12)':'rgba(74,222,128,0.1)'}`,
+      border:`1px solid ${isRisk?`${T.decline}20`:`${T.growth}1A`}`,
       marginBottom:6,transition:'border-color 0.12s',cursor:'default',
     }}
-    onMouseEnter={e=>e.currentTarget.style.borderColor=isRisk?'rgba(248,113,113,0.28)':`${T.growth}33`2)'}
-    onMouseLeave={e=>e.currentTarget.style.borderColor=isRisk?'rgba(248,113,113,0.12)':'rgba(74,222,128,0.1)'}>
+    onMouseEnter={e=>e.currentTarget.style.borderColor=isRisk?`${T.decline}45`:`${T.growth}33`}
+    onMouseLeave={e=>e.currentTarget.style.borderColor=isRisk?`${T.decline}20`:`${T.growth}1A`}>
 
       <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
         {/* Avatar */}
@@ -550,7 +552,8 @@ function buildWaterfallSteps(data) {
   return steps
 }
 
-function WaterfallBridge({data, showBoundary=false, height=280}) {
+function WaterfallBridge({data, showBoundary=false, height=280, theme=null}) {
+  const T = theme || THEMES.dark
   if(!data?.length) return <div style={{height:180,display:'flex',alignItems:'center',justifyContent:'center',color:T.textSecondary,fontSize:13}}>No bridge data</div>
 
   const BOUNDARY = new Set(['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Beginning MRR or ARR','Ending MRR or ARR','Prior ACV','Ending ACV'])
@@ -728,6 +731,7 @@ function CustomerCountPivot({pivot,theme=null}) {
 
 // ─── KPI Summary Table ────────────────────────────────────────────────────────
 function KpiSummaryTable({rows}) {
+  const T = THEMES.dark
   if(!rows?.length) return null
   const fV=v=>{if(v==null||v===0)return'—';const a=Math.abs(v);if(a>=1e6)return`$${(v/1e6).toFixed(1)}M`;if(a>=1e3)return`$${(v/1e3).toFixed(0)}K`;return`$${v.toFixed(0)}`}
   const fP=v=>v==null?'—':`${v.toFixed(1)}%`
@@ -763,7 +767,8 @@ function KpiSummaryTable({rows}) {
 }
 
 // ─── Cohort Heatmap ───────────────────────────────────────────────────────────
-function CohortHeatmap({data,title,isPercent}) {
+function CohortHeatmap({data,title,isPercent,theme=null}) {
+  const T = theme || THEMES.dark
   if(!data?.length) return <div style={{color:T.textSecondary,textAlign:'center',padding:24,fontSize:13}}>No data</div>
   const allKeys=Array.from(new Set(data.flatMap(r=>Object.keys(r).filter(k=>k!=='cohort')))).sort((a,b)=>Number(a)-Number(b))
   const allVals=data.flatMap(r=>allKeys.map(k=>r[k]||0)).filter(v=>v>0)
@@ -809,6 +814,7 @@ function CohortHeatmap({data,title,isPercent}) {
 
 // ─── Field Row ────────────────────────────────────────────────────────────────
 function FieldRow({label,required,value,columns,onChange,showError}) {
+  const T = THEMES.dark
   return (
     <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',borderBottom:`1px solid ${T.borderDefault}`}}>
       <div style={{flex:1,fontSize:11,color:T.textSecondary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</div>
@@ -2057,7 +2063,7 @@ export default function CommandCenter() {
               :file&&columns.length?(<div><CheckCircle size={18} color="#4ADE80" style={{margin:'0 auto 4px'}}/><div style={{fontSize:11,fontWeight:700,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div><div style={{fontSize:10,color:T.textSecondary}}>{rowCount.toLocaleString()} rows · {columns.length} cols</div><button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{fontSize:9,color:T.growth,background:'none',border:'none',cursor:'pointer',fontWeight:500,marginTop:4}}>Change file</button></div>)
               :(<div><Upload size={18} color="#5A7294" style={{margin:'0 auto 6px'}}/><div style={{fontSize:11,color:T.textSecondary,fontWeight:600}}>Click or drag file</div><div style={{fontSize:10,color:T.textTertiary,marginTop:2}}>CSV or Excel</div></div>)}
             </div>
-            <UploadTimer active={uploading}/>
+            <UploadTimer active={uploading} theme={T}/>
           </div>
 
           {/* STEP 2: Engine */}
@@ -2318,19 +2324,19 @@ export default function CommandCenter() {
             <div style={{padding:'14px 28px',borderBottom:`1px solid ${T.borderDefault}`,background:T.bgPage,flexShrink:0}}>
               <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10}}>
                 {isCohort?(<>
-                  <KpiChip label="Total Revenue"  value={fmt(results.summary?.total_revenue)} accent/>
-                  <KpiChip label="Customers"      value={(results.summary?.n_customers||0).toLocaleString()}/>
-                  <KpiChip label="Rev / Customer" value={fmt(results.summary?.rev_per_customer)}/>
-                  <KpiChip label="Rows"           value={(results.summary?.rows_analyzed||0).toLocaleString()}/>
-                  <KpiChip label="Cohort Columns" value={(results.summary?.cohort_cols?.length||0).toString()}/>
-                  <KpiChip label="Fiscal Years"   value={(results.fiscal_years?.length||0).toString()}/>
+                  <KpiChip theme={T} label="Total Revenue"  value={fmt(results.summary?.total_revenue)} accent/>
+                  <KpiChip theme={T} label="Customers"      value={(results.summary?.n_customers||0).toLocaleString()}/>
+                  <KpiChip theme={T} label="Rev / Customer" value={fmt(results.summary?.rev_per_customer)}/>
+                  <KpiChip theme={T} label="Rows"           value={(results.summary?.rows_analyzed||0).toLocaleString()}/>
+                  <KpiChip theme={T} label="Cohort Columns" value={(results.summary?.cohort_cols?.length||0).toString()}/>
+                  <KpiChip theme={T} label="Fiscal Years"   value={(results.fiscal_years?.length||0).toString()}/>
                 </>):(<>
-                  <KpiChip label="Starting ARR"    value={fmt(toARR((retForPeriod||ret)?.beginning))} accent/>
-                  <KpiChip label="Ending ARR"      value={fmt(toARR((retForPeriod||ret)?.ending))} sub={(retForPeriod||ret)?.beginning>0?`${((((retForPeriod||ret)?.ending||0)-((retForPeriod||ret)?.beginning||0))/((retForPeriod||ret)?.beginning||1)*100).toFixed(1)}%`:null} subGood={((retForPeriod||ret)?.ending||0)>=((retForPeriod||ret)?.beginning||0)}/>
-                  <KpiChip label="New ARR"         value={fmt(toARR((retForPeriod||ret)?.new_arr))} sub={(retForPeriod||ret)?.new_arr>0?`+${fmt((retForPeriod||ret)?.new_arr)}`:null} subGood={true}/>
-                  <KpiChip label="Lost ARR"        value={fmt(Math.abs(toARR((retForPeriod||ret)?.lost_arr)||0))} sub={(retForPeriod||ret)?.lost_arr<0?fmt((retForPeriod||ret)?.lost_arr):null} subGood={false}/>
-                  <KpiChip label="Net Retention"   value={fmtPct((retForPeriod||ret)?.nrr)} sub={((retForPeriod||ret)?.nrr||0)>=100?'Healthy':'At Risk'} subGood={((retForPeriod||ret)?.nrr||0)>=100}/>
-                  <KpiChip label="Gross Retention" value={fmtPct((retForPeriod||ret)?.grr)} sub={((retForPeriod||ret)?.grr||0)>=80?'Strong':'Alert'} subGood={((retForPeriod||ret)?.grr||0)>=80}/>
+                  <KpiChip theme={T} label="Starting ARR"    value={fmt(toARR((retForPeriod||ret)?.beginning))} accent/>
+                  <KpiChip theme={T} label="Ending ARR"      value={fmt(toARR((retForPeriod||ret)?.ending))} sub={(retForPeriod||ret)?.beginning>0?`${((((retForPeriod||ret)?.ending||0)-((retForPeriod||ret)?.beginning||0))/((retForPeriod||ret)?.beginning||1)*100).toFixed(1)}%`:null} subGood={((retForPeriod||ret)?.ending||0)>=((retForPeriod||ret)?.beginning||0)}/>
+                  <KpiChip theme={T} label="New ARR"         value={fmt(toARR((retForPeriod||ret)?.new_arr))} sub={(retForPeriod||ret)?.new_arr>0?`+${fmt((retForPeriod||ret)?.new_arr)}`:null} subGood={true}/>
+                  <KpiChip theme={T} label="Lost ARR"        value={fmt(Math.abs(toARR((retForPeriod||ret)?.lost_arr)||0))} sub={(retForPeriod||ret)?.lost_arr<0?fmt((retForPeriod||ret)?.lost_arr):null} subGood={false}/>
+                  <KpiChip theme={T} label="Net Retention"   value={fmtPct((retForPeriod||ret)?.nrr)} sub={((retForPeriod||ret)?.nrr||0)>=100?'Healthy':'At Risk'} subGood={((retForPeriod||ret)?.nrr||0)>=100}/>
+                  <KpiChip theme={T} label="Gross Retention" value={fmtPct((retForPeriod||ret)?.grr)} sub={((retForPeriod||ret)?.grr||0)>=80?'Strong':'Alert'} subGood={((retForPeriod||ret)?.grr||0)>=80}/>
                 </>)}
               </div>
             </div>
@@ -2342,8 +2348,8 @@ export default function CommandCenter() {
               {/* COHORT: Heatmap */}
               {isCohort&&activeTab==='heatmap'&&(
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
-                  <div style={{...S.card}}><CohortHeatmap data={results.retention} title="Retention Rate % by Cohort" isPercent={true}/></div>
-                  {results.heatmap?.length>0&&<div style={{...S.card}}><CohortHeatmap data={results.heatmap} title="Customer Count by Cohort" isPercent={false}/></div>}
+                  <div style={{...S.card}}><CohortHeatmap theme={T} data={results.retention} title="Retention Rate % by Cohort" isPercent={true}/></div>
+                  {results.heatmap?.length>0&&<div style={{...S.card}}><CohortHeatmap theme={T} data={results.heatmap} title="Customer Count by Cohort" isPercent={false}/></div>}
                 </div>
               )}
 
@@ -2570,7 +2576,7 @@ export default function CommandCenter() {
                                     ...movements.map(m=>({...m, value:toARR(m.value)||0})),
                                     {category:'Ending ARR',    value:toARR(end)||0},
                                   ]
-                                  return <WaterfallBridge data={fullData} showBoundary={true} height={300}/>
+                                  return <WaterfallBridge theme={T} data={fullData} showBoundary={true} height={300}/>
                                 })()}
                               </div>
                             </div>
@@ -3515,7 +3521,7 @@ export default function CommandCenter() {
                         <div style={{...S.card}}>
                           <div style={{fontSize:13,fontWeight:700,color:T.textPrimary,marginBottom:4}}>Retention Rate %</div>
                           <div style={{fontSize:11,color:T.textTertiary,marginBottom:16}}>% of original cohort ARR retained each period</div>
-                          <CohortHeatmap data={cohortResults.retention} title="" isPercent={true}/>
+                          <CohortHeatmap theme={T} data={cohortResults.retention} title="" isPercent={true}/>
                         </div>
                       )}
 
@@ -3525,7 +3531,7 @@ export default function CommandCenter() {
                           <div style={{fontSize:13,fontWeight:700,color:T.textPrimary,marginBottom:4}}>Revenue by Cohort ($)</div>
                           <div style={{fontSize:11,color:T.textTertiary,marginBottom:16}}>Absolute revenue retained per cohort each period</div>
                           {cohortResults.heatmap?.length>0
-                            ? <CohortHeatmap data={cohortResults.heatmap} title="" isPercent={false}/>
+                            ? <CohortHeatmap theme={T} data={cohortResults.heatmap} title="" isPercent={false}/>
                             : <div style={{textAlign:'center',color:T.textMuted,padding:'32px 0',fontSize:12}}>Revenue cohort data not available. Re-run with revenue metric mapped.</div>
                           }
                         </div>
@@ -3554,7 +3560,7 @@ export default function CommandCenter() {
                               })
                               return result
                             })
-                            return <CohortHeatmap data={perCustData} title="" isPercent={false}/>
+                            return <CohortHeatmap theme={T} data={perCustData} title="" isPercent={false}/>
                           })()}
                         </div>
                       )}
@@ -3656,7 +3662,7 @@ export default function CommandCenter() {
                               const cust=getMoverCustomer(row)
                               const per=getMoverPeriod(row)
                               return (
-                                <MoverCard key={i}
+                                <MoverCard theme={T} key={i}
                                   customer={cust}
                                   value={val}
                                   period={per}
@@ -3709,7 +3715,7 @@ export default function CommandCenter() {
                               const cust=getMoverCustomer(row)
                               const per=getMoverPeriod(row)
                               return (
-                                <MoverCard key={i}
+                                <MoverCard theme={T} key={i}
                                   customer={cust}
                                   value={val}
                                   period={per}
@@ -3829,7 +3835,7 @@ export default function CommandCenter() {
                           <div style={{...S.label}}>KPI Summary</div>
                           <span style={{fontSize:9,background:'transparent',color:T.chartBaseline,border:'none',padding:'2px 0',fontWeight:400}}>{lb}M Lookback</span>
                         </div>
-                        <KpiSummaryTable rows={kpiData}/>
+                        <KpiSummaryTable theme={T} rows={kpiData}/>
                       </div>
                     )
                   })}
