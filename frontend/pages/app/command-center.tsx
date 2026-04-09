@@ -985,15 +985,20 @@ export default function CommandCenter() {
               } else if (cur<prev) { downsell += cur-prev }
             })
 
-            const movements = selDims==='customer'
-              ? { 'New Logo': newLogo+crossSell, 'Upsell': upsell,
-                  'Downsell': downsell+churnPartial, 'Churn': churn,
-                  'Returning': returning, 'Lapsed': lapsed }
-              : { 'New Logo':newLogo, 'Cross-sell':crossSell, 'Returning':returning,
-                  'Upsell':upsell, 'Downsell':downsell, 'Churn-Partial':churnPartial,
-                  'Churn':churn, 'Lapsed':lapsed }
-
-            periodMap.set(period, { _period:period, 'Beginning ARR':beg, 'Ending ARR':end, ...movements })
+            // Always store all atomic movements — merging happens at display time in filterByDimension
+            periodMap.set(period, {
+              _period:          period,
+              'Beginning ARR':  beg,
+              'Ending ARR':     end,
+              'Churn':          churn,
+              'Churn-Partial':  churnPartial,
+              'Downsell':       downsell,
+              'Upsell':         upsell,
+              'Cross-sell':     crossSell,
+              'New Logo':       newLogo,
+              'Lapsed':         lapsed,
+              'Returning':      returning,
+            })
           })
 
           const result = Array.from(periodMap.values())
@@ -1236,16 +1241,35 @@ export default function CommandCenter() {
     if (!wfallData?.length) return []
     // Always strip price/volume — they never belong in the bridge
     const noPV = wfallData.filter(r => !PRICE_VOLUME_CATS.has(r.category))
-    // Level-aware movement selection — matches aggregation level exactly
+
     if (selDims === 'customer') {
-      return noPV.filter(r => CUSTOMER_LEVEL_CATS.has(r.category))
+      // Customer level: merge Cross-sell into Upsell, Churn-Partial into Downsell
+      // These movements are not observable when product detail is removed
+      const merged = new Map()
+      noPV.forEach(r => {
+        const norm = r.category.replace(/_/g,'-')
+        let cat = norm
+        if (norm==='Cross-sell' || norm==='Cross_sell') cat = 'Upsell'
+        else if (norm==='Churn-Partial' || norm==='Churn_Partial' || norm==='Churn Partial') cat = 'Downsell'
+        if (!CUSTOMER_LEVEL_CATS.has(cat)) return  // strip Other In/Out, Price/Vol
+        merged.set(cat, (merged.get(cat)||0) + (r.value||0))
+      })
+      return Array.from(merged.entries())
+        .map(([category, value]) => ({ category, value }))
+        .filter(r => r.value !== 0)
     }
+
     if (selDims === 'region') {
-      // Atomic level: Customer × Product × Channel × Region — all movements
-      return noPV.filter(r => ATOMIC_LEVEL_CATS.has(r.category))
+      // Atomic: Customer × Product × Channel × Region — all movements visible
+      return noPV
+        .map(r => ({...r, category: r.category.replace(/_/g,'-')}))
+        .filter(r => ATOMIC_LEVEL_CATS.has(r.category))
     }
-    // Customer × Product: Cross-sell and Churn-Partial visible
-    return noPV.filter(r => PRODUCT_LEVEL_CATS.has(r.category))
+
+    // Customer × Product: Cross-sell and Churn-Partial visible, no Other In/Out
+    return noPV
+      .map(r => ({...r, category: r.category.replace(/_/g,'-')}))
+      .filter(r => PRODUCT_LEVEL_CATS.has(r.category))
   }
 
   function applyCanonicalOrder(items) {
