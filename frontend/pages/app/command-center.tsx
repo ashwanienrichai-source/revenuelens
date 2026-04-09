@@ -18,30 +18,150 @@ import { supabase, canDownload } from '../../lib/supabase'
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
-const BC = {
-  // Financial-grade palette — green gradient = growth magnitude, red gradient = loss severity
-  'New Logo':      '#16A34A',   // forest green — net new revenue
-  'Upsell':        '#22C55E',   // mid green — expansion
-  'Cross-sell':    '#4ADE80',   // light green — cross-sell
-  'Returning':     '#86EFAC',   // pale green — returning
-  'Other In':      '#64748B',   // slate — neutral in
-  'Downsell':      '#FCA5A5',   // pale red — contraction
-  'Churn Partial': '#F87171',   // mid red — partial loss
-  'Churn-Partial': '#F87171',
-  'Churn':         '#DC2626',   // deep red — full loss
-  'Lapsed':        '#CA8A04',   // muted amber — lapsed
-  'Other Out':     '#64748B',   // slate — neutral out
-  'Add on':        '#4ADE80',
-  'Add-on':        '#4ADE80',
-  'Beginning MRR': '#3D5068',   // steel — neutral baseline
-  'Ending MRR':    '#475569',   // slate — ending (not neon)
-  'Beginning ARR': '#3D5068',
-  'Ending ARR':    '#475569',
-  'Prior ACV':     '#3D5068',
-  'Ending ACV':    '#475569',
-  'RoB':           '#7C9DBC',   // muted blue
-  'Expiry Pool':   '#4A5568',   // dark slate
+// ─── Semantic Design Token System ────────────────────────────────────────────
+// Single source of truth for all colors. Never use raw hex inside components.
+// Tokens are theme-aware: dark (default), light, colorBlind, highContrast modes.
+
+const THEMES = {
+  dark: {
+    // Surfaces
+    bgPage:    '#0B1220',
+    bgSurface: T.bgSurface,
+    bgRaised:  T.bgRaised,
+    bgElevated:'#1A2840',
+    bgMuted:   T.bgMuted,
+    // Text
+    textPrimary:   T.textPrimary,
+    textSecondary: '#94A3B8',
+    textTertiary:  '#64748B',
+    textMuted:     '#4A5A6E',
+    textInverse:   '#0F172A',
+    // Borders
+    borderSubtle:  'rgba(229,231,235,0.07)',
+    borderDefault: '#1E2D45',
+    borderStrong:  '#253550',
+    // Semantic status
+    growth:   '#2DD4BF',   // teal — growth (not neon green)
+    decline:  '#F87171',   // muted red — decline
+    neutral:  '#64748B',   // slate — neutral
+    insight:  '#A78BFA',   // violet — AI insight
+    warning:  '#F59E0B',   // amber — warning
+    info:     '#60A5FA',   // blue — info
+    success:  '#34D399',   // emerald — success
+    risk:     '#EF4444',   // red — risk
+    // Charts — bridge-specific semantic tokens
+    chartBaseline:    T.chartBaseline,  // steel — Beginning/Ending ARR
+    chartExpansion:   '#14B8A6',  // teal — all positive movements
+    chartContraction: '#F87171',  // rose — all negative movements
+    chartNeutral:     '#4A5A6E',  // slate — Other In/Out
+    chartGrid:        '#1E2D45',
+    chartAxis:        '#4A5A6E',
+    // Interactions
+    accentPrimary:     '#CBD5E1',
+    accentPrimaryHover:T.textPrimary,
+    focusRing:         'rgba(45,212,191,0.4)',
+    selectionBg:       'rgba(45,212,191,0.08)',
+    // Mono font
+    mono: "'JetBrains Mono',monospace",
+  },
+  light: {
+    bgPage:    '#F8FAFC',
+    bgSurface: '#FFFFFF',
+    bgRaised:  '#F1F5F9',
+    bgElevated:'#FFFFFF',
+    bgMuted:   '#F8FAFC',
+    textPrimary:   '#0F172A',
+    textSecondary: '#475569',
+    textTertiary:  '#64748B',
+    textMuted:     '#94A3B8',
+    textInverse:   '#FFFFFF',
+    borderSubtle:  'rgba(15,23,42,0.06)',
+    borderDefault: 'rgba(15,23,42,0.10)',
+    borderStrong:  'rgba(15,23,42,0.16)',
+    growth:   '#0D9488',
+    decline:  '#DC2626',
+    neutral:  '#64748B',
+    insight:  '#7C3AED',
+    warning:  '#D97706',
+    info:     '#2563EB',
+    success:  '#059669',
+    risk:     '#DC2626',
+    chartBaseline:    '#94A3B8',
+    chartExpansion:   '#0D9488',
+    chartContraction: '#DC2626',
+    chartNeutral:     '#64748B',
+    chartGrid:        'rgba(15,23,42,0.06)',
+    chartAxis:        '#94A3B8',
+    accentPrimary:     '#0F172A',
+    accentPrimaryHover:'#1E293B',
+    focusRing:         'rgba(13,148,136,0.35)',
+    selectionBg:       'rgba(13,148,136,0.06)',
+    mono: "'JetBrains Mono',monospace",
+  },
+  colorBlind: {
+    // Deuteranopia-safe: blue for growth, orange for decline
+    bgPage:    '#0B1220', bgSurface:T.bgSurface, bgRaised:T.bgRaised, bgElevated:'#1A2840', bgMuted:T.bgMuted,
+    textPrimary:T.textPrimary, textSecondary:'#94A3B8', textTertiary:'#64748B', textMuted:'#4A5A6E', textInverse:'#0F172A',
+    borderSubtle:'rgba(229,231,235,0.07)', borderDefault:'#1E2D45', borderStrong:'#253550',
+    growth:  '#60A5FA',  // blue — safe for deuteranopia
+    decline: '#FB923C',  // orange — safe for deuteranopia
+    neutral: '#64748B', insight:'#A78BFA', warning:'#FCD34D', info:'#38BDF8', success:'#34D399', risk:'#FB923C',
+    chartBaseline:T.chartBaseline, chartExpansion:'#60A5FA', chartContraction:'#FB923C',
+    chartNeutral:'#4A5A6E', chartGrid:'#1E2D45', chartAxis:'#4A5A6E',
+    accentPrimary:'#CBD5E1', accentPrimaryHover:T.textPrimary, focusRing:'rgba(96,165,250,0.4)', selectionBg:'rgba(96,165,250,0.08)',
+    mono:"'JetBrains Mono',monospace",
+  },
+  highContrast: {
+    bgPage:'#000000', bgSurface:'#0A0A0A', bgRaised:'#141414', bgElevated:'#1A1A1A', bgMuted:'#050505',
+    textPrimary:'#FFFFFF', textSecondary:'#E5E5E5', textTertiary:'#CCCCCC', textMuted:'#AAAAAA', textInverse:'#000000',
+    borderSubtle:'rgba(255,255,255,0.15)', borderDefault:'rgba(255,255,255,0.25)', borderStrong:'rgba(255,255,255,0.40)',
+    growth:'#00FF94', decline:'#FF4444', neutral:'#AAAAAA', insight:'#CC99FF', warning:'#FFB800', info:'#66AAFF', success:'#00FF94', risk:'#FF4444',
+    chartBaseline:'#666666', chartExpansion:'#00FF94', chartContraction:'#FF4444',
+    chartNeutral:'#888888', chartGrid:'rgba(255,255,255,0.12)', chartAxis:'#888888',
+    accentPrimary:'#FFFFFF', accentPrimaryHover:'#E5E5E5', focusRing:'rgba(255,255,255,0.5)', selectionBg:'rgba(255,255,255,0.1)',
+    mono:"'JetBrains Mono',monospace",
+  },
 }
+
+// Active theme — will be driven by state in component, defaulting to dark
+// Usage: T.growth, T.bgSurface, T.textPrimary etc.
+
+// ─── Bridge color semantics ───────────────────────────────────────────────────
+// These are FUNCTIONS so they always read from the active T object
+const getBridgeColor = (T) => ({
+  // Baseline — neutral anchors
+  'Beginning ARR':     T.chartBaseline,
+  'Ending ARR':        T.chartBaseline,
+  'Beginning MRR':     T.chartBaseline,
+  'Ending MRR':        T.chartBaseline,
+  'Prior ACV':         T.chartBaseline,
+  'Ending ACV':        T.chartBaseline,
+  'Beginning MRR or ARR': T.chartBaseline,
+  'Ending MRR or ARR': T.chartBaseline,
+  // Expansion — all positive movements
+  'New Logo':          T.chartExpansion,
+  'Upsell':            T.chartExpansion,
+  'Cross-sell':        T.chartExpansion,
+  'Cross_sell':        T.chartExpansion,
+  'Returning':         T.chartExpansion,
+  'Add on':            T.chartExpansion,
+  'Add-on':            T.chartExpansion,
+  'Other In':          T.chartNeutral,
+  // Contraction — all negative movements
+  'Downsell':          T.chartContraction,
+  'Churn Partial':     T.chartContraction,
+  'Churn-Partial':     T.chartContraction,
+  'Churn_Partial':     T.chartContraction,
+  'Churn':             T.chartContraction,
+  'Lapsed':            T.chartContraction,
+  'Other Out':         T.chartNeutral,
+  // Misc
+  'RoB':               T.chartNeutral,
+  'Expiry Pool':       T.chartNeutral,
+})
+
+// Legacy BC for backward compat — resolved from dark theme by default
+const BC = getBridgeColor(THEMES.dark)
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 const fmt = v => {
@@ -231,29 +351,29 @@ function UploadTimer({active}) {
   const msg=s<8?'Connecting…':s<25?'Waking API…':s<55?'Crunching numbers…':'Almost there…'
   return (
     <div className="mt-3">
-      <div className="flex justify-between mb-1"><span className="text-[10px] text-[#4A5A7A]">{msg}</span><span className="text-[10px] font-bold" style={{color:'#4ADE80'}}>{s}s</span></div>
-      <div className="h-1 rounded-full overflow-hidden" style={{background:'#E5E7EB'}}>
-        <div className="h-full rounded-full transition-all duration-1000" style={{width:`${pct}%`,background:'#1A3A2A'}}/>
+      <div className="flex justify-between mb-1"><span className="text-[10px] text-[#4A5A7A]">{msg}</span><span className="text-[10px] font-bold" style={{color:T.growth}}>{s}s</span></div>
+      <div className="h-1 rounded-full overflow-hidden" style={{background:T.borderDefault}}>
+        <div className="h-full rounded-full transition-all duration-1000" style={{width:`${pct}%`,background:T.selectionBg}}/>
       </div>
-      {s>6&&<p className="text-[9px] mt-1" style={{color:'#7B8EA8'}}>⚡ First run each session takes 30–90s</p>}
+      {s>6&&<p className="text-[9px] mt-1" style={{color:T.textSecondary}}>⚡ First run each session takes 30–90s</p>}
     </div>
   )
 }
 
 // ─── KPI Chip ─────────────────────────────────────────────────────────────────
 function KpiChip({label,value,sub,subGood,accent}) {
-  const subColor = subGood===true?'#4ADE80':subGood===false?'#F87171':'#64748B'
-  const valColor = subGood===true&&(String(sub||'').includes('Healthy')||String(label||'').includes('Net'))?'#4ADE80'
-    :subGood===false&&(String(sub||'').includes('Risk')||String(sub||'').includes('Alert'))?'#F87171':'#E2E8F0'
+  const subColor = subGood===true?T.growth:subGood===false?T.decline:T.textTertiary
+  const valColor = subGood===true&&(String(sub||'').includes('Healthy')||String(label||'').includes('Net'))?T.growth
+    :subGood===false&&(String(sub||'').includes('Risk')||String(sub||'').includes('Alert'))?T.decline:T.textPrimary
   return (
     <div style={{
-      background:  '#0F1A2E',
+      background:  T.bgSurface,
       border:      '1px solid #1E2D45',
       borderTop:   accent ? '2px solid #253550' : '1px solid #1E2D45',
       borderRadius:6,
       padding:     '12px 14px',
     }}>
-      <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'#4A5A6E',marginBottom:7}}>
+      <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:7}}>
         {label}
       </div>
       <div style={{fontFamily:"'JetBrains Mono',monospace",fontFeatureSettings:"'tnum'",fontSize:19,fontWeight:700,lineHeight:1,color:valColor,letterSpacing:'-0.02em'}}>
@@ -272,11 +392,11 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
   const abs   = Math.abs(value||0)
   const letter = String(customer||'?')[0].toUpperCase()
   const avatarColors = [
-    {bg:'rgba(74,222,128,0.1)', text:'#4ADE80'},
-    {bg:'rgba(148,163,184,0.1)',text:'#94A3B8'},
-    {bg:'rgba(251,191,36,0.1)', text:'#FCD34D'},
-    {bg:'rgba(248,113,113,0.1)',text:'#F87171'},
-    {bg:'rgba(167,139,250,0.1)',text:'#A78BFA'},
+    {bg:'rgba(45,212,191,0.12)', text:THEMES.dark.growth},
+    {bg:'rgba(148,163,184,0.1)',text:T.textSecondary},
+    {bg:'rgba(251,191,36,0.1)', text:T.warning},
+    {bg:'rgba(248,113,113,0.1)',text:THEMES.dark.decline},
+    {bg:'rgba(167,139,250,0.1)',text:T.insight},
   ]
   const av = avatarColors[rank % avatarColors.length]
 
@@ -287,12 +407,13 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
     if (health != null) return Math.round(health)
     return null
   })()
-  const healthColor = healthScore==null?'#64748B':healthScore>=100?'#4ADE80':healthScore>=80?'#FCD34D':'#F87171'
+  const _t=THEMES.dark
+  const healthColor = healthScore==null?_t.textTertiary:healthScore>=100?_t.growth:healthScore>=80?_t.warning:_t.decline
 
   const flag = isRisk
     ? (healthScore!=null&&healthScore<50?'HIGH RISK':'AT RISK')
     : (healthScore!=null&&healthScore>=110?'EXPANDING':'OPPORTUNITY')
-  const flagColor = isRisk ? '#F87171' : '#4ADE80'
+  const flagColor = isRisk ? _t.decline : _t.growth
 
   const arrDisplay = arr||endingArr||(abs*5)
   const changeBarPct = arrDisplay>0 ? Math.min((abs/arrDisplay)*100, 100) : Math.min(abs/50000*100,100)
@@ -300,11 +421,11 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
   return (
     <div style={{
       padding:'12px 14px',borderRadius:6,
-      background:'#0D1A2E',
+      background:T.bgSurface,
       border:`1px solid ${isRisk?'rgba(248,113,113,0.12)':'rgba(74,222,128,0.1)'}`,
       marginBottom:6,transition:'border-color 0.12s',cursor:'default',
     }}
-    onMouseEnter={e=>e.currentTarget.style.borderColor=isRisk?'rgba(248,113,113,0.28)':'rgba(74,222,128,0.22)'}
+    onMouseEnter={e=>e.currentTarget.style.borderColor=isRisk?'rgba(248,113,113,0.28)':`${T.growth}33`2)'}
     onMouseLeave={e=>e.currentTarget.style.borderColor=isRisk?'rgba(248,113,113,0.12)':'rgba(74,222,128,0.1)'}>
 
       <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
@@ -315,10 +436,10 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
         <div style={{flex:1,minWidth:0}}>
           {/* Row 1: Name + ARR numbers */}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,marginBottom:6}}>
-            <div style={{fontWeight:600,fontSize:13,color:'#E2E8F0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'55%'}}>{customer||'Unknown'}</div>
+            <div style={{fontWeight:600,fontSize:13,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'55%'}}>{customer||'Unknown'}</div>
             <div style={{textAlign:'right',flexShrink:0}}>
-              {arrDisplay>0&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:700,color:'#94A3B8'}}>{fmt(arrDisplay)}</div>}
-              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:600,color:isRisk?'#F87171':'#4ADE80'}}>
+              {arrDisplay>0&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:700,color:T.textSecondary}}>{fmt(arrDisplay)}</div>}
+              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:600,color:isRisk?T.decline:T.growth}}>
                 {isRisk?'▼':'+▲'} {fmt(abs)}
               </div>
             </div>
@@ -333,17 +454,68 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
                 {healthScore}% health
               </span>
             )}
-            {region&&<span style={{fontSize:9,color:'#4A5A6E',background:'#162035',border:'1px solid #1E2D45',padding:'2px 6px',borderRadius:3}}>{region}</span>}
-            {product&&<span style={{fontSize:9,color:'#4A5A6E',background:'#162035',border:'1px solid #1E2D45',padding:'2px 6px',borderRadius:3}}>{product}</span>}
-            {segment&&segment!==region&&segment!==product&&<span style={{fontSize:9,color:'#4A5A6E',background:'#162035',border:'1px solid #1E2D45',padding:'2px 6px',borderRadius:3}}>{segment}</span>}
-            {period&&<span style={{fontSize:9,color:'#3D5068',marginLeft:'auto'}}>{period}</span>}
+            {region&&<span style={{fontSize:9,color:T.textMuted,background:T.bgRaised,border:`1px solid ${T.borderDefault}`,padding:'2px 6px',borderRadius:3}}>{region}</span>}
+            {product&&<span style={{fontSize:9,color:T.textMuted,background:T.bgRaised,border:`1px solid ${T.borderDefault}`,padding:'2px 6px',borderRadius:3}}>{product}</span>}
+            {segment&&segment!==region&&segment!==product&&<span style={{fontSize:9,color:T.textMuted,background:T.bgRaised,border:`1px solid ${T.borderDefault}`,padding:'2px 6px',borderRadius:3}}>{segment}</span>}
+            {period&&<span style={{fontSize:9,color:T.chartBaseline,marginLeft:'auto'}}>{period}</span>}
           </div>
           {/* Change bar */}
-          <div style={{height:2,background:'#1E2D45',borderRadius:2,marginTop:8,overflow:'hidden'}}>
-            <div style={{height:'100%',borderRadius:2,background:isRisk?'#F87171':'#4ADE80',width:`${changeBarPct}%`,transition:'width 0.5s ease'}}/>
+          <div style={{height:2,background:T.borderDefault,borderRadius:2,marginTop:8,overflow:'hidden'}}>
+            <div style={{height:'100%',borderRadius:2,background:isRisk?T.decline:T.growth,width:`${changeBarPct}%`,transition:'width 0.5s ease'}}/>
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+
+// ─── AI Insight Card ─────────────────────────────────────────────────────────
+// Renders executive-grade narrative insight panels throughout the product.
+// Each card answers: What happened? → Why? → Implication → Action.
+function AiInsightCard({
+  title='AI Insight',
+  headline,        // 1-line bold summary (the "so what")
+  body,            // 2-3 sentence narrative
+  implication,     // optional: key risk or opportunity
+  action,          // optional: recommended next step
+  severity='info', // 'info' | 'warning' | 'risk' | 'success'
+  expanded=false,
+  theme=null,
+}) {
+  const T = theme || THEMES.dark
+  const [open, setOpen] = useState(expanded)
+  const sevColor = severity==='risk'?T.risk:severity==='warning'?T.warning:severity==='success'?T.success:T.insight
+  const sevBg    = `${sevColor}12`
+  const sevBorder= `${sevColor}30`
+
+  return (
+    <div style={{background:T.bgElevated,border:`1px solid ${sevBorder}`,borderLeft:`3px solid ${sevColor}`,borderRadius:6,overflow:'hidden'}}>
+      <button onClick={()=>setOpen(v=>!v)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 14px',background:'transparent',border:'none',cursor:'pointer',gap:10}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0}}>
+          <Sparkles size={11} color={sevColor} style={{flexShrink:0}}/>
+          <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',color:sevColor,flexShrink:0}}>{title}</span>
+          {headline&&<span style={{fontSize:12,fontWeight:600,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{headline}</span>}
+        </div>
+        <span style={{fontSize:9,color:T.textMuted,flexShrink:0}}>{open?'▲':'▼'}</span>
+      </button>
+      {open&&(
+        <div style={{padding:'0 14px 13px',display:'flex',flexDirection:'column',gap:8}}>
+          {body&&<p style={{fontSize:12,color:T.textSecondary,lineHeight:1.65,margin:0}}>{body}</p>}
+          {implication&&(
+            <div style={{display:'flex',gap:8,padding:'8px 10px',background:sevBg,borderRadius:4}}>
+              <Info size={11} color={sevColor} style={{flexShrink:0,marginTop:2}}/>
+              <span style={{fontSize:11,color:T.textSecondary,lineHeight:1.55}}>{implication}</span>
+            </div>
+          )}
+          {action&&(
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textMuted}}>Next →</span>
+              <span style={{fontSize:11,color:T.accentPrimary,fontWeight:500}}>{action}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -379,7 +551,7 @@ function buildWaterfallSteps(data) {
 }
 
 function WaterfallBridge({data, showBoundary=false, height=280}) {
-  if(!data?.length) return <div style={{height:180,display:'flex',alignItems:'center',justifyContent:'center',color:'#7B8EA8',fontSize:13}}>No bridge data</div>
+  if(!data?.length) return <div style={{height:180,display:'flex',alignItems:'center',justifyContent:'center',color:T.textSecondary,fontSize:13}}>No bridge data</div>
 
   const BOUNDARY = new Set(['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Beginning MRR or ARR','Ending MRR or ARR','Prior ACV','Ending ACV'])
   const ORDER=['Beginning ARR','Beginning MRR','Churn','Churn-Partial','Churn_Partial','Churn Partial','Downsell','Upsell','Cross-sell','Cross_sell','New Logo','Lapsed','Returning','Other In','Other Out','Add on','Add-on','Ending ARR','Ending MRR']
@@ -416,8 +588,8 @@ function WaterfallBridge({data, showBoundary=false, height=280}) {
   }))
 
   const getBarColor = (entry) => {
-    if (entry.type==='start'||entry.type==='end') return '#3D5068'
-    return entry.delta>=0 ? (BC[entry.category]||'#22C55E') : (BC[entry.category]||'#EF4444')
+    if (entry.type==='start'||entry.type==='end') return T.chartBaseline
+    return BC[entry.category] || (entry.delta>=0 ? T.chartExpansion : T.chartContraction)
   }
 
   const CustomTooltip=({active,payload,label})=>{
@@ -427,13 +599,13 @@ function WaterfallBridge({data, showBoundary=false, height=280}) {
     const isBound = d.type==='start'||d.type==='end'
     const displayVal = isBound ? d.value : d.delta
     return (
-      <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,padding:'8px 12px',boxShadow:'0 4px 12px rgba(0,0,0,0.4)'}}>
-        <div style={{fontSize:10,fontWeight:600,color:'#7B8EA8',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{d.category}</div>
-        <div style={{fontSize:15,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:isBound?'#E2E8F0':displayVal>=0?'#4ADE80':'#F87171'}}>
+      <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,padding:'8px 12px',boxShadow:`0 4px 20px rgba(0,0,0,0.4)`}}>
+        <div style={{fontSize:10,fontWeight:600,color:T.textSecondary,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{d.category}</div>
+        <div style={{fontSize:15,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:isBound?T.textPrimary:displayVal>=0?T.growth:T.decline}}>
           {isBound?'':displayVal>=0?'+':''}{fmt(displayVal)}
         </div>
         {!isBound&&d.runStart!=null&&(
-          <div style={{fontSize:10,color:'#4A5A6E',marginTop:3}}>
+          <div style={{fontSize:10,color:T.textMuted,marginTop:3}}>
             {fmt(d.runStart)} → {fmt(d.runEnd)}
           </div>
         )}
@@ -445,9 +617,9 @@ function WaterfallBridge({data, showBoundary=false, height=280}) {
     <div style={{height}}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData} margin={{top:8,right:8,bottom:52,left:8}} barCategoryGap="25%">
-          <XAxis dataKey="category" tick={{fontSize:9,fill:'#9CA3AF'}} angle={-38} textAnchor="end" interval={0} axisLine={false} tickLine={false} height={56}/>
-          <YAxis tickFormatter={fmt} tick={{fontSize:9,fill:'#9CA3AF'}} width={52} axisLine={false} tickLine={false}/>
-          <ReferenceLine y={0} stroke='#1A2840' strokeDasharray='3 3'/>
+          <XAxis dataKey="category" tick={{fontSize:9,fill:T.textSecondary}} angle={-38} textAnchor="end" interval={0} axisLine={false} tickLine={false} height={56}/>
+          <YAxis tickFormatter={fmt} tick={{fontSize:9,fill:T.textSecondary}} width={52} axisLine={false} tickLine={false}/>
+          <ReferenceLine y={0} stroke={T.borderDefault} strokeDasharray='3 3'/>
           <Tooltip content={<CustomTooltip/>} cursor={{fill:'rgba(255,255,255,0.02)'}}/>
           {/* Invisible spacer — lifts the visible bar to correct vertical position */}
           <Bar dataKey="spacer" stackId="wf" fill="transparent" radius={0} maxBarSize={48}/>
@@ -461,36 +633,37 @@ function WaterfallBridge({data, showBoundary=false, height=280}) {
   )
 }
 // ─── Bridge Pivot Table ───────────────────────────────────────────────────────
-function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
-  if(!pivot?.periods?.length||!pivot?.rows?.length) return <div style={{color:'#7B8EA8',textAlign:'center',padding:'32px',fontSize:13}}>No bridge data</div>
+function BridgePivotTable({pivot,title,lookbackLabel,showPct,theme=null}) {
+  const T = theme || THEMES.dark
+  if(!pivot?.periods?.length||!pivot?.rows?.length) return <div style={{color:T.textSecondary,textAlign:'center',padding:'32px',fontSize:13}}>No bridge data</div>
   const {periods,rows,retention}=pivot
   return (
     <div style={{overflowX:'auto'}}>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-        <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'#7B8EA8'}}>{title}</span>
-        {lookbackLabel&&<span style={{fontSize:9,background:'transparent',color:'#3D5068',border:'none',padding:'2px 0',fontWeight:400}}>{lookbackLabel}</span>}
+        <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>{title}</span>
+        {lookbackLabel&&<span style={{fontSize:9,background:'transparent',color:T.chartBaseline,border:'none',padding:'2px 0',fontWeight:400}}>{lookbackLabel}</span>}
       </div>
       <table style={{borderCollapse:'collapse',minWidth:Math.max(periods.length*100+220,420),width:'100%',fontSize:12}}>
         <thead>
-          <tr style={{borderBottom:'1px solid #1E2D45'}}>
-            <th style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8',width:160,position:'sticky',left:0,background:'#0F1A2E'}}>Bridge</th>
-            {periods.map(p=><th key={p} style={{textAlign:'right',padding:'8px 12px',fontSize:9,fontWeight:700,color:'#7B8EA8',whiteSpace:'nowrap'}}>{p}</th>)}
+          <tr style={{borderBottom:`1px solid ${T.borderDefault}`}}>
+            <th style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:T.textSecondary,width:160,position:'sticky',left:0,background:T.bgSurface}}>Bridge</th>
+            {periods.map(p=><th key={p} style={{textAlign:'right',padding:'8px 12px',fontSize:9,fontWeight:700,color:T.textSecondary,whiteSpace:'nowrap'}}>{p}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.map((row,ri)=>{
             const isB=row.is_beginning||row.is_ending
             return (
-              <tr key={ri} style={{borderBottom:`1px solid ${isB?'#E5E7EB':'#E5E7EB'}`,background:isB?'#162035':'#0F1A2E'}}>
-                <td style={{padding:'8px 12px',position:'sticky',left:0,background:isB?'#162035':'#0F1A2E',color:isB?'#111827':'#374151',fontWeight:isB?700:500,fontSize:11,whiteSpace:'nowrap'}}>
-                  {!isB&&<span style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:BC[row.classification]||'#6B7280',marginRight:8,verticalAlign:'middle'}}/>}
+              <tr key={ri} style={{borderBottom:`1px solid ${isB?T.borderDefault:T.borderDefault}`,background:isB?T.bgRaised:T.bgSurface}}>
+                <td style={{padding:'8px 12px',position:'sticky',left:0,background:isB?T.bgRaised:T.bgSurface,color:isB?T.bgSurface:T.textSecondary,fontWeight:isB?700:500,fontSize:11,whiteSpace:'nowrap'}}>
+                  {!isB&&<span style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:BC[row.classification]||T.textTertiary,marginRight:8,verticalAlign:'middle'}}/>}
                   {row.classification}
                 </td>
                 {periods.map(p=>{
                   const v=row.values?.[p]
                   const pos=v>0
                   return (
-                    <td key={p} style={{textAlign:'right',padding:'8px 12px',whiteSpace:'nowrap',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isB?700:500,color:isB?'#E2E8F0':pos?'#4ADE80':v<0?'#F87171':'#64748B'}}>
+                    <td key={p} style={{textAlign:'right',padding:'8px 12px',whiteSpace:'nowrap',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isB?700:500,color:isB?T.textPrimary:pos?T.growth:v<0?T.decline:T.neutral}}>
                       {v==null||v===0?'—':(pos&&!isB?'+':'')+fmt(v)}
                     </td>
                   )
@@ -499,10 +672,10 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
             )
           })}
           {retention&&Object.keys(retention).length>0&&[['Gross Retention','grr',80],['Net Retention','nrr',100]].map(([lbl,key,thr])=>(
-            <tr key={key} style={{borderTop:'1px solid #253550',background:'#162035'}}>
-              <td style={{padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',position:'sticky',left:0,background:'#0F1A2E',whiteSpace:'nowrap'}}>{lbl}</td>
+            <tr key={key} style={{borderTop:`1px solid ${T.borderStrong}`,background:T.bgRaised}}>
+              <td style={{padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textSecondary,position:'sticky',left:0,background:T.bgSurface,whiteSpace:'nowrap'}}>{lbl}</td>
               {periods.map(p=>{const v=retention[p]?.[key];return(
-                <td key={p} style={{textAlign:'right',padding:'8px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:v>=thr?'#4ADE80':'#F87171'}}>{v!=null?`${v.toFixed(1)}%`:'—'}</td>
+                <td key={p} style={{textAlign:'right',padding:'8px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:v>=thr?T.growth:T.decline}}>{v!=null?`${v.toFixed(1)}%`:'—'}</td>
               )})}
             </tr>
           ))}
@@ -513,36 +686,37 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct}) {
 }
 
 // ─── Customer Count Pivot ─────────────────────────────────────────────────────
-function CustomerCountPivot({pivot}) {
+function CustomerCountPivot({pivot,theme=null}) {
+  const T = theme || THEMES.dark
   if(!pivot?.periods?.length||!pivot?.rows?.length) return null
   const {periods,rows,logo_retention}=pivot
   return (
-    <div style={{overflowX:'auto',marginTop:24,paddingTop:24,borderTop:'1px solid #253550'}}>
-      <div style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'#7B8EA8',marginBottom:10}}>Customer Count Rollforward</div>
+    <div style={{overflowX:'auto',marginTop:24,paddingTop:24,borderTop:`1px solid ${T.borderStrong}`}}>
+      <div style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary,marginBottom:10}}>Customer Count Rollforward</div>
       <table style={{borderCollapse:'collapse',minWidth:Math.max(periods.length*90+200,400),width:'100%',fontSize:12}}>
         <thead>
-          <tr style={{borderBottom:'1px solid #1E2D45'}}>
-            <th style={{textAlign:'left',padding:'6px 12px',fontSize:9,fontWeight:700,color:'#7B8EA8',width:160,position:'sticky',left:0,background:'#0F1A2E'}}/>
-            {periods.map(p=><th key={p} style={{textAlign:'right',padding:'6px 12px',fontSize:9,fontWeight:700,color:'#7B8EA8',whiteSpace:'nowrap'}}>{p}</th>)}
+          <tr style={{borderBottom:`1px solid ${T.borderDefault}`}}>
+            <th style={{textAlign:'left',padding:'6px 12px',fontSize:9,fontWeight:700,color:T.textSecondary,width:160,position:'sticky',left:0,background:T.bgSurface}}/>
+            {periods.map(p=><th key={p} style={{textAlign:'right',padding:'6px 12px',fontSize:9,fontWeight:700,color:T.textSecondary,whiteSpace:'nowrap'}}>{p}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.map((row,ri)=>{
             const isB=row.is_beginning||row.is_ending
             return (
-              <tr key={ri} style={{borderBottom:'1px solid #1E2D45',background:isB?'#162035':'#0F1A2E'}}>
-                <td style={{padding:'6px 12px',position:'sticky',left:0,background:isB?'#162035':'#0F1A2E',color:isB?'#111827':'#374151',fontWeight:isB?700:400,fontSize:11,whiteSpace:'nowrap'}}>{row.classification}</td>
+              <tr key={ri} style={{borderBottom:`1px solid ${T.borderDefault}`,background:isB?T.bgRaised:T.bgSurface}}>
+                <td style={{padding:'6px 12px',position:'sticky',left:0,background:isB?T.bgRaised:T.bgSurface,color:isB?T.bgSurface:T.textSecondary,fontWeight:isB?700:400,fontSize:11,whiteSpace:'nowrap'}}>{row.classification}</td>
                 {periods.map(p=>{const v=row.values?.[p]||0;return(
-                  <td key={p} style={{textAlign:'right',padding:'6px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:500,color:v>0&&!isB?'#4ADE80':v<0?'#F87171':'#64748B'}}>{v===0?'—':(v>0&&!isB?'+':'')+v.toLocaleString()}</td>
+                  <td key={p} style={{textAlign:'right',padding:'6px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:500,color:v>0&&!isB?T.growth:v<0?T.decline:T.textTertiary}}>{v===0?'—':(v>0&&!isB?'+':'')+v.toLocaleString()}</td>
                 )})}
               </tr>
             )
           })}
           {logo_retention&&(
-            <tr style={{borderTop:'1px solid #253550',background:'#162035'}}>
-              <td style={{padding:'6px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',position:'sticky',left:0,background:'#0F1A2E',whiteSpace:'nowrap'}}>Logo Retention</td>
+            <tr style={{borderTop:`1px solid ${T.borderStrong}`,background:T.bgRaised}}>
+              <td style={{padding:'6px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textSecondary,position:'sticky',left:0,background:T.bgSurface,whiteSpace:'nowrap'}}>Logo Retention</td>
               {periods.map(p=>{const lr=logo_retention[p]?.logo_retention;return(
-                <td key={p} style={{textAlign:'right',padding:'6px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:lr>=80?'#4ADE80':lr>=60?'#64748B':'#F87171'}}>{lr!=null?`${lr.toFixed(1)}%`:'—'}</td>
+                <td key={p} style={{textAlign:'right',padding:'6px 12px',fontWeight:900,fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:lr>=80?T.growth:lr>=60?T.textTertiary:T.decline}}>{lr!=null?`${lr.toFixed(1)}%`:'—'}</td>
               )})}
             </tr>
           )}
@@ -557,27 +731,27 @@ function KpiSummaryTable({rows}) {
   if(!rows?.length) return null
   const fV=v=>{if(v==null||v===0)return'—';const a=Math.abs(v);if(a>=1e6)return`$${(v/1e6).toFixed(1)}M`;if(a>=1e3)return`$${(v/1e3).toFixed(0)}K`;return`$${v.toFixed(0)}`}
   const fP=v=>v==null?'—':`${v.toFixed(1)}%`
-  const pc=(v,g=80,gr=100)=>v==null?'#6B7280':v>=gr?'#2563EB':v>=g?'#6B7280':'#DC2626'
+  const pc=(v,g=80,gr=100)=>v==null?T.textTertiary:v>=gr?T.info:v>=g?T.textTertiary:T.risk
   return (
     <div style={{overflowX:'auto'}}>
       <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
         <thead>
-          <tr style={{borderBottom:'1px solid #1E2D45'}}>
+          <tr style={{borderBottom:`1px solid ${T.borderDefault}`}}>
             {['Period','Beg ARR','New Logo','Upsell','Downsell','Churn','End ARR','GRR','NRR'].map(h=>(
-              <th key={h} style={{textAlign:'left',padding:'10px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',whiteSpace:'nowrap'}}>{h}</th>
+              <th key={h} style={{textAlign:'left',padding:'10px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textSecondary,whiteSpace:'nowrap'}}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((r,i)=>(
-            <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
-              <td style={{padding:'8px 12px',fontWeight:700,color:'#FFFFFF',fontFamily:"'JetBrains Mono',monospace"}}>{r.period}</td>
-              <td style={{padding:'8px 12px',color:'#7B8EA8',fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.beginning_arr)}</td>
-              <td style={{padding:'8px 12px',color:'#4ADE80',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{r.new_logo>0?`+${fV(r.new_logo)}`:'—'}</td>
-              <td style={{padding:'8px 12px',color:'#4ADE80',fontWeight:500,fontFamily:"'JetBrains Mono',monospace"}}>{r.upsell>0?`+${fV(r.upsell)}`:'—'}</td>
-              <td style={{padding:'8px 12px',color:'#7B8EA8',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.downsell)}</td>
-              <td style={{padding:'8px 12px',color:'#F87171',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.churn)}</td>
-              <td style={{padding:'8px 12px',fontWeight:700,color:'#FFFFFF',fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.ending_arr)}</td>
+            <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`}}>
+              <td style={{padding:'8px 12px',fontWeight:700,color:T.textPrimary,fontFamily:"'JetBrains Mono',monospace"}}>{r.period}</td>
+              <td style={{padding:'8px 12px',color:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.beginning_arr)}</td>
+              <td style={{padding:'8px 12px',color:T.growth,fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{r.new_logo>0?`+${fV(r.new_logo)}`:'—'}</td>
+              <td style={{padding:'8px 12px',color:T.growth,fontWeight:500,fontFamily:"'JetBrains Mono',monospace"}}>{r.upsell>0?`+${fV(r.upsell)}`:'—'}</td>
+              <td style={{padding:'8px 12px',color:T.textSecondary,fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.downsell)}</td>
+              <td style={{padding:'8px 12px',color:T.decline,fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.churn)}</td>
+              <td style={{padding:'8px 12px',fontWeight:700,color:T.textPrimary,fontFamily:"'JetBrains Mono',monospace"}}>{fV(r.ending_arr)}</td>
               <td style={{padding:'8px 12px',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:pc(r.gross_retention)}}>{fP(r.gross_retention)}</td>
               <td style={{padding:'8px 12px',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:pc(r.net_retention,100,110)}}>{fP(r.net_retention)}</td>
             </tr>
@@ -590,33 +764,33 @@ function KpiSummaryTable({rows}) {
 
 // ─── Cohort Heatmap ───────────────────────────────────────────────────────────
 function CohortHeatmap({data,title,isPercent}) {
-  if(!data?.length) return <div style={{color:'#7B8EA8',textAlign:'center',padding:24,fontSize:13}}>No data</div>
+  if(!data?.length) return <div style={{color:T.textSecondary,textAlign:'center',padding:24,fontSize:13}}>No data</div>
   const allKeys=Array.from(new Set(data.flatMap(r=>Object.keys(r).filter(k=>k!=='cohort')))).sort((a,b)=>Number(a)-Number(b))
   const allVals=data.flatMap(r=>allKeys.map(k=>r[k]||0)).filter(v=>v>0)
   const maxVal=Math.max(...allVals,1)
   const color=v=>{
     if(!v)return'transparent'
     if(!isPercent)return`rgba(79,219,200,${0.1+(v/maxVal)*0.7})`
-    if(v>=90)return'#4FDBC8';if(v>=70)return'#2DB8A5';if(v>=50)return'#1A7A6E'
-    if(v>=30)return'#6B7280';return'#DC2626'
+    if(v>=90)return T.growth;if(v>=70)return T.success;if(v>=50)return T.chartNeutral
+    if(v>=30)returnT.textTertiary;returnT.risk
   }
-  const tc=v=>{if(!v)return'transparent';if(isPercent&&v>=50)return'#FFFFFF';return'#6B7280'}
+  const tc=v=>{if(!v)return'transparent';if(isPercent&&v>=50)returnT.textPrimary;returnT.textTertiary}
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-        <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'#7B8EA8'}}>{title}</span>
-        <span style={{fontSize:9,color:'#7B8EA8'}}>{allKeys.length} periods · {data.length} cohorts</span>
+        <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>{title}</span>
+        <span style={{fontSize:9,color:T.textSecondary}}>{allKeys.length} periods · {data.length} cohorts</span>
       </div>
       <div style={{overflowX:'auto'}}>
         <table style={{fontSize:11,minWidth:allKeys.length*36+120}}>
           <thead><tr>
-            <th style={{textAlign:'left',padding:'4px 12px 4px 0',fontSize:9,fontWeight:600,color:'#7B8EA8',position:'sticky',left:0,background:'#0F1A2E',whiteSpace:'nowrap'}}>Cohort</th>
-            {allKeys.map(k=><th key={k} style={{padding:'0 2px',textAlign:'center',fontSize:9,color:'#7B8EA8',fontWeight:600,whiteSpace:'nowrap'}}>M{k}</th>)}
+            <th style={{textAlign:'left',padding:'4px 12px 4px 0',fontSize:9,fontWeight:600,color:T.textSecondary,position:'sticky',left:0,background:T.bgSurface,whiteSpace:'nowrap'}}>Cohort</th>
+            {allKeys.map(k=><th key={k} style={{padding:'0 2px',textAlign:'center',fontSize:9,color:T.textSecondary,fontWeight:600,whiteSpace:'nowrap'}}>M{k}</th>)}
           </tr></thead>
           <tbody>
             {data.map((row,ri)=>(
               <tr key={ri}>
-                <td style={{padding:'2px 12px 2px 0',fontSize:10,fontWeight:600,color:'#FFFFFF',whiteSpace:'nowrap',position:'sticky',left:0,background:'#0F1A2E'}}>{row.cohort}</td>
+                <td style={{padding:'2px 12px 2px 0',fontSize:10,fontWeight:600,color:T.textPrimary,whiteSpace:'nowrap',position:'sticky',left:0,background:T.bgSurface}}>{row.cohort}</td>
                 {allKeys.map(k=>{const v=row[k];return(
                   <td key={k} style={{padding:'2px'}}>
                     <div style={{width:32,height:22,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,background:color(v),color:tc(v)}}>
@@ -636,12 +810,12 @@ function CohortHeatmap({data,title,isPercent}) {
 // ─── Field Row ────────────────────────────────────────────────────────────────
 function FieldRow({label,required,value,columns,onChange,showError}) {
   return (
-    <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',borderBottom:'1px solid #1E2D45'}}>
-      <div style={{flex:1,fontSize:11,color:'#7B8EA8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</div>
+    <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',borderBottom:`1px solid ${T.borderDefault}`}}>
+      <div style={{flex:1,fontSize:11,color:T.textSecondary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</div>
       <select value={value} onChange={e=>onChange(e.target.value)} style={{
-        fontSize:10,border:`1px solid ${showError&&!value?'rgba(255,71,87,0.4)':value?'rgba(37,99,235,0.25)':'#E5E7EB'}`,
-        borderRadius:8,padding:'5px 8px',background:'#162035',
-        color:showError&&!value?'#FF6B6B':value?'#4FDBC8':'#7B8EA8',
+        fontSize:10,border:`1px solid ${showError&&!value?'rgba(255,71,87,0.4)':value?'rgba(37,99,235,0.25)':T.borderDefault}`,
+        borderRadius:8,padding:'5px 8px',background:T.bgRaised,
+        color:showError&&!value?T.decline:value?T.growth:T.textSecondary,
         outline:'none',width:140,flexShrink:0,
       }}>
         <option value="">— Select —</option>
@@ -712,6 +886,8 @@ export default function CommandCenter() {
   const [rerunning, setRerunning]   = useState(false)
   const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
   const [histChartWindow, setHistChartWindow] = useState(24)  // Historical perf chart window
+  const [themeMode, setThemeMode] = useState<'dark'|'light'|'colorBlind'|'highContrast'>('dark')
+  const [showThemeMenu, setShowThemeMenu] = useState(false)
 
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
@@ -1641,89 +1817,225 @@ export default function CommandCenter() {
     {id:'output',label:'Output'},
   ]
 
-  // ── Style helpers ──────────────────────────────────────────────────────────
-  // ── Design tokens — single source of truth ──────────────────────────────
-  const T = {
-    bgPage:    '#0B1220',
-    bgSurface: '#0F1A2E',
-    bgRaised:  '#162035',
-    border:    '#1E2D45',
-    border2:   '#253550',
-    text:      '#E2E8F0',
-    text2:     '#94A3B8',
-    text3:     '#4A5A6E',
-    pos:       '#4ADE80',
-    neg:       '#F87171',
-    warn:      '#FCD34D',
-    neutral:   '#64748B',
-    mono:      "'JetBrains Mono',monospace",
+  // ── Theme system — semantic tokens, no hardcoded colors in components ───────
+  const T = THEMES[themeMode] || THEMES.dark
+  // Shorthand aliases for backward compat with existing inline styles
+  // These map old T.pos/T.neg/etc to new semantic tokens
+  const TC = {
+    ...T,
+    // Legacy aliases
+    border:  T.borderDefault,
+    border2: T.borderStrong,
+    text:    T.textPrimary,
+    text2:   T.textSecondary,
+    text3:   T.textMuted,
+    pos:     T.growth,
+    neg:     T.decline,
+    warn:    T.warning,
   }
+  // Bridge colors — always from active theme
+  const BCT = getBridgeColor(T)
+
+  // Component style helpers — all consume tokens
   const S = {
-    card:  { background:T.bgSurface, border:`1px solid ${T.border}`, borderRadius:6, padding:20 },
-    cardF: { background:T.bgSurface, border:`1px solid ${T.border}`, borderRadius:6, padding:0, overflow:'hidden' },
-    label: { fontSize:9, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.1em', color:T.text3 },
-    th:    { fontSize:9, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', color:T.text3, padding:'9px 14px', background:T.bgRaised, borderBottom:`1px solid ${T.border}`, textAlign:'left', whiteSpace:'nowrap' as const },
-    td:    { padding:'9px 14px', color:T.text2, fontSize:12, borderBottom:`1px solid ${T.border}` },
+    card:  { background:T.bgSurface, border:`1px solid ${T.borderDefault}`, borderRadius:6, padding:20 },
+    cardF: { background:T.bgSurface, border:`1px solid ${T.borderDefault}`, borderRadius:6, padding:0, overflow:'hidden' },
+    label: { fontSize:9, fontWeight:600, textTransform:'uppercase' as const, letterSpacing:'0.1em', color:T.textMuted },
+    th:    { fontSize:9, fontWeight:600, textTransform:'uppercase' as const, letterSpacing:'0.08em', color:T.textMuted, padding:'9px 14px', background:T.bgRaised, borderBottom:`1px solid ${T.borderDefault}`, textAlign:'left' as const, whiteSpace:'nowrap' as const },
+    td:    { padding:'9px 14px', color:T.textSecondary, fontSize:12, borderBottom:`1px solid ${T.borderDefault}` },
     mono:  { fontFamily:T.mono, fontFeatureSettings:"'tnum'" },
   }
 
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'#0B1220',fontFamily:"'Inter',system-ui,sans-serif",color:'#FFFFFF'}}>
+    <div data-theme={themeMode} style={{display:'flex',height:'100vh',overflow:'hidden',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:themeMode==='light'?'light':'dark'}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&family=JetBrains+Mono:wght@400;500;600&display=swap');
         :root {
           --bg:          #0B1220;
           --surface:     #0F1A2E;
           --raised:      #162035;
+          /* ── Semantic tokens (dark default) ── */
+          --bg-primary:    #0B1220;
+          --bg-secondary:  #0F1A2E;
+          --bg-card:       #0F1A2E;
+          --bg-raised:     #162035;
+          --bg-elevated:   #1A2840;
+          --bg-muted:      #0D1525;
+
+          --text-primary:   #E2E8F0;
+          --text-secondary: #94A3B8;
+          --text-tertiary:  #64748B;
+          --text-muted:     #4A5A6E;
+          --text-inverse:   #0F172A;
+
+          --border-subtle:  rgba(229,231,235,0.07);
+          --border-default: #1E2D45;
+          --border-strong:  #253550;
+
+          --color-growth:   #2DD4BF;
+          --color-decline:  #F87171;
+          --color-neutral:  #64748B;
+          --color-insight:  #A78BFA;
+          --color-warning:  #F59E0B;
+          --color-info:     #60A5FA;
+          --color-success:  #34D399;
+          --color-risk:     #EF4444;
+
+          --chart-baseline:    #3D5068;
+          --chart-expansion:   #14B8A6;
+          --chart-contraction: #F87171;
+          --chart-neutral:     #4A5A6E;
+          --chart-grid:        #1E2D45;
+          --chart-axis:        #4A5A6E;
+
+          --accent-primary:       #CBD5E1;
+          --accent-primary-hover: #E2E8F0;
+          --focus-ring:           rgba(45,212,191,0.4);
+          --selection-bg:         rgba(45,212,191,0.08);
+
+          /* Legacy compat */
           --border:      #1E2D45;
           --border2:     #253550;
           --text:        #E2E8F0;
           --text-2:      #94A3B8;
           --text-3:      #64748B;
           --text-4:      #4A5A6E;
-          --pos:         #4ADE80;
+          --pos:         #2DD4BF;
           --neg:         #F87171;
-          --warn:        #FCD34D;
+          --warn:        #F59E0B;
           --neutral:     #3D5068;
           --accent:      #CBD5E1;
           --font:        'Inter', system-ui, sans-serif;
           --mono:        'JetBrains Mono', monospace;
         }
+
+        /* ── Light mode ── */
+        [data-theme="light"] {
+          --bg-primary:    #F8FAFC; --bg-secondary: #F1F5F9; --bg-card: #FFFFFF;
+          --bg-raised:     #F1F5F9; --bg-elevated: #FFFFFF;  --bg-muted: #F8FAFC;
+          --text-primary:  #0F172A; --text-secondary: #475569; --text-tertiary: #64748B;
+          --text-muted:    #94A3B8; --text-inverse: #FFFFFF;
+          --border-subtle: rgba(15,23,42,0.06); --border-default: rgba(15,23,42,0.10); --border-strong: rgba(15,23,42,0.16);
+          --color-growth:  #0D9488; --color-decline: #DC2626; --color-insight: #7C3AED;
+          --color-warning: #D97706; --color-info: #2563EB; --color-success: #059669; --color-risk: #DC2626;
+          --chart-expansion: #0D9488; --chart-contraction: #DC2626; --chart-baseline: #94A3B8;
+          --chart-neutral: #64748B; --chart-grid: rgba(15,23,42,0.06); --chart-axis: #94A3B8;
+          --accent-primary: #0F172A; --accent-primary-hover: #1E293B;
+          --focus-ring: rgba(13,148,136,0.35); --selection-bg: rgba(13,148,136,0.06);
+          --border: rgba(15,23,42,0.10); --border2: rgba(15,23,42,0.16);
+          --text: #0F172A; --text-2: #475569; --text-3: #94A3B8; --text-4: #64748B;
+          --pos: #0D9488; --neg: #DC2626; --warn: #D97706; --neutral: #64748B; --accent: #0F172A;
+        }
+
+        /* ── Color-blind mode (deuteranopia-safe) ── */
+        [data-theme="colorBlind"] {
+          --color-growth:  #60A5FA; --color-decline: #FB923C;
+          --chart-expansion: #60A5FA; --chart-contraction: #FB923C;
+          --pos: #60A5FA; --neg: #FB923C;
+        }
+
+        /* ── High contrast mode ── */
+        [data-theme="highContrast"] {
+          --bg-primary: #000000; --bg-secondary: #0A0A0A; --bg-card: #0A0A0A;
+          --bg-raised: #141414; --bg-elevated: #1A1A1A; --bg-muted: #050505;
+          --text-primary: #FFFFFF; --text-secondary: #E5E5E5; --text-tertiary: #CCCCCC; --text-muted: #AAAAAA;
+          --border-subtle: rgba(255,255,255,0.15); --border-default: rgba(255,255,255,0.25); --border-strong: rgba(255,255,255,0.40);
+          --border: rgba(255,255,255,0.25); --border2: rgba(255,255,255,0.40);
+          --color-growth: #00FF94; --color-decline: #FF4444;
+          --chart-expansion: #00FF94; --chart-contraction: #FF4444; --chart-baseline: #666666;
+          --pos: #00FF94; --neg: #FF4444;
+        }
         *{box-sizing:border-box}
-        body{font-family:'Inter',system-ui,sans-serif;background:#0B1220;color:#FFFFFF;}
+        body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-primary);color:var(--text-primary);}
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:#253550;border-radius:4px}
         ::-webkit-scrollbar-thumb:hover{background:#3D5068}
         @keyframes spin{to{transform:rotate(360deg)}}
         .animate-spin{animation:spin 1s linear infinite}
+
+        /* ── Enterprise transitions ── */
+        button{transition:background 0.15s ease,color 0.15s ease,border-color 0.15s ease,opacity 0.15s ease}
+        input,select,textarea{transition:border-color 0.15s ease,box-shadow 0.15s ease}
+
+        /* ── Focus states — WCAG AA ── */
+        button:focus-visible,input:focus-visible,select:focus-visible{
+          outline:2px solid var(--focus-ring,rgba(45,212,191,0.5));
+          outline-offset:2px;
+        }
+
+        /* ── Table readability ── */
+        table{border-collapse:collapse}
+        th{user-select:none}
+
+        /* ── Scrollbar styling ── */
+        ::-webkit-scrollbar{width:4px;height:4px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
+        ::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+
+        /* ── Selection ── */
+        ::selection{background:var(--selection-bg);color:var(--text-primary)}
+
+        /* ── Accessible motion ── */
+        @media(prefers-reduced-motion:reduce){
+          *{animation-duration:0.01ms!important;transition-duration:0.01ms!important}
+        }
+
+        /* ── Color-blind mode secondary encoding — growth/decline icons ── */
+        [data-theme="colorBlind"] .cb-growth::before{content:'↑ ';font-size:0.8em}
+        [data-theme="colorBlind"] .cb-decline::before{content:'↓ ';font-size:0.8em}
+
+        /* ── High contrast focus ── */
+        [data-theme="highContrast"] button:focus-visible{
+          outline:3px solid #FFFFFF;outline-offset:3px
+        }
+
+        /* ── Light mode overrides ── */
+        [data-theme="light"] ::-webkit-scrollbar-thumb{background:rgba(15,23,42,0.2)}
+        [data-theme="light"] ::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,0.35)}
       `}</style>
 
       {/* ══ LEFT SIDEBAR ══════════════════════════════════════════════════ */}
-      <aside style={{width:256,display:'flex',flexDirection:'column',flexShrink:0,borderRight:'1px solid #1E2D45',background:'#0F1A2E',overflow:'hidden'}}>
+      <aside style={{width:256,display:'flex',flexDirection:'column',flexShrink:0,borderRight:`1px solid ${T.borderDefault}`,background:T.bgSurface,overflow:'hidden'}}>
 
         {/* Logo */}
-        <div style={{height:56,display:'flex',alignItems:'center',gap:12,padding:'0 20px',borderBottom:'1px solid #1E2D45',flexShrink:0}}>
-          <div style={{width:28,height:28,borderRadius:6,background:'#162035',border:'1px solid #253550',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+        <div style={{height:56,display:'flex',alignItems:'center',gap:12,padding:'0 20px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
+          <div style={{width:28,height:28,borderRadius:6,background:T.bgRaised,border:`1px solid ${T.borderStrong}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
             <BarChart3 size={13} color="#94A3B8"/>
           </div>
           <div style={{flex:1}}>
-            <div style={{fontSize:13,fontWeight:900,color:'#FFFFFF',letterSpacing:'-0.01em',lineHeight:1}}>RevenueLens</div>
-            <div style={{fontSize:8,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.12em',color:'#4A5A6E',marginTop:2}}>Analytics</div>
+            <div style={{fontSize:13,fontWeight:900,color:T.textPrimary,letterSpacing:'-0.01em',lineHeight:1}}>RevenueLens</div>
+            <div style={{fontSize:8,fontWeight:600,textTransform:'uppercase' as const,letterSpacing:'0.12em',color:T.textMuted,marginTop:2}}>Analytics</div>
           </div>
-          <button onClick={()=>router.push('/dashboard')} style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:'#5A7294'}} onMouseEnter={e=>e.target.style.color='#4FDBC8'} onMouseLeave={e=>e.target.style.color='#5A7294'}>
+          <button onClick={()=>router.push('/dashboard')} style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary}}>
             <Home size={12}/>
           </button>
+          <div style={{position:'relative'}}>
+            <button onClick={()=>setShowThemeMenu(v=>!v)} title="Theme" style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary,fontSize:10}}>
+              {themeMode==='dark'?'🌙':themeMode==='light'?'☀️':themeMode==='colorBlind'?'👁️':'⬤'}
+            </button>
+            {showThemeMenu&&(
+              <div style={{position:'absolute',right:0,top:'110%',background:T.bgElevated,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:8,zIndex:999,minWidth:140,boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}}>
+                {[['dark','🌙  Dark'],['light','☀️  Light'],['colorBlind','👁️  Color-Safe'],['highContrast','⬤  High Contrast']].map(([mode,label])=>(
+                  <button key={mode} onClick={()=>{setThemeMode(mode as any);setShowThemeMenu(false)}}
+                    style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,fontWeight:themeMode===mode?700:400,background:themeMode===mode?T.selectionBg:'transparent',color:themeMode===mode?T.growth:T.textSecondary}}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Progress steps */}
-        <div style={{padding:'12px 16px',borderBottom:'1px solid #1E2D45',flexShrink:0}}>
+        <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
           {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3]].map(([n,lbl,done,active])=>(
-            <div key={n} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 8px',borderRadius:10,background:active?'#162035':'transparent',marginBottom:2}}>
-              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?'#1A3A2A':active?'#162035':'#1E2D45',color:done?'#4ADE80':active?'#CBD5E1':'#4A5A6E'}}>{done?'✓':n}</div>
-              <span style={{fontSize:11,fontWeight:600,color:active?'#CBD5E1':done?'#4A5A6E':'#4A5A6E'}}>{lbl}</span>
+            <div key={n} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 8px',borderRadius:10,background:active?T.bgRaised:'transparent',marginBottom:2}}>
+              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?T.selectionBg:active?T.bgRaised:T.borderDefault,color:done?T.growth:active?T.accentPrimary:T.textMuted}}>{done?'✓':n}</div>
+              <span style={{fontSize:11,fontWeight:600,color:active?T.accentPrimary:T.textMuted}}>{lbl}</span>
             </div>
           ))}
         </div>
@@ -1732,25 +2044,25 @@ export default function CommandCenter() {
         <div style={{flex:1,overflowY:'auto'}}>
 
           {/* STEP 1: Upload */}
-          <div style={{padding:16,borderBottom:'1px solid #1E2D45'}}>
+          <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
             <div style={{...S.label}}>1. Upload Data</div>
-            {uploadErr&&<div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:'rgba(220,38,38,0.06)',color:'#DC2626',fontSize:10,display:'flex',gap:8}}><AlertCircle size={11} style={{flexShrink:0,marginTop:1}}/>{uploadErr}</div>}
+            {uploadErr&&<div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:'rgba(220,38,38,0.06)',color:T.risk,fontSize:10,display:'flex',gap:8}}><AlertCircle size={11} style={{flexShrink:0,marginTop:1}}/>{uploadErr}</div>}
             <div onClick={()=>!uploading&&fileRef.current?.click()} style={{
-              marginTop:10,borderRadius:12,border:`2px dashed ${file&&columns.length?'rgba(74,222,128,0.35)':uploading?'rgba(74,222,128,0.2)':'#253550'}`,
+              marginTop:10,borderRadius:12,border:`2px dashed ${file&&columns.length?`${T.growth}59`:uploading?`${T.growth}33`:T.borderStrong}`,
               padding:16,textAlign:'center',cursor:'pointer',
               background:file&&columns.length?'rgba(74,222,128,0.04)':uploading?'rgba(74,222,128,0.03)':'rgba(22,32,53,0.8)',
             }}>
               <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadFile(f)}}/>
-              {uploading?(<div><Loader2 size={18} color="#94A3B8" style={{margin:'0 auto 4px',animation:'spin 1s linear infinite'}}/><div style={{fontSize:11,color:'#94A3B8',fontWeight:500}}>Reading file…</div></div>)
-              :file&&columns.length?(<div><CheckCircle size={18} color="#4ADE80" style={{margin:'0 auto 4px'}}/><div style={{fontSize:11,fontWeight:700,color:'#FFFFFF',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div><div style={{fontSize:10,color:'#7B8EA8'}}>{rowCount.toLocaleString()} rows · {columns.length} cols</div><button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{fontSize:9,color:'#4ADE80',background:'none',border:'none',cursor:'pointer',fontWeight:500,marginTop:4}}>Change file</button></div>)
-              :(<div><Upload size={18} color="#5A7294" style={{margin:'0 auto 6px'}}/><div style={{fontSize:11,color:'#7B8EA8',fontWeight:600}}>Click or drag file</div><div style={{fontSize:10,color:'#5A7294',marginTop:2}}>CSV or Excel</div></div>)}
+              {uploading?(<div><Loader2 size={18} color="#94A3B8" style={{margin:'0 auto 4px',animation:'spin 1s linear infinite'}}/><div style={{fontSize:11,color:T.textSecondary,fontWeight:500}}>Reading file…</div></div>)
+              :file&&columns.length?(<div><CheckCircle size={18} color="#4ADE80" style={{margin:'0 auto 4px'}}/><div style={{fontSize:11,fontWeight:700,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div><div style={{fontSize:10,color:T.textSecondary}}>{rowCount.toLocaleString()} rows · {columns.length} cols</div><button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{fontSize:9,color:T.growth,background:'none',border:'none',cursor:'pointer',fontWeight:500,marginTop:4}}>Change file</button></div>)
+              :(<div><Upload size={18} color="#5A7294" style={{margin:'0 auto 6px'}}/><div style={{fontSize:11,color:T.textSecondary,fontWeight:600}}>Click or drag file</div><div style={{fontSize:10,color:T.textTertiary,marginTop:2}}>CSV or Excel</div></div>)}
             </div>
             <UploadTimer active={uploading}/>
           </div>
 
           {/* STEP 2: Engine */}
           {step1&&(
-            <div style={{padding:16,borderBottom:'1px solid #1E2D45'}}>
+            <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
               <div style={{...S.label}}>2. Select Engine</div>
               <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:6}}>
                 {Object.entries(ENGINE_CONFIG).map(([id,ec])=>{
@@ -1758,16 +2070,16 @@ export default function CommandCenter() {
                   return (
                     <button key={id} onClick={()=>setEngine(id)} style={{
                       display:'flex',alignItems:'center',gap:12,padding:12,borderRadius:10,
-                      border:`1px solid ${active?'rgba(79,219,200,0.5)':'#253550'}`,
-                      background:active?'rgba(79,219,200,0.1)':'#162035',
+                      border:`1px solid ${active?'rgba(79,219,200,0.5)':T.borderStrong}`,
+                      background:active?'rgba(79,219,200,0.1)':T.bgRaised,
                       cursor:'pointer',textAlign:'left',width:'100%',transition:'all 0.15s',
                     }}>
-                      <div style={{width:28,height:28,borderRadius:8,background:active?'rgba(79,219,200,0.2)':'#1E2D45',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                        <Icon size={12} color={active?'#4FDBC8':'#7B8EA8'}/>
+                      <div style={{width:28,height:28,borderRadius:8,background:active?'rgba(79,219,200,0.2)':T.borderDefault,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        <Icon size={12} color={active?T.growth:T.textSecondary}/>
                       </div>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:11,fontWeight:700,color:active?'#4ADE80':'#E2E8F0',lineHeight:1.2}}>{ec.label}</div>
-                        <div style={{fontSize:9,color:'#5A7294',marginTop:2}}>{ec.desc}</div>
+                        <div style={{fontSize:11,fontWeight:700,color:active?T.growth:T.textPrimary,lineHeight:1.2}}>{ec.label}</div>
+                        <div style={{fontSize:9,color:T.textTertiary,marginTop:2}}>{ec.desc}</div>
                       </div>
                       {active&&<CheckCircle size={12} color="#4ADE80"/>}
                     </button>
@@ -1779,28 +2091,28 @@ export default function CommandCenter() {
 
           {/* STEP 3: Map Fields */}
           {step2&&cfg&&(
-            <div style={{padding:16,borderBottom:'1px solid #1E2D45'}}>
+            <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
                 <div style={{...S.label}}>3. Map Fields</div>
-                <span style={{fontSize:9,fontWeight:700,color:Object.keys(errors).length===0?'#4FDBC8':'#7B8EA8'}}>
+                <span style={{fontSize:9,fontWeight:700,color:Object.keys(errors).length===0?T.growth:T.textSecondary}}>
                   {cfg.required.filter(f=>!!fieldMap[f.key]).length}/{cfg.required.length} mapped
                 </span>
               </div>
-              <div style={{borderRadius:10,border:'1px solid #1E2D45',overflow:'hidden',marginBottom:8,background:'#0F1A2E'}}>
-                <div style={{padding:'6px 12px',borderBottom:'1px solid #1E2D45',fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'#7B8EA8'}}>Required</div>
+              <div style={{borderRadius:10,border:`1px solid ${T.borderDefault}`,overflow:'hidden',marginBottom:8,background:T.bgSurface}}>
+                <div style={{padding:'6px 12px',borderBottom:`1px solid ${T.borderDefault}`,fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>Required</div>
                 {cfg.required.map(f=><FieldRow key={f.key} label={f.label} required value={fieldMap[f.key]||''} columns={columns} onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))} showError={validated}/>)}
               </div>
-              <div style={{borderRadius:10,border:'1px solid #1E2D45',overflow:'hidden',background:'#0F1A2E'}}>
+              <div style={{borderRadius:10,border:`1px solid ${T.borderDefault}`,overflow:'hidden',background:T.bgSurface}}>
                 <button onClick={()=>setShowOpt(v=>!v)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',background:'transparent',border:'none',cursor:'pointer'}}>
-                  <span style={{fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:'#7B8EA8'}}>Optional Fields</span>
+                  <span style={{fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>Optional Fields</span>
                   {showOpt?<ChevronUp size={10} color="#4A5A7A"/>:<ChevronDown size={10} color="#4A5A7A"/>}
                 </button>
                 {showOpt&&cfg.optional.map(f=><FieldRow key={f.key} label={f.label} value={fieldMap[f.key]||''} columns={columns} onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))} showError={false}/>)}
               </div>
               {validated&&Object.keys(errors).length>0&&(
                 <div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid rgba(255,71,87,0.2)',background:'rgba(255,71,87,0.05)'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#DC2626',marginBottom:4}}>Map required fields:</div>
-                  {cfg.required.filter(f=>errors[f.key]).map(f=><div key={f.key} style={{fontSize:9,color:'#DC2626'}}>· {f.label}</div>)}
+                  <div style={{fontSize:10,fontWeight:700,color:T.risk,marginBottom:4}}>Map required fields:</div>
+                  {cfg.required.filter(f=>errors[f.key]).map(f=><div key={f.key} style={{fontSize:9,color:T.risk}}>· {f.label}</div>)}
                 </div>
               )}
             </div>
@@ -1809,46 +2121,46 @@ export default function CommandCenter() {
         </div>
 
         {/* Run button */}
-        <div style={{padding:16,borderTop:'1px solid #1E2D45',flexShrink:0}}>
-          {runErr&&<div style={{marginBottom:10,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:'rgba(220,38,38,0.06)',color:'#DC2626',fontSize:10,display:'flex',gap:6}}><AlertCircle size={10} style={{flexShrink:0}}/>{runErr}</div>}
+        <div style={{padding:16,borderTop:`1px solid ${T.borderDefault}`,flexShrink:0}}>
+          {runErr&&<div style={{marginBottom:10,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:'rgba(220,38,38,0.06)',color:T.risk,fontSize:10,display:'flex',gap:6}}><AlertCircle size={10} style={{flexShrink:0}}/>{runErr}</div>}
           <button onClick={runAnalysis} disabled={!step1||!step2||running} style={{
             width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:8,
             fontWeight:700,fontSize:13,padding:'12px 0',borderRadius:14,border:'none',cursor:canRun?'pointer':'not-allowed',
-            background:canRun?'#1A3A2A':'#162035',
-            color:canRun?'#4ADE80':'#4A5A6E',transition:'opacity 0.15s',
+            background:canRun?T.selectionBg:T.bgRaised,
+            color:canRun?T.growth:T.textMuted,transition:'opacity 0.15s',
           }}>
-            {running?<Loader2 size={14} color={canRun?'#4ADE80':'#4A5A6E'} style={{animation:'spin 1s linear infinite'}}/>:<Zap size={14}/>}
+            {running?<Loader2 size={14} color={canRun?T.growth:T.textMuted} style={{animation:'spin 1s linear infinite'}}/>:<Zap size={14}/>}
             {running?'Analyzing…':'Run Analysis'}
           </button>
           {running&&<UploadTimer active={running}/>}
           {results&&!running&&(
             isAdmin?(
-              <button onClick={downloadCSV} style={{width:'100%',marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8,border:'1px solid #253550',color:'#7B8EA8',fontWeight:600,fontSize:11,padding:'8px 0',borderRadius:12,background:'transparent',cursor:'pointer'}}>
+              <button onClick={downloadCSV} style={{width:'100%',marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8,border:`1px solid ${T.borderStrong}`,color:T.textSecondary,fontWeight:600,fontSize:11,padding:'8px 0',borderRadius:12,background:'transparent',cursor:'pointer'}}>
                 <Download size={11}/> Export CSV
               </button>
             ):(
-              <button onClick={()=>router.push('/dashboard/upgrade')} style={{width:'100%',marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8,border:'1px solid #253550',color:'#7B8EA8',fontWeight:600,fontSize:11,padding:'8px 0',borderRadius:12,background:'transparent',cursor:'pointer'}}>
-                <Lock size={11}/> Export <span style={{marginLeft:'auto',fontSize:9,background:'rgba(244,162,97,0.1)',color:'#7B8EA8',border:'1px solid rgba(244,162,97,0.2)',padding:'2px 6px',borderRadius:10,fontWeight:700}}>PRO</span>
+              <button onClick={()=>router.push('/dashboard/upgrade')} style={{width:'100%',marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8,border:`1px solid ${T.borderStrong}`,color:T.textSecondary,fontWeight:600,fontSize:11,padding:'8px 0',borderRadius:12,background:'transparent',cursor:'pointer'}}>
+                <Lock size={11}/> Export <span style={{marginLeft:'auto',fontSize:9,background:'rgba(244,162,97,0.1)',color:T.textSecondary,border:'1px solid rgba(244,162,97,0.2)',padding:'2px 6px',borderRadius:10,fontWeight:700}}>PRO</span>
               </button>
             )
           )}
-          {!results&&!running&&<button disabled style={{width:'100%',marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8,border:'1px solid #253550',color:'#5A7294',fontWeight:600,fontSize:11,padding:'8px 0',borderRadius:12,background:'transparent',cursor:'not-allowed'}}>
-            <Lock size={11}/> Export <span style={{marginLeft:'auto',fontSize:9,background:'#253550',color:'#7B8EA8',padding:'2px 6px',borderRadius:10,fontWeight:700}}>PRO</span>
+          {!results&&!running&&<button disabled style={{width:'100%',marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8,border:`1px solid ${T.borderStrong}`,color:T.textTertiary,fontWeight:600,fontSize:11,padding:'8px 0',borderRadius:12,background:'transparent',cursor:'not-allowed'}}>
+            <Lock size={11}/> Export <span style={{marginLeft:'auto',fontSize:9,background:T.borderStrong,color:T.textSecondary,padding:'2px 6px',borderRadius:10,fontWeight:700}}>PRO</span>
           </button>}
         </div>
       </aside>
 
       {/* ══ RIGHT PANEL ═══════════════════════════════════════════════════ */}
-      <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:'#0B1220'}}>
+      <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:T.bgPage}}>
 
         {/* ── PAGE HEADER ───────────────────────────────────────────── */}
-        <header style={{flexShrink:0,borderBottom:'1px solid #1E2D45',background:'#0F1A2E'}}>
+        <header style={{flexShrink:0,borderBottom:`1px solid ${T.borderDefault}`,background:T.bgSurface}}>
 
           {/* Row 1: Title + all controls in ONE line */}
           <div style={{display:'flex',alignItems:'center',padding:'0 28px',height:52,gap:16}}>
 
             {/* Title */}
-            <div style={{fontSize:15,fontWeight:700,color:'#E2E8F0',letterSpacing:'-0.01em',flexShrink:0}}>
+            <div style={{fontSize:15,fontWeight:700,color:T.textPrimary,letterSpacing:'-0.01em',flexShrink:0}}>
               Customer Analytics
             </div>
 
@@ -1860,7 +2172,7 @@ export default function CommandCenter() {
 
                 {/* Lookback pills: MoM 1M | QoQ 3M | YoY 12M — single unified control */}
                 {!isCohort&&(
-                  <div style={{display:'flex',alignItems:'center',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
+                  <div style={{display:'flex',alignItems:'center',background:T.bgPage,borderRadius:5,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:30}}>
                     {[
                       {lb:1,  label:'MoM 1M',  pt:'Month'},
                       {lb:3,  label:'QoQ 3M',  pt:'Quarter'},
@@ -1869,24 +2181,24 @@ export default function CommandCenter() {
                       <button key={opt.lb}
                         onClick={()=>{setSelLb(opt.lb); if(opt.pt!==periodType) applyPeriodType(opt.pt)}}
                         disabled={rerunning}
-                        style={{padding:'0 12px',height:30,fontSize:11,fontWeight:selLb===opt.lb?600:400,border:'none',borderBottom:`2px solid ${selLb===opt.lb?'#CBD5E1':'transparent'}`,cursor:rerunning?'not-allowed':'pointer',background:selLb===opt.lb?'#162035':'transparent',color:selLb===opt.lb?'#CBD5E1':'#4A5A6E',transition:'all 0.12s',opacity:rerunning?0.6:1,whiteSpace:'nowrap'}}>
+                        style={{padding:'0 12px',height:30,fontSize:11,fontWeight:selLb===opt.lb?600:400,border:'none',borderBottom:`2px solid ${selLb===opt.lb?T.accentPrimary:'transparent'}`,cursor:rerunning?'not-allowed':'pointer',background:selLb===opt.lb?T.bgRaised:'transparent',color:selLb===opt.lb?T.accentPrimary:T.textMuted,transition:'all 0.12s',opacity:rerunning?0.6:1,whiteSpace:'nowrap'}}>
                         {opt.label}
                       </button>
                     ))}
                   </div>
                 )}
 
-                {!isCohort&&<div style={{width:1,height:18,background:'#1E2D45'}}/>}
+                {!isCohort&&<div style={{width:1,height:18,background:T.borderDefault}}/>}
 
                 {/* Period dropdown — all real data months, latest selected by default */}
                 {!isCohort&&(
                   <div style={{display:'flex',alignItems:'center',gap:6,height:30}}>
-                    <span style={{fontSize:11,fontWeight:500,color:'#4A5A6E',whiteSpace:'nowrap'}}>Period</span>
+                    <span style={{fontSize:11,fontWeight:500,color:T.textMuted,whiteSpace:'nowrap'}}>Period</span>
                     <select
                       value={selPeriod}
                       onChange={e=>setSelPeriod(e.target.value)}
                       disabled={availablePeriods.length===0}
-                      style={{height:30,fontSize:11,fontWeight:500,border:'1px solid #253550',borderRadius:5,padding:'0 28px 0 10px',background:'#162035',color:availablePeriods.length>0?'#CBD5E1':'#3D5068',outline:'none',cursor:availablePeriods.length>0?'pointer':'default',fontFamily:"'Inter',system-ui,sans-serif",appearance:'none',backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%234A5A6E' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center',minWidth:100}}>
+                      style={{height:30,fontSize:11,fontWeight:500,border:`1px solid ${T.borderStrong}`,borderRadius:5,padding:'0 28px 0 10px',background:T.bgRaised,color:availablePeriods.length>0?T.accentPrimary:T.chartBaseline,outline:'none',cursor:availablePeriods.length>0?'pointer':'default',fontFamily:"'Inter',system-ui,sans-serif",appearance:'none',backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%234A5A6E' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center',minWidth:100}}>
                       {availablePeriods.length===0
                         ? <option value="">— run analysis —</option>
                         : availablePeriods.map(p=><option key={p} value={p}>{p}</option>)
@@ -1895,11 +2207,11 @@ export default function CommandCenter() {
                   </div>
                 )}
 
-                {!isCohort&&<div style={{width:1,height:18,background:'#1E2D45'}}/>}
+                {!isCohort&&<div style={{width:1,height:18,background:T.borderDefault}}/>}
 
                 {/* Dimension — customer / product / region */}
                 {!isCohort&&(
-                  <div style={{display:'flex',alignItems:'center',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:30}}>
+                  <div style={{display:'flex',alignItems:'center',background:T.bgPage,borderRadius:5,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:30}}>
                     {[
                       {key:'customer',label:'Customer'},
                       {key:'product', label:'× Product',available:!!fieldMap.product},
@@ -1908,7 +2220,7 @@ export default function CommandCenter() {
                       <button key={opt.key}
                         onClick={()=>opt.available!==false&&!rerunning&&applyDimFilter(opt.key)}
                         disabled={opt.available===false||rerunning}
-                        style={{padding:'0 10px',height:30,fontSize:11,fontWeight:selDims===opt.key?500:400,border:'none',cursor:(opt.available===false||rerunning)?'not-allowed':'pointer',background:selDims===opt.key?'#162035':'transparent',color:selDims===opt.key?'#CBD5E1':opt.available===false?'#2A3040':'#4A5A6E',transition:'all 0.12s'}}>
+                        style={{padding:'0 10px',height:30,fontSize:11,fontWeight:selDims===opt.key?500:400,border:'none',cursor:(opt.available===false||rerunning)?'not-allowed':'pointer',background:selDims===opt.key?T.bgRaised:'transparent',color:selDims===opt.key?T.accentPrimary:opt.available===false?T.bgMuted:T.textMuted,transition:'all 0.12s'}}>
                         {opt.label}
                       </button>
                     ))}
@@ -1917,26 +2229,26 @@ export default function CommandCenter() {
 
                 {/* Rerunning indicator */}
                 {rerunning&&(
-                  <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#4A5A6E'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:T.textMuted}}>
                     <Loader2 size={11} style={{animation:'spin 1s linear infinite'}}/> Updating…
                   </div>
                 )}
 
                 {/* Reset */}
                 <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('');setCohortResults(null);setRawFileRows([])}}
-                  style={{height:30,width:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:'1px solid #1E2D45',background:'transparent',cursor:'pointer',color:'#4A5A6E'}}
-                  onMouseEnter={e=>{e.currentTarget.style.color='#CBD5E1';e.currentTarget.style.borderColor='#253550'}}
-                  onMouseLeave={e=>{e.currentTarget.style.color='#4A5A6E';e.currentTarget.style.borderColor='#1E2D45'}}>
+                  style={{height:30,width:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:`1px solid ${T.borderDefault}`,background:'transparent',cursor:'pointer',color:T.textMuted}}
+                  onMouseEnter={e=>{e.currentTarget.style.color=T.accentPrimary;e.currentTarget.style.borderColor=T.borderStrong}}
+                  onMouseLeave={e=>{e.currentTarget.style.color=T.textMuted;e.currentTarget.style.borderColor=T.borderDefault}}>
                   <RefreshCw size={12}/>
                 </button>
 
                 {/* Export */}
                 {isAdmin?(
-                  <button onClick={downloadCSV} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,padding:'0 12px',borderRadius:5,border:'1px solid #2D5A3D',cursor:'pointer',background:'#1A3A2A',color:'#4ADE80'}}>
+                  <button onClick={downloadCSV} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,padding:'0 12px',borderRadius:5,border:'1px solid #2D5A3D',cursor:'pointer',background:T.selectionBg,color:T.growth}}>
                     <Download size={11}/> Export
                   </button>
                 ):(
-                  <button onClick={()=>router.push('/dashboard/upgrade')} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:500,color:'#4A5A6E',border:'1px solid #1E2D45',padding:'0 12px',borderRadius:5,background:'transparent',cursor:'pointer'}}>
+                  <button onClick={()=>router.push('/dashboard/upgrade')} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:500,color:T.textMuted,border:`1px solid ${T.borderDefault}`,padding:'0 12px',borderRadius:5,background:'transparent',cursor:'pointer'}}>
                     <Lock size={11}/> Upgrade
                   </button>
                 )}
@@ -1946,7 +2258,7 @@ export default function CommandCenter() {
 
           {/* Row 2: Tab navigation — at top level */}
           {results&&(
-            <div style={{display:'flex',borderTop:'1px solid #1E2D45',paddingLeft:28,background:'#0F1A2E',overflowX:'auto'}}>
+            <div style={{display:'flex',borderTop:`1px solid ${T.borderDefault}`,paddingLeft:28,background:T.bgSurface,overflowX:'auto'}}>
               {TABS.map(tab=>(
                 <button key={tab.id} onClick={()=>{
                   setActiveTab(tab.id)
@@ -1955,9 +2267,9 @@ export default function CommandCenter() {
                   }
                 }} style={{
                   padding:'0 16px',height:40,fontSize:12,fontWeight:activeTab===tab.id?500:400,
-                  border:'none',borderBottom:`2px solid ${activeTab===tab.id?'#4A5A6E':'transparent'}`,
+                  border:'none',borderBottom:`2px solid ${activeTab===tab.id?T.accentPrimary:'transparent'}`,
                   background:'transparent',cursor:'pointer',
-                  color:activeTab===tab.id?'#CBD5E1':'#4A5A6E',
+                  color:activeTab===tab.id?T.accentPrimary:T.textMuted,
                   transition:'color 0.12s',whiteSpace:'nowrap',
                 }}>{tab.label}</button>
               ))}
@@ -1969,9 +2281,9 @@ export default function CommandCenter() {
         {!results&&(
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
             <div style={{textAlign:'center',maxWidth:480}}>
-              <div style={{width:80,height:80,borderRadius:24,border:'1px solid #1E2D45',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={28} color="#4A5A6E" style={{opacity:1}}/></div>
-              <h2 style={{fontSize:24,fontWeight:900,color:'#FFFFFF',margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
-              <p style={{color:'#7B8EA8',fontSize:14,marginBottom:32,lineHeight:1.6}}>
+              <div style={{width:80,height:80,borderRadius:24,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={28} color="#4A5A6E" style={{opacity:1}}/></div>
+              <h2 style={{fontSize:24,fontWeight:900,color:T.textPrimary,margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
+              <p style={{color:T.textSecondary,fontSize:14,marginBottom:32,lineHeight:1.6}}>
                 {engine==='cohort'?'Upload data, map fields, then run to see retention heatmaps.'
                 :engine?'Upload data, map fields, and run the analysis.'
                 :'Upload subscription data, select an engine, and get instant insights.'}
@@ -1986,10 +2298,10 @@ export default function CommandCenter() {
                   {icon:Target,     label:'Top Movers',       desc:'Expansion & churn accounts'},
                   {icon:Activity,   label:'Retention Trends', desc:'NRR, GRR over time'},
                 ]).map((m,i)=>(
-                  <div key={i} style={{padding:16,borderRadius:14,border:'1px solid #1E2D45',background:'#0F1A2E',textAlign:'left'}}>
+                  <div key={i} style={{padding:16,borderRadius:14,border:`1px solid ${T.borderDefault}`,background:T.bgSurface,textAlign:'left'}}>
                     <m.icon size={15} color="#4A5A6E" style={{opacity:1,marginBottom:8}}/>
-                    <div style={{fontSize:12,fontWeight:700,color:'#FFFFFF',marginBottom:3}}>{m.label}</div>
-                    <div style={{fontSize:10,color:'#7B8EA8'}}>{m.desc}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:T.textPrimary,marginBottom:3}}>{m.label}</div>
+                    <div style={{fontSize:10,color:T.textSecondary}}>{m.desc}</div>
                   </div>
                 ))}
               </div>
@@ -2003,7 +2315,7 @@ export default function CommandCenter() {
 
             {/* KPI Section — only shown on Summary tab */}
             {(activeTab==='summary'||isCohort)&&(
-            <div style={{padding:'14px 28px',borderBottom:'1px solid #1E2D45',background:'#0B1220',flexShrink:0}}>
+            <div style={{padding:'14px 28px',borderBottom:`1px solid ${T.borderDefault}`,background:T.bgPage,flexShrink:0}}>
               <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10}}>
                 {isCohort?(<>
                   <KpiChip label="Total Revenue"  value={fmt(results.summary?.total_revenue)} accent/>
@@ -2025,7 +2337,7 @@ export default function CommandCenter() {
             )}
 
             {/* Tab content */}
-            <div style={{flex:1,overflowY:'auto',padding:'20px 28px',background:'#0B1220'}}>
+            <div style={{flex:1,overflowY:'auto',padding:'20px 28px',background:T.bgPage}}>
 
               {/* COHORT: Heatmap */}
               {isCohort&&activeTab==='heatmap'&&(
@@ -2044,26 +2356,26 @@ export default function CommandCenter() {
                       <div style={{height:220,marginBottom:24}}>
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={results.fy_summary}>
-                            <XAxis dataKey={Object.keys(results.fy_summary[0])[0]} tick={{fontSize:10,fill:'#6B7280'}} axisLine={false} tickLine={false}/>
-                            <YAxis tickFormatter={fmt} tick={{fontSize:10,fill:'#6B7280'}} axisLine={false} tickLine={false}/>
-                            <Tooltip formatter={v=>fmt(v)} contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:12,fontSize:12}}/>
+                            <XAxis dataKey={Object.keys(results.fy_summary[0])[0]} tick={{fontSize:10,fill:T.textTertiary}} axisLine={false} tickLine={false}/>
+                            <YAxis tickFormatter={fmt} tick={{fontSize:10,fill:T.textTertiary}} axisLine={false} tickLine={false}/>
+                            <Tooltip formatter={v=>fmt(v)} contentStyle={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:12,fontSize:12}}/>
                             <Bar dataKey="revenue" fill="#22C55E" radius={[3,3,0,0]}/>
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
                       <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                        <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>{['FY','Revenue','Customers','Rev/Customer'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8'}}>{h}</th>)}</tr></thead>
+                        <thead><tr style={{borderBottom:`1px solid ${T.borderDefault}`}}>{['FY','Revenue','Customers','Rev/Customer'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:T.textSecondary}}>{h}</th>)}</tr></thead>
                         <tbody>{results.fy_summary.map((row,i)=>(
-                          <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
-                            <td style={{padding:'10px 12px',fontWeight:700,color:'#FFFFFF'}}>{String(Object.values(row)[0])}</td>
-                            <td style={{padding:'10px 12px',color:'#16A34A',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.revenue)}</td>
-                            <td style={{padding:'10px 12px',color:'#7B8EA8',fontFamily:"'JetBrains Mono',monospace"}}>{row.customers?.toLocaleString()}</td>
-                            <td style={{padding:'10px 12px',color:'#7B8EA8',fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.rev_per_customer)}</td>
+                          <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`}}>
+                            <td style={{padding:'10px 12px',fontWeight:700,color:T.textPrimary}}>{String(Object.values(row)[0])}</td>
+                            <td style={{padding:'10px 12px',color:T.growth,fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.revenue)}</td>
+                            <td style={{padding:'10px 12px',color:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{row.customers?.toLocaleString()}</td>
+                            <td style={{padding:'10px 12px',color:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.rev_per_customer)}</td>
                           </tr>
                         ))}</tbody>
                       </table>
                     </div>
-                  ):<div style={{...S.card,textAlign:'center',color:'#7B8EA8',fontSize:13,padding:40}}>No fiscal year data. Ensure Fiscal Year column is mapped.</div>}
+                  ):<div style={{...S.card,textAlign:'center',color:T.textSecondary,fontSize:13,padding:40}}>No fiscal year data. Ensure Fiscal Year column is mapped.</div>}
                 </div>
               )}
 
@@ -2076,9 +2388,9 @@ export default function CommandCenter() {
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={results.segmentation} dataKey={Object.keys(results.segmentation[0]).find(k=>k!=='segment')||''} nameKey="segment" cx="50%" cy="50%" outerRadius={80} innerRadius={36}>
-                            {results.segmentation.map((_,i)=><Cell key={i} fill={['#2563EB','#2563EB','#2563EB','#6B7280','#DC2626','#DC2626'][i%6]}/>)}
+                            {results.segmentation.map((_,i)=><Cell key={i} fill={[T.info,T.info,T.info,T.textTertiary,T.risk,T.risk][i%6]}/>)}
                           </Pie>
-                          <Tooltip formatter={v=>fmt(v)} contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:12}}/>
+                          <Tooltip formatter={v=>fmt(v)} contentStyle={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:12}}/>
                           <Legend iconType="circle" wrapperStyle={{fontSize:11}}/>
                         </PieChart>
                       </ResponsiveContainer>
@@ -2092,13 +2404,13 @@ export default function CommandCenter() {
                 <div style={{...S.card}}>
                   <div style={{...S.label,marginBottom:16}}>Summary by Fiscal Year</div>
                   <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                    <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>{['FY','Revenue','Customers','Rev/Customer'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8'}}>{h}</th>)}</tr></thead>
+                    <thead><tr style={{borderBottom:`1px solid ${T.borderDefault}`}}>{['FY','Revenue','Customers','Rev/Customer'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:T.textSecondary}}>{h}</th>)}</tr></thead>
                     <tbody>{results.fy_summary.map((row,i)=>(
-                      <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
-                        <td style={{padding:'10px 12px',fontWeight:700,color:'#FFFFFF'}}>{String(Object.values(row)[0])}</td>
-                        <td style={{padding:'10px 12px',color:'#16A34A',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.revenue)}</td>
-                        <td style={{padding:'10px 12px',color:'#7B8EA8',fontFamily:"'JetBrains Mono',monospace"}}>{row.customers?.toLocaleString()}</td>
-                        <td style={{padding:'10px 12px',color:'#7B8EA8',fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.rev_per_customer)}</td>
+                      <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`}}>
+                        <td style={{padding:'10px 12px',fontWeight:700,color:T.textPrimary}}>{String(Object.values(row)[0])}</td>
+                        <td style={{padding:'10px 12px',color:T.growth,fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.revenue)}</td>
+                        <td style={{padding:'10px 12px',color:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{row.customers?.toLocaleString()}</td>
+                        <td style={{padding:'10px 12px',color:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.rev_per_customer)}</td>
                       </tr>
                     ))}</tbody>
                   </table>
@@ -2111,18 +2423,18 @@ export default function CommandCenter() {
 
                   {/* ── AI narrative insight bar ─────────────────────── */}
                   {narrative&&(
-                    <div style={{padding:'12px 18px',background:'#0F1A2E',border:'1px solid #1E2D45',borderLeft:'3px solid #3D5068',borderRadius:6,display:'flex',alignItems:'center',gap:10,margin:'0 0 16px'}}>
+                    <div style={{padding:'12px 18px',background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderLeft:'3px solid #3D5068',borderRadius:6,display:'flex',alignItems:'center',gap:10,margin:'0 0 16px'}}>
                       <Info size={12} color="#64748B" style={{flexShrink:0}}/>
-                      <p style={{margin:0,fontSize:13,color:'#FFFFFF',lineHeight:1.55,fontWeight:400}}>{narrative}</p>
+                      <p style={{margin:0,fontSize:13,color:T.textPrimary,lineHeight:1.55,fontWeight:400}}>{narrative}</p>
                     </div>
                   )}
 
                   {/* ── Metadata chip ────────────────────────────────── */}
                   {results?.metadata&&(
-                    <div style={{padding:'7px 14px',borderRadius:8,border:'1px solid #253550',background:'#162035',display:'inline-flex',alignItems:'center',gap:8,alignSelf:'flex-start',marginBottom:16}}>
-                      <span style={{fontSize:11,color:'#FFFFFF',fontWeight:600}}>{results.metadata.dimensions?.length>0?`Customer × ${results.metadata.dimensions.join(' × ')}`:'Customer level'}</span>
-                      <span style={{color:'#E5E7EB'}}>·</span>
-                      <span style={{fontSize:11,color:'#7B8EA8'}}>{results.metadata.row_count?.toLocaleString()} rows</span>
+                    <div style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${T.borderStrong}`,background:T.bgRaised,display:'inline-flex',alignItems:'center',gap:8,alignSelf:'flex-start',marginBottom:16}}>
+                      <span style={{fontSize:11,color:T.textPrimary,fontWeight:600}}>{results.metadata.dimensions?.length>0?`Customer × ${results.metadata.dimensions.join(' × ')}`:'Customer level'}</span>
+                      <span style={{color:T.borderDefault}}>·</span>
+                      <span style={{fontSize:11,color:T.textSecondary}}>{results.metadata.row_count?.toLocaleString()} rows</span>
                     </div>
                   )}
 
@@ -2177,19 +2489,19 @@ export default function CommandCenter() {
                     const trendData = (effectiveByPeriod||[]).filter(x=>x['Beginning ARR']>0||x['beginning']>0)
 
                     const fs  = v => v===0?'—':(v>0?'+':'')+fmt(v)
-                    const fc  = v => v>0?'#4ADE80':v<0?'#F87171':'#64748B'
+                    const fc  = v => v>0?T.growth:v<0?T.decline:T.neutral
                     const fsp = v => v==null?'—':`${v.toFixed(1)}%`
-                    const fcp = v => v>=100?'#4ADE80':v>=80?'#4ADE80':'#F87171'
+                    const fcp = v => v>=100?T.growth:v>=80?T.growth:T.decline
 
                     const SUB_TABS = ['ARR Bridge','Price / Volume','Trends','Reconciliation']
 
                     return (
                       <div>
                         {/* ── Sub-tab bar ───────────────────────────────── */}
-                        <div style={{display:'flex',borderBottom:'1px solid #1E2D45',marginBottom:20}}>
+                        <div style={{display:'flex',borderBottom:`1px solid ${T.borderDefault}`,marginBottom:20}}>
                           {SUB_TABS.map(t=>(
                             <button key={t} onClick={()=>setSummarySubTab(t)}
-                              style={{padding:'10px 18px',fontSize:13,fontWeight:summarySubTab===t?600:400,border:'none',borderBottom:`2px solid ${summarySubTab===t?'#CBD5E1':'transparent'}`,background:'transparent',color:summarySubTab===t?'#CBD5E1':'#4A5A6E',cursor:'pointer',transition:'all 0.12s',whiteSpace:'nowrap'}}>
+                              style={{padding:'10px 18px',fontSize:13,fontWeight:summarySubTab===t?600:400,border:'none',borderBottom:`2px solid ${summarySubTab===t?T.accentPrimary:'transparent'}`,background:'transparent',color:summarySubTab===t?T.accentPrimary:T.textMuted,cursor:'pointer',transition:'all 0.12s',whiteSpace:'nowrap'}}>
                               {t}
                             </button>
                           ))}
@@ -2201,23 +2513,48 @@ export default function CommandCenter() {
 
                             {/* Reconciliation warning */}
                             {bridgeOk&&!bridgeOk.valid&&(
-                              <div style={{padding:'10px 14px',background:'#1A1400',border:'1px solid #3A2E00',borderRadius:6,display:'flex',alignItems:'center',gap:8}}>
+                              <div style={{padding:'10px 14px',background:`${T.warning}12`,border:`1px solid ${T.warning}40`,borderRadius:6,display:'flex',alignItems:'center',gap:8}}>
                                 <AlertCircle size={11} color="#FCD34D"/>
-                                <span style={{fontSize:11,color:'#FCD34D'}}>Reconciliation gap: movements sum {fmt(bridgeOk.total)}, expected {fmt(bridgeOk.expected)} (Δ {fmt(Math.abs(bridgeOk.diff))})</span>
+                                <span style={{fontSize:11,color:T.warning}}>Reconciliation gap: movements sum {fmt(bridgeOk.total)}, expected {fmt(bridgeOk.expected)} (Δ {fmt(Math.abs(bridgeOk.diff))})</span>
                               </div>
                             )}
 
+                            {/* ── AI Insight: ARR Bridge ── */}
+                            {effectiveByPeriod?.length>0&&selPeriod&&(()=>{
+                              const beg = retForPeriod?.beginning || 0
+                              const end = retForPeriod?.ending   || 0
+                              const nrr = retForPeriod?.nrr || 0
+                              const delta = end - beg
+                              const pct   = beg > 0 ? (delta/beg*100).toFixed(1) : '0'
+                              const topPos = selectedWfall.filter(x=>x.value>0).sort((a,b)=>b.value-a.value)[0]
+                              const topNeg = selectedWfall.filter(x=>x.value<0).sort((a,b)=>a.value-b.value)[0]
+                              const sev = nrr>=110?'success':nrr>=100?'info':nrr>=85?'warning':'risk'
+                              const headline = nrr>=100
+                                ? `NRR ${nrr.toFixed(1)}% — net expansion of ${fmt(delta)}`
+                                : `NRR ${nrr.toFixed(1)}% — revenue contracted ${fmt(Math.abs(delta))}`
+                              const body = [
+                                topPos ? `${topPos.category} was the largest growth driver at ${fmt(topPos.value)}.` : '',
+                                topNeg ? `${topNeg.category} was the primary contraction at ${fmt(Math.abs(topNeg.value))}.` : '',
+                              ].filter(Boolean).join(' ')
+                              const implication = nrr < 100
+                                ? `Contraction exceeds expansion — base erosion risk. Review ${topNeg?.category||'churn'} drivers immediately.`
+                                : topPos?.category==='New Logo'
+                                  ? `Growth is new-logo dependent. Monitor whether expansion from existing customers is sufficient to sustain NRR if new logo velocity slows.`
+                                  : `Expansion from existing customers is driving growth — a healthy signal for net retention durability.`
+                              return <AiInsightCard theme={T} title="ARR Bridge Analysis" headline={headline} body={body} implication={implication} action="Review Top Movers tab for customer-level drivers" severity={sev} expanded={false}/>
+                            })()}
+
                             {/* Waterfall chart */}
                             <div style={{...S.cardF}}>
-                              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #1E2D45'}}>
+                              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${T.borderDefault}`}}>
                                 <div>
-                                  <div style={{fontSize:14,fontWeight:700,color:'#FFFFFF',letterSpacing:'-0.01em'}}>ARR Bridge: {periodType==='Annual'?'YoY':'QoQ'} · {selLb}M{selPeriod?` · ${selPeriod}`:''}</div>
-                                  <div style={{fontSize:11,color:'#7B8EA8',marginTop:2}}>Movement from beginning to ending ARR</div>
+                                  <div style={{fontSize:14,fontWeight:700,color:T.textPrimary,letterSpacing:'-0.01em'}}>ARR Bridge: {periodType==='Annual'?'YoY':'QoQ'} · {selLb}M{selPeriod?` · ${selPeriod}`:''}</div>
+                                  <div style={{fontSize:11,color:T.textSecondary,marginTop:2}}>Movement from beginning to ending ARR</div>
                                 </div>
-                                <div style={{display:'flex',alignItems:'center',gap:14,fontSize:10,color:'#7B8EA8'}}>
-                                  <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#4ADE80',display:'inline-block'}}/> Expansion</span>
-                                  <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#F87171',display:'inline-block'}}/> Contraction</span>
-                                  <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:'#3D5068',display:'inline-block'}}/> Baseline</span>
+                                <div style={{display:'flex',alignItems:'center',gap:14,fontSize:10,color:T.textSecondary}}>
+                                  <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:T.growth,display:'inline-block'}}/> Expansion</span>
+                                  <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:T.decline,display:'inline-block'}}/> Contraction</span>
+                                  <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{width:10,height:10,borderRadius:2,background:T.chartBaseline,display:'inline-block'}}/> Baseline</span>
                                 </div>
                               </div>
                               <div style={{padding:'20px 20px 8px'}}>
@@ -2240,53 +2577,53 @@ export default function CommandCenter() {
 
                             {/* Movement breakdown table */}
                             <div style={{...S.cardF}}>
-                              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}>
-                                <div style={{fontSize:14,fontWeight:700,color:'#FFFFFF',letterSpacing:'-0.01em'}}>Movement Breakdown</div>
-                                {isAdmin&&<button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:600,color:'#4ADE80',background:'transparent',border:'none',cursor:'pointer'}}><Download size={12}/> Export</button>}
+                              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:`1px solid ${T.borderDefault}`}}>
+                                <div style={{fontSize:14,fontWeight:700,color:T.textPrimary,letterSpacing:'-0.01em'}}>Movement Breakdown</div>
+                                {isAdmin&&<button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:600,color:T.growth,background:'transparent',border:'none',cursor:'pointer'}}><Download size={12}/> Export</button>}
                               </div>
                               <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
                                 <thead>
-                                  <tr style={{background:'#162035'}}>
+                                  <tr style={{background:T.bgRaised}}>
                                     {['Category','Amount','% of Beg ARR'].map((h,i)=>(
-                                      <th key={h} style={{textAlign:i===0?'left':'right',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#7B8EA8',borderBottom:'1px solid #1E2D45',whiteSpace:'nowrap'}}>{h}</th>
+                                      <th key={h} style={{textAlign:i===0?'left':'right',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:T.textSecondary,borderBottom:`1px solid ${T.borderDefault}`,whiteSpace:'nowrap'}}>{h}</th>
                                     ))}
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {/* Beginning ARR row */}
-                                  <tr style={{borderBottom:'1px solid #1E2D45',background:'#162035'}}>
-                                    <td style={{padding:'10px 20px',fontWeight:700,color:'#FFFFFF',fontSize:13}}>Beginning ARR</td>
-                                    <td style={{textAlign:'right',padding:'10px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:'#FFFFFF'}}>{fmt(toARR(beg))}</td>
-                                    <td style={{textAlign:'right',padding:'10px 20px',color:'#64748B',fontSize:12}}>—</td>
+                                  <tr style={{borderBottom:`1px solid ${T.borderDefault}`,background:T.bgRaised}}>
+                                    <td style={{padding:'10px 20px',fontWeight:700,color:T.textPrimary,fontSize:13}}>Beginning ARR</td>
+                                    <td style={{textAlign:'right',padding:'10px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:T.textPrimary}}>{fmt(toARR(beg))}</td>
+                                    <td style={{textAlign:'right',padding:'10px 20px',color:T.textTertiary,fontSize:12}}>—</td>
                                   </tr>
                                   {/* Core movement rows */}
                                   {coreMovements.sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)).map((row,i)=>(
-                                    <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}
-                                      onMouseEnter={e=>e.currentTarget.style.background='#111827'}
+                                    <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`}}
+                                      onMouseEnter={e=>e.currentTarget.style.background=T.bgSurface}
                                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                                       <td style={{padding:'10px 20px',display:'flex',alignItems:'center',gap:10}}>
-                                        <span style={{width:8,height:8,borderRadius:'50%',background:BC[row.category]||'#6B7280',flexShrink:0}}/>
-                                        <span style={{fontWeight:500,color:'#E2E8F0',fontSize:13}}>{row.category}</span>
+                                        <span style={{width:8,height:8,borderRadius:'50%',background:BC[row.category]||T.textTertiary,flexShrink:0}}/>
+                                        <span style={{fontWeight:500,color:T.textPrimary,fontSize:13}}>{row.category}</span>
                                       </td>
-                                      <td style={{textAlign:'right',padding:'10px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:600,color:row.value>=0?'#4ADE80':'#F87171'}}>
+                                      <td style={{textAlign:'right',padding:'10px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:600,color:row.value>=0?T.growth:T.decline}}>
                                         {row.value===0?'—':(row.value>0?'+':'')+fmt(toARR(row.value))}
                                       </td>
-                                      <td style={{textAlign:'right',padding:'10px 20px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:'#64748B'}}>
+                                      <td style={{textAlign:'right',padding:'10px 20px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:T.textTertiary}}>
                                         {beg>0?`${Math.abs(row.value/beg*100).toFixed(1)}%`:'—'}
                                       </td>
                                     </tr>
                                   ))}
                                   {/* Ending ARR row */}
-                                  <tr style={{borderTop:'1px solid #253550',background:'#162035'}}>
-                                    <td style={{padding:'10px 20px',fontWeight:700,color:'#4ADE80',fontSize:13}}>Ending ARR</td>
-                                    <td style={{textAlign:'right',padding:'10px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:'#4ADE80'}}>{fmt(toARR(end))}</td>
-                                    <td style={{textAlign:'right',padding:'10px 20px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:'#64748B'}}>{beg>0?`${(end/beg*100).toFixed(1)}%`:'—'}</td>
+                                  <tr style={{borderTop:`1px solid ${T.borderStrong}`,background:T.bgRaised}}>
+                                    <td style={{padding:'10px 20px',fontWeight:700,color:T.growth,fontSize:13}}>Ending ARR</td>
+                                    <td style={{textAlign:'right',padding:'10px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:T.growth}}>{fmt(toARR(end))}</td>
+                                    <td style={{textAlign:'right',padding:'10px 20px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:T.textTertiary}}>{beg>0?`${(end/beg*100).toFixed(1)}%`:'—'}</td>
                                   </tr>
                                   {/* Reconciliation check */}
-                                  <tr style={{background:'#0D1525'}}>
-                                    <td style={{padding:'8px 20px',fontSize:11,color:'#4A5A6E'}}>Reconciliation check</td>
+                                  <tr style={{background:T.bgMuted}}>
+                                    <td style={{padding:'8px 20px',fontSize:11,color:T.textMuted}}>Reconciliation check</td>
                                     <td colSpan={2} style={{textAlign:'right',padding:'8px 20px',fontSize:11}}>
-                                      <span style={{color:Math.abs(reconGap)<1?'#4ADE80':'#F87171',fontWeight:600}}>
+                                      <span style={{color:Math.abs(reconGap)<1?T.growth:T.decline,fontWeight:600}}>
                                         {Math.abs(reconGap)<1?'✓ $0 gap — balanced':`⚠ Gap: ${fmt(reconGap)}`}
                                       </span>
                                     </td>
@@ -2337,17 +2674,17 @@ export default function CommandCenter() {
 
                               return (
                                 <div style={{...S.card, padding:0, overflow:'hidden'}}>
-                                  <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45',display:'flex',alignItems:'center',gap:10}}>
-                                    <span style={{fontSize:13,fontWeight:700,color:'#E2E8F0'}}>ARR Waterfall</span>
-                                    <span style={{fontSize:10,color:'#4A5A6E'}}>{selMonth} across all years · {selLb}M Lookback</span>
+                                  <div style={{padding:'14px 20px',borderBottom:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',gap:10}}>
+                                    <span style={{fontSize:13,fontWeight:700,color:T.textPrimary}}>ARR Waterfall</span>
+                                    <span style={{fontSize:10,color:T.textMuted}}>{selMonth} across all years · {selLb}M Lookback</span>
                                   </div>
                                   <div style={{overflowX:'auto'}}>
                                     <table style={{borderCollapse:'collapse',width:'100%',fontSize:12,minWidth:Math.max(monthCols.length*110+200,480)}}>
                                       <thead>
-                                        <tr style={{background:'#162035',borderBottom:'1px solid #1E2D45'}}>
-                                          <th style={{textAlign:'left',padding:'9px 16px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#4A5A6E',position:'sticky',left:0,background:'#162035',minWidth:160}}>Bridge</th>
+                                        <tr style={{background:T.bgRaised,borderBottom:`1px solid ${T.borderDefault}`}}>
+                                          <th style={{textAlign:'left',padding:'9px 16px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textMuted,position:'sticky',left:0,background:T.bgRaised,minWidth:160}}>Bridge</th>
                                           {monthCols.map(p=>(
-                                            <th key={p} style={{textAlign:'right',padding:'9px 14px',fontSize:10,fontWeight:p===selPeriod?700:500,color:p===selPeriod?'#CBD5E1':'#4A5A6E',whiteSpace:'nowrap',background:p===selPeriod?'#1A2840':'#162035'}}>
+                                            <th key={p} style={{textAlign:'right',padding:'9px 14px',fontSize:10,fontWeight:p===selPeriod?700:500,color:p===selPeriod?T.accentPrimary:T.textMuted,whiteSpace:'nowrap',background:p===selPeriod?T.bgElevated:T.bgRaised}}>
                                               {p}
                                             </th>
                                           ))}
@@ -2355,12 +2692,12 @@ export default function CommandCenter() {
                                       </thead>
                                       <tbody>
                                         {/* Beginning ARR */}
-                                        <tr style={{background:'#162035',borderBottom:'1px solid #1E2D45'}}>
-                                          <td style={{padding:'9px 16px',fontWeight:700,color:'#E2E8F0',position:'sticky',left:0,background:'#162035',fontSize:12}}>Beginning ARR</td>
+                                        <tr style={{background:T.bgRaised,borderBottom:`1px solid ${T.borderDefault}`}}>
+                                          <td style={{padding:'9px 16px',fontWeight:700,color:T.textPrimary,position:'sticky',left:0,background:T.bgRaised,fontSize:12}}>Beginning ARR</td>
                                           {monthCols.map(p=>{
                                             const v = lookup[p]?.['Beginning ARR']||0
                                             const isSel = p===selPeriod
-                                            return <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:'#E2E8F0',background:isSel?'rgba(26,40,64,0.8)':'#162035'}}>{fmtAbs(v)}</td>
+                                            return <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:T.textPrimary,background:isSel?'rgba(26,40,64,0.8)':T.bgRaised}}>{fmtAbs(v)}</td>
                                           })}
                                         </tr>
                                         {/* Movement rows */}
@@ -2368,17 +2705,17 @@ export default function CommandCenter() {
                                           const hasAny = monthCols.some(p => lookup[p]?.[cat] && lookup[p][cat]!==0)
                                           if (!hasAny) return null
                                           return (
-                                            <tr key={cat} style={{borderBottom:'1px solid #1E2D45',background:ri%2===0?'transparent':'#0D1525'}}>
-                                              <td style={{padding:'9px 16px',position:'sticky',left:0,background:ri%2===0?'#0F1A2E':'#0D1525',display:'flex',alignItems:'center',gap:8,whiteSpace:'nowrap'}}>
-                                                <span style={{width:7,height:7,borderRadius:'50%',background:BC[cat]||BC[cat.replace(/-/g,'_')]||'#64748B',flexShrink:0}}/>
-                                                <span style={{fontWeight:500,color:'#94A3B8',fontSize:12}}>{cat}</span>
+                                            <tr key={cat} style={{borderBottom:`1px solid ${T.borderDefault}`,background:ri%2===0?'transparent':T.bgMuted}}>
+                                              <td style={{padding:'9px 16px',position:'sticky',left:0,background:ri%2===0?T.bgSurface:T.bgMuted,display:'flex',alignItems:'center',gap:8,whiteSpace:'nowrap'}}>
+                                                <span style={{width:7,height:7,borderRadius:'50%',background:BC[cat]||BC[cat.replace(/-/g,'_')]||T.textTertiary,flexShrink:0}}/>
+                                                <span style={{fontWeight:500,color:T.textSecondary,fontSize:12}}>{cat}</span>
                                               </td>
                                               {monthCols.map(p=>{
                                                 const v = lookup[p]?.[cat]||0
                                                 const isSel = p===selPeriod
                                                 const beg = lookup[p]?.['Beginning ARR']||1
                                                 return (
-                                                  <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isSel?700:400,color:!v||v===0?'#2A3040':v>0?'#4ADE80':'#F87171',background:isSel?'rgba(26,40,64,0.6)':'transparent'}}>
+                                                  <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isSel?700:400,color:!v||v===0?T.bgMuted:v>0?T.growth:T.decline,background:isSel?'rgba(26,40,64,0.6)':'transparent'}}>
                                                     {v===0?'—':fmt2(v)}
                                                   </td>
                                                 )
@@ -2387,36 +2724,36 @@ export default function CommandCenter() {
                                           )
                                         })}
                                         {/* Ending ARR */}
-                                        <tr style={{borderTop:'1px solid #253550',background:'#162035'}}>
-                                          <td style={{padding:'9px 16px',fontWeight:700,color:'#4ADE80',position:'sticky',left:0,background:'#162035',fontSize:12}}>Ending ARR</td>
+                                        <tr style={{borderTop:`1px solid ${T.borderStrong}`,background:T.bgRaised}}>
+                                          <td style={{padding:'9px 16px',fontWeight:700,color:T.growth,position:'sticky',left:0,background:T.bgRaised,fontSize:12}}>Ending ARR</td>
                                           {monthCols.map(p=>{
                                             const v = lookup[p]?.['Ending ARR']||0
                                             const isSel = p===selPeriod
-                                            return <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:'#4ADE80',background:isSel?'rgba(26,40,64,0.8)':'#162035'}}>{fmtAbs(v)}</td>
+                                            return <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:T.growth,background:isSel?'rgba(26,40,64,0.8)':T.bgRaised}}>{fmtAbs(v)}</td>
                                           })}
                                         </tr>
                                         {/* NRR row */}
-                                        <tr style={{borderTop:'1px solid #1E2D45',background:'#0D1525'}}>
-                                          <td style={{padding:'8px 16px',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#4A5A6E',position:'sticky',left:0,background:'#0D1525'}}>Net Retention</td>
+                                        <tr style={{borderTop:`1px solid ${T.borderDefault}`,background:T.bgMuted}}>
+                                          <td style={{padding:'8px 16px',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:T.textMuted,position:'sticky',left:0,background:T.bgMuted}}>Net Retention</td>
                                           {monthCols.map(p=>{
                                             const row = lookup[p]||{}
                                             const beg = row['Beginning ARR']||0
                                             const end = row['Ending ARR']||0
                                             const nrr = row._nrr ?? (beg>0?(end/beg*100):null)
                                             const isSel = p===selPeriod
-                                            return <td key={p} style={{textAlign:'right',padding:'8px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:900,color:nrr>=100?'#4ADE80':'#F87171',background:isSel?'rgba(26,40,64,0.5)':'transparent'}}>{nrr!=null?`${nrr.toFixed(1)}%`:'—'}</td>
+                                            return <td key={p} style={{textAlign:'right',padding:'8px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:900,color:nrr>=100?T.growth:T.decline,background:isSel?'rgba(26,40,64,0.5)':'transparent'}}>{nrr!=null?`${nrr.toFixed(1)}%`:'—'}</td>
                                           })}
                                         </tr>
                                         {/* GRR row */}
-                                        <tr style={{borderTop:'1px solid #1E2D45',background:'#0D1525'}}>
-                                          <td style={{padding:'8px 16px',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#4A5A6E',position:'sticky',left:0,background:'#0D1525'}}>Gross Retention</td>
+                                        <tr style={{borderTop:`1px solid ${T.borderDefault}`,background:T.bgMuted}}>
+                                          <td style={{padding:'8px 16px',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:T.textMuted,position:'sticky',left:0,background:T.bgMuted}}>Gross Retention</td>
                                           {monthCols.map(p=>{
                                             const row = lookup[p]||{}
                                             const beg = row['Beginning ARR']||0
                                             const contractions = Object.keys(row).filter(k=>!BOUNDARY.has(k)&&(row[k]||0)<0).reduce((s,k)=>s+(row[k]||0),0)
                                             const grr = row._grr ?? (beg>0?((beg+contractions)/beg*100):null)
                                             const isSel = p===selPeriod
-                                            return <td key={p} style={{textAlign:'right',padding:'8px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:900,color:grr>=80?'#4ADE80':'#F87171',background:isSel?'rgba(26,40,64,0.5)':'transparent'}}>{grr!=null?`${grr.toFixed(1)}%`:'—'}</td>
+                                            return <td key={p} style={{textAlign:'right',padding:'8px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:900,color:grr>=80?T.growth:T.decline,background:isSel?'rgba(26,40,64,0.5)':'transparent'}}>{grr!=null?`${grr.toFixed(1)}%`:'—'}</td>
                                           })}
                                         </tr>
                                       </tbody>
@@ -2442,8 +2779,8 @@ export default function CommandCenter() {
                                 {label:'Downsell net',       val:downsellNet},
                                 {label:'Net Expansion',      val:upsellNet+downsellNet},
                               ].map(c=>(
-                                <div key={c.label} style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,padding:'12px 14px'}}>
-                                  <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'#4A5A6E',marginBottom:6}}>{c.label}</div>
+                                <div key={c.label} style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,padding:'12px 14px'}}>
+                                  <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:6}}>{c.label}</div>
                                   <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:17,fontWeight:700,color:fc(c.val)}}>{fs(c.val)}</div>
                                 </div>
                               ))}
@@ -2451,14 +2788,14 @@ export default function CommandCenter() {
 
                             {/* Decomposition table */}
                             <div style={{...S.cardF}}>
-                              <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}>
-                                <div style={{fontSize:13,fontWeight:700,color:'#FFFFFF'}}>Upsell/Downsell decomposition</div>
+                              <div style={{padding:'14px 20px',borderBottom:`1px solid ${T.borderDefault}`}}>
+                                <div style={{fontSize:13,fontWeight:700,color:T.textPrimary}}>Upsell/Downsell decomposition</div>
                               </div>
                               <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
                                 <thead>
-                                  <tr style={{background:'#162035'}}>
+                                  <tr style={{background:T.bgRaised}}>
                                     {['Component','Amount','% of Net'].map((h,i)=>(
-                                      <th key={h} style={{textAlign:i===0?'left':'right',padding:'9px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#7B8EA8',borderBottom:'1px solid #1E2D45'}}>{h}</th>
+                                      <th key={h} style={{textAlign:i===0?'left':'right',padding:'9px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:T.textSecondary,borderBottom:`1px solid ${T.borderDefault}`}}>{h}</th>
                                     ))}
                                   </tr>
                                 </thead>
@@ -2473,18 +2810,18 @@ export default function CommandCenter() {
                                     {label:'→ Volume component',  val:dnVol,       indent:true,  base:Math.abs(downsellNet)},
                                     {label:'→ Price-on-Volume',   val:dnPov,       indent:true,  base:Math.abs(downsellNet)},
                                   ].map((row,i)=>(
-                                    <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}
-                                      onMouseEnter={e=>e.currentTarget.style.background='#111827'}
+                                    <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`}}
+                                      onMouseEnter={e=>e.currentTarget.style.background=T.bgSurface}
                                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                      <td style={{padding:'10px 20px',paddingLeft:row.indent?36:20,color:row.indent?'#94A3B8':'#E2E8F0',fontWeight:row.indent?400:600,fontSize:13,display:'flex',alignItems:'center',gap:8}}>
-                                        {!row.indent&&<span style={{width:8,height:8,borderRadius:'50%',background:row.val>=0?'#4ADE80':'#F87171',flexShrink:0}}/>}
-                                        {row.indent&&<span style={{color:'#3D5068',fontSize:12}}>→</span>}
+                                      <td style={{padding:'10px 20px',paddingLeft:row.indent?36:20,color:row.indent?T.textSecondary:T.textPrimary,fontWeight:row.indent?400:600,fontSize:13,display:'flex',alignItems:'center',gap:8}}>
+                                        {!row.indent&&<span style={{width:8,height:8,borderRadius:'50%',background:row.val>=0?T.growth:T.decline,flexShrink:0}}/>}
+                                        {row.indent&&<span style={{color:T.chartBaseline,fontSize:12}}>→</span>}
                                         {row.label.replace('→ ','')}
                                       </td>
                                       <td style={{textAlign:'right',padding:'10px 20px',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:600,color:fc(row.val)}}>
                                         {row.val===0?'—':(row.val>0?'+':'')+fmt(row.val)}
                                       </td>
-                                      <td style={{textAlign:'right',padding:'10px 20px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:'#64748B'}}>
+                                      <td style={{textAlign:'right',padding:'10px 20px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:T.textTertiary}}>
                                         {row.base&&row.base>0?`${(Math.abs(row.val)/row.base*100).toFixed(1)}%`:'—'}
                                       </td>
                                     </tr>
@@ -2492,10 +2829,10 @@ export default function CommandCenter() {
                                 </tbody>
                               </table>
                               {/* Footer note */}
-                              <div style={{padding:'12px 20px',background:'#0D1525',borderTop:'1px solid #1E2D45',display:'flex',alignItems:'flex-start',gap:8}}>
+                              <div style={{padding:'12px 20px',background:T.bgMuted,borderTop:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'flex-start',gap:8}}>
                                 <Info size={11} color="#4A5A6E" style={{flexShrink:0,marginTop:2}}/>
-                                <span style={{fontSize:11,color:'#4A5A6E',lineHeight:1.6}}>
-                                  <strong style={{color:'#64748B'}}>Note on reconciliation:</strong> Price Impact, Volume Impact, and Price-on-Volume rows are sub-decompositions of Upsell/Downsell — they share the same units. Including them in the core bridge sum double-counts the Upsell/Downsell movement. Only the 8 core categories (New Logo, Cross-sell, Returning, Upsell, Downsell, Churn, Churn-Partial, Lapsed) are summed in the bridge reconciliation above.
+                                <span style={{fontSize:11,color:T.textMuted,lineHeight:1.6}}>
+                                  <strong style={{color:T.textTertiary}}>Note on reconciliation:</strong> Price Impact, Volume Impact, and Price-on-Volume rows are sub-decompositions of Upsell/Downsell — they share the same units. Including them in the core bridge sum double-counts the Upsell/Downsell movement. Only the 8 core categories (New Logo, Cross-sell, Returning, Upsell, Downsell, Churn, Churn-Partial, Lapsed) are summed in the bridge reconciliation above.
                                 </span>
                               </div>
                             </div>
@@ -2505,18 +2842,18 @@ export default function CommandCenter() {
                         {/* ══ TAB: Trends ══════════════════════════════════ */}
                         {summarySubTab==='Trends'&&(
                           <div style={{display:'flex',flexDirection:'column',gap:4}}>
-                            <div style={{fontSize:11,color:'#4A5A6E',marginBottom:12}}>
+                            <div style={{fontSize:11,color:T.textMuted,marginBottom:12}}>
                               All {trendData.length} periods with Beginning ARR &gt; 0 · selected period highlighted
                             </div>
                             {[
-                              {key:'Upsell',        color:'#4ADE80'},
-                              {key:'Downsell',      color:'#F87171'},
-                              {key:'New Logo',      color:'#4ADE80'},
-                              {key:'Churn',         color:'#DC2626'},
-                              {key:'Churn-Partial', color:'#F87171'},
-                              {key:'Lapsed',        color:'#CA8A04'},
-                              {key:'Returning',     color:'#86EFAC'},
-                              {key:'Cross-sell',    color:'#4ADE80'},
+                              {key:'Upsell',        color:T.growth},
+                              {key:'Downsell',      color:T.decline},
+                              {key:'New Logo',      color:T.growth},
+                              {key:'Churn',         color:T.risk},
+                              {key:'Churn-Partial', color:T.decline},
+                              {key:'Lapsed',        color:T.chartContraction},
+                              {key:'Returning',     color:T.chartExpansion},
+                              {key:'Cross-sell',    color:T.growth},
                             ].map(cfg=>{
                               const vals = trendData.map(r=>r[cfg.key]||0)
                               if (vals.every(v=>v===0)) return null
@@ -2530,13 +2867,13 @@ export default function CommandCenter() {
                               const selIdx = selPeriod ? trendData.findIndex(r=>normalizePeriod(r._period)===normalizePeriod(selPeriod)) : -1
                               return (
                                 <div key={cfg.key} style={{marginBottom:12}}>
-                                  <div style={{fontSize:11,color:'#64748B',marginBottom:2,fontWeight:500}}>{cfg.key}</div>
+                                  <div style={{fontSize:11,color:T.textTertiary,marginBottom:2,fontWeight:500}}>{cfg.key}</div>
                                   <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:'block',overflow:'visible'}}>
-                                    <line x1={pad} y1={H/2} x2={W-pad} y2={H/2} stroke="#1E2D45" strokeWidth={0.5}/>
+                                    <line x1={pad} y1={H/2} x2={W-pad} y2={H/2} stroke={T.borderDefault} strokeWidth={0.5}/>
                                     <path d={path} fill="none" stroke={cfg.color} strokeWidth={1.5} opacity={0.9}/>
                                     {pts.map((p,i)=>(
                                       <circle key={i} cx={p.x} cy={p.y} r={i===selIdx?4:2.5}
-                                        fill={i===selIdx?'#FFFFFF':cfg.color}
+                                        fill={i===selIdx?T.textPrimary:cfg.color}
                                         stroke={i===selIdx?cfg.color:'none'}
                                         strokeWidth={i===selIdx?1.5:0}/>
                                     ))}
@@ -2564,11 +2901,11 @@ export default function CommandCenter() {
                                     {label:'If Price/Vol included (wrong)', val:fs(wrongSum),            pass:false},
                                     {label:'Gap if Price/Vol included',    val:fmt(netChg-wrongSum),     pass:false},
                                   ].map((row,i)=>(
-                                    <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
-                                      <td style={{padding:'12px 20px',color:'#E2E8F0',fontSize:13}}>{row.label}</td>
-                                      <td style={{padding:'12px 20px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,fontSize:13,color:'#FFFFFF'}}>{row.val}</td>
+                                    <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`}}>
+                                      <td style={{padding:'12px 20px',color:T.textPrimary,fontSize:13}}>{row.label}</td>
+                                      <td style={{padding:'12px 20px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,fontSize:13,color:T.textPrimary}}>{row.val}</td>
                                       <td style={{padding:'12px 20px',textAlign:'right',whiteSpace:'nowrap'}}>
-                                        <span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:4,background:row.pass?'rgba(74,222,128,0.1)':'rgba(248,113,113,0.1)',color:row.pass?'#4ADE80':'#F87171',border:`1px solid ${row.pass?'rgba(74,222,128,0.2)':'rgba(248,113,113,0.2)'}`}}>
+                                        <span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:4,background:row.pass?`${T.growth}1A`:`${T.decline}1A`,color:row.pass?T.growth:T.decline,border:`1px solid ${row.pass?`${T.growth}33`:'rgba(248,113,113,0.2)'}`}}>
                                           {row.pass?'✓ pass':'✗ fail'}
                                         </span>
                                       </td>
@@ -2580,20 +2917,20 @@ export default function CommandCenter() {
 
                             {/* Fix cards */}
                             <div>
-                              <div style={{fontSize:11,fontWeight:600,color:'#4A5A6E',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>Changes needed in your Excel/Alteryx workflow</div>
+                              <div style={{fontSize:11,fontWeight:600,color:T.textMuted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>Changes needed in your Excel/Alteryx workflow</div>
                               {[
-                                {sev:'HIGH', sevColor:'#F87171', sevBg:'rgba(248,113,113,0.08)', title:'Include Price/Volume in net sum',                  body:'Filter to 8 core categories only. Exclude Price Impact, Volume Impact, Price on Volume from movement total.'},
-                                {sev:'HIGH', sevColor:'#F87171', sevBg:'rgba(248,113,113,0.08)', title:'Lapsed Bridge Value = 0 (reads current MRR)',       body:'Lapsed value = −BeginningARR (negative of Prior ARR). Current MRR is 0 for lapsed units — use the Beg ARR row, not current.'},
-                                {sev:'MED',  sevColor:'#FCD34D', sevBg:'rgba(252,211,77,0.08)',  title:'Returning Bridge Value = delta instead of full current', body:'Returning BridgeValue = Current ARR in full. Prior=0 for returning units, so no Beginning ARR row exists. Bridge value = full current period ARR.'},
-                                {sev:'MED',  sevColor:'#FCD34D', sevBg:'rgba(252,211,77,0.08)',  title:'Lapsed re-entry period misclassified as Returning', body:'If 12M lookback prior > 0 (unit existed 12M ago), re-entry is Downsell, not Returning. Returning only fires when prior = 0 (lookback window falls inside the zero-gap).'},
-                                {sev:'LOW',  sevColor:'#64748B', sevBg:'rgba(100,116,139,0.08)', title:'Other In/Out absent despite Channel/Region data',   body:'Zero Other In/Out rows currently. Channel-shifted units fall into New Logo/Churn instead. Implement migration detection if needed.'},
+                                {sev:'HIGH', sevColor:T.decline, sevBg:`${T.decline}14`, title:'Include Price/Volume in net sum',                  body:'Filter to 8 core categories only. Exclude Price Impact, Volume Impact, Price on Volume from movement total.'},
+                                {sev:'HIGH', sevColor:T.decline, sevBg:`${T.decline}14`, title:'Lapsed Bridge Value = 0 (reads current MRR)',       body:'Lapsed value = −BeginningARR (negative of Prior ARR). Current MRR is 0 for lapsed units — use the Beg ARR row, not current.'},
+                                {sev:'MED',  sevColor:T.warning, sevBg:'rgba(252,211,77,0.08)',  title:'Returning Bridge Value = delta instead of full current', body:'Returning BridgeValue = Current ARR in full. Prior=0 for returning units, so no Beginning ARR row exists. Bridge value = full current period ARR.'},
+                                {sev:'MED',  sevColor:T.warning, sevBg:'rgba(252,211,77,0.08)',  title:'Lapsed re-entry period misclassified as Returning', body:'If 12M lookback prior > 0 (unit existed 12M ago), re-entry is Downsell, not Returning. Returning only fires when prior = 0 (lookback window falls inside the zero-gap).'},
+                                {sev:'LOW',  sevColor:T.textTertiary, sevBg:'rgba(100,116,139,0.08)', title:'Other In/Out absent despite Channel/Region data',   body:'Zero Other In/Out rows currently. Channel-shifted units fall into New Logo/Churn instead. Implement migration detection if needed.'},
                               ].map((c,i)=>(
                                 <div key={i} style={{marginBottom:10,padding:'12px 16px',borderLeft:`3px solid ${c.sevColor}`,background:c.sevBg,borderRadius:'0 6px 6px 0'}}>
                                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
                                     <span style={{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:3,background:c.sevBg,color:c.sevColor,border:`1px solid ${c.sevColor}22`,letterSpacing:'0.06em'}}>{c.sev}</span>
-                                    <span style={{fontSize:12,fontWeight:600,color:'#E2E8F0'}}>{c.title}</span>
+                                    <span style={{fontSize:12,fontWeight:600,color:T.textPrimary}}>{c.title}</span>
                                   </div>
-                                  <div style={{fontSize:11,color:'#64748B',lineHeight:1.6}}>{c.body}</div>
+                                  <div style={{fontSize:11,color:T.textTertiary,lineHeight:1.6}}>{c.body}</div>
                                 </div>
                               ))}
                             </div>
@@ -2694,7 +3031,7 @@ export default function CommandCenter() {
                 const bestMon  = monthAvg[0]
                 const worstMon = monthAvg[monthAvg.length-1]
 
-                const fc = v => v>=0?'#4ADE80':'#F87171'
+                const fc = v => v>=0?T.growth:T.decline
                 const fs = v => v==null?'—':(v>=0?'+':'')+v.toFixed(1)+'%'
 
                 return (
@@ -2702,22 +3039,22 @@ export default function CommandCenter() {
 
                     {/* ── Header ─────────────────────────────────────────── */}
                     <div>
-                      <div style={{fontSize:20,fontWeight:800,color:'#E2E8F0',letterSpacing:'-0.02em'}}>Historical Revenue Performance</div>
-                      <div style={{fontSize:12,color:'#4A5A6E',marginTop:3}}>Longitudinal view of net retention and growth indicators · {selPeriod||'—'}</div>
+                      <div style={{fontSize:20,fontWeight:800,color:T.textPrimary,letterSpacing:'-0.02em'}}>Historical Revenue Performance</div>
+                      <div style={{fontSize:12,color:T.textMuted,marginTop:3}}>Longitudinal view of net retention and growth indicators · {selPeriod||'—'}</div>
                     </div>
 
                     {/* ── KPI Strip ──────────────────────────────────────── */}
                     <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
                       {[
-                        {label:'NRR',        value:nrr?.toFixed(1)+'%',   sub:fs(nrrGrowth)+' vs 100%',         subGood:nrrGrowth>=0, accent:nrr>=100?'#4ADE80':'#F87171'},
-                        {label:'GRR',        value:grr?.toFixed(1)+'%',   sub:grr>=80?'Stable':'At Risk',       subGood:grr>=80,      accent:grr>=80?'#4ADE80':'#F87171'},
-                        {label:'Net Expansion', value:fmt(netExpansion),  sub:beg>0?fs(netExpansion/beg*100):null, subGood:netExpansion>=0, accent:'#CBD5E1'},
-                        {label:'LTV Proxy',  value:beg>0?(nrr/(100-grr+0.01)).toFixed(1)+'x':'—', sub:'NRR / Churn Rate', subGood:true, accent:'#CBD5E1'},
+                        {label:'NRR',        value:nrr?.toFixed(1)+'%',   sub:fs(nrrGrowth)+' vs 100%',         subGood:nrrGrowth>=0, accent:nrr>=100?T.growth:T.decline},
+                        {label:'GRR',        value:grr?.toFixed(1)+'%',   sub:grr>=80?'Stable':'At Risk',       subGood:grr>=80,      accent:grr>=80?T.growth:T.decline},
+                        {label:'Net Expansion', value:fmt(netExpansion),  sub:beg>0?fs(netExpansion/beg*100):null, subGood:netExpansion>=0, accent:T.accentPrimary},
+                        {label:'LTV Proxy',  value:beg>0?(nrr/(100-grr+0.01)).toFixed(1)+'x':'—', sub:'NRR / Churn Rate', subGood:true, accent:T.accentPrimary},
                       ].map(k=>(
-                        <div key={k.label} style={{background:'#0F1A2E',border:`1px solid #1E2D45`,borderTop:`2px solid ${k.accent}`,borderRadius:6,padding:'14px 16px'}}>
-                          <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'#4A5A6E',marginBottom:8}}>{k.label}</div>
+                        <div key={k.label} style={{background:T.bgSurface,border:`1px solid #1E2D45`,borderTop:`2px solid ${k.accent}`,borderRadius:6,padding:'14px 16px'}}>
+                          <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:8}}>{k.label}</div>
                           <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:22,fontWeight:700,color:k.accent,letterSpacing:'-0.02em'}}>{k.value}</div>
-                          {k.sub&&<div style={{marginTop:4,fontSize:10,color:k.subGood?'#4ADE80':'#F87171'}}>{k.sub}</div>}
+                          {k.sub&&<div style={{marginTop:4,fontSize:10,color:k.subGood?T.growth:T.decline}}>{k.sub}</div>}
                         </div>
                       ))}
                     </div>
@@ -2726,16 +3063,16 @@ export default function CommandCenter() {
                     <div style={{display:'grid',gridTemplateColumns:'1fr 280px',gap:16}}>
 
                       {/* Retention Dynamics chart */}
-                      <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,padding:'18px 20px'}}>
+                      <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,padding:'18px 20px'}}>
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
                           <div>
-                            <div style={{fontSize:14,fontWeight:700,color:'#E2E8F0'}}>Retention Dynamics</div>
-                            <div style={{fontSize:11,color:'#4A5A6E',marginTop:2}}>NRR, GRR, Churn %, Expansion % over time</div>
+                            <div style={{fontSize:14,fontWeight:700,color:T.textPrimary}}>Retention Dynamics</div>
+                            <div style={{fontSize:11,color:T.textMuted,marginTop:2}}>NRR, GRR, Churn %, Expansion % over time</div>
                           </div>
                           <div style={{display:'flex',gap:4}}>
                             {windows.map(w=>(
                               <button key={w.label} onClick={()=>setChartWindow(w.n)}
-                                style={{padding:'3px 10px',fontSize:10,fontWeight:chartWindow===w.n?700:400,borderRadius:4,border:`1px solid ${chartWindow===w.n?'#CBD5E1':'#1E2D45'}`,background:chartWindow===w.n?'#162035':'transparent',color:chartWindow===w.n?'#CBD5E1':'#4A5A6E',cursor:'pointer'}}>
+                                style={{padding:'3px 10px',fontSize:10,fontWeight:chartWindow===w.n?700:400,borderRadius:4,border:`1px solid ${chartWindow===w.n?T.accentPrimary:T.borderDefault}`,background:chartWindow===w.n?T.bgRaised:'transparent',color:chartWindow===w.n?T.accentPrimary:T.textMuted,cursor:'pointer'}}>
                                 {w.label}
                               </button>
                             ))}
@@ -2744,14 +3081,14 @@ export default function CommandCenter() {
                         <div style={{height:240}}>
                           <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={chartData} margin={{left:0,right:8,bottom:4,top:4}}>
-                              <XAxis dataKey="period" tick={{fontSize:9,fill:'#6B7280'}} interval="preserveStartEnd" axisLine={false} tickLine={false}/>
-                              <YAxis yAxisId="pct" tickFormatter={v=>`${v}%`} tick={{fontSize:9,fill:'#6B7280'}} width={42} axisLine={false} tickLine={false} domain={['dataMin - 5','dataMax + 5']}/>
-                              <ReferenceLine yAxisId="pct" y={100} stroke="#253550" strokeDasharray="4 3"/>
+                              <XAxis dataKey="period" tick={{fontSize:9,fill:T.textTertiary}} interval="preserveStartEnd" axisLine={false} tickLine={false}/>
+                              <YAxis yAxisId="pct" tickFormatter={v=>`${v}%`} tick={{fontSize:9,fill:T.textTertiary}} width={42} axisLine={false} tickLine={false} domain={['dataMin - 5','dataMax + 5']}/>
+                              <ReferenceLine yAxisId="pct" y={100} stroke={T.borderStrong} strokeDasharray="4 3"/>
                               <Tooltip
-                                contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:4,fontSize:11}}
-                                labelStyle={{color:'#64748B',fontSize:10,marginBottom:4}}
+                                contentStyle={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:4,fontSize:11}}
+                                labelStyle={{color:T.textTertiary,fontSize:10,marginBottom:4}}
                                 formatter={(v,n)=>[v!=null?`${v.toFixed(1)}%`:'—',n]}/>
-                              <Legend iconType="circle" iconSize={6} wrapperStyle={{fontSize:10,color:'#94A3B8',paddingTop:8}}/>
+                              <Legend iconType="circle" iconSize={6} wrapperStyle={{fontSize:10,color:T.textSecondary,paddingTop:8}}/>
                               <Line yAxisId="pct" type="monotone" dataKey="nrr" stroke="#4ADE80" strokeWidth={2} dot={false} activeDot={{r:3}} name="NRR" connectNulls/>
                               <Line yAxisId="pct" type="monotone" dataKey="grr" stroke="#94A3B8" strokeWidth={1.5} dot={false} activeDot={{r:3}} name="GRR" connectNulls strokeDasharray="4 2"/>
                               <Line yAxisId="pct" type="monotone" dataKey="churnPct" stroke="#F87171" strokeWidth={1.5} dot={false} activeDot={{r:3}} name="Churn %" connectNulls/>
@@ -2761,8 +3098,8 @@ export default function CommandCenter() {
                         </div>
                         {/* Legend */}
                         <div style={{display:'flex',gap:16,justifyContent:'center',marginTop:8}}>
-                          {[['NRR','#4ADE80'],['GRR','#94A3B8'],['Churn %','#F87171'],['Expansion %','#22C55E']].map(([lbl,col])=>(
-                            <span key={lbl} style={{display:'flex',alignItems:'center',gap:5,fontSize:10,color:'#64748B'}}>
+                          {[['NRR',T.growth],['GRR',T.textSecondary],['Churn %',T.decline],['Expansion %',T.success]].map(([lbl,col])=>(
+                            <span key={lbl} style={{display:'flex',alignItems:'center',gap:5,fontSize:10,color:T.textTertiary}}>
                               <span style={{width:14,height:2,background:col,borderRadius:2,display:'inline-block'}}/>
                               {lbl}
                             </span>
@@ -2773,10 +3110,10 @@ export default function CommandCenter() {
                       {/* Seasonality + Insight panel */}
                       <div style={{display:'flex',flexDirection:'column',gap:12}}>
                         {/* Predictive insight */}
-                        <div style={{background:'#0D1A2E',border:'1px solid #1E3A5A',borderRadius:6,padding:'14px 16px',flex:1}}>
+                        <div style={{background:T.bgSurface,border:'1px solid #1E3A5A',borderRadius:6,padding:'14px 16px',flex:1}}>
                           <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
                             <Sparkles size={11} color="#CBD5E1"/>
-                            <span style={{fontSize:11,fontWeight:600,color:'#CBD5E1'}}>Predictive Insight</span>
+                            <span style={{fontSize:11,fontWeight:600,color:T.accentPrimary}}>Predictive Insight</span>
                           </div>
                           {chartData.length>=3&&(()=>{
                             const recent = chartData.slice(-3).map(d=>d.nrr||0)
@@ -2784,40 +3121,40 @@ export default function CommandCenter() {
                             const dir    = trend>0?'improved':'declined'
                             const proj   = (recent[2]||0) + trend*2
                             return (
-                              <div style={{fontSize:12,color:'#94A3B8',lineHeight:1.7}}>
-                                NRR has {dir} <strong style={{color:trend>0?'#4ADE80':'#F87171'}}>{Math.abs(trend).toFixed(1)} pts</strong> over {chartData.length} periods.
-                                {trend>0&&proj>100&&<> At this rate, projected NRR: <strong style={{color:'#4ADE80'}}>{proj.toFixed(0)}%</strong>.</>}
+                              <div style={{fontSize:12,color:T.textSecondary,lineHeight:1.7}}>
+                                NRR has {dir} <strong style={{color:trend>0?T.growth:T.decline}}>{Math.abs(trend).toFixed(1)} pts</strong> over {chartData.length} periods.
+                                {trend>0&&proj>100&&<> At this rate, projected NRR: <strong style={{color:T.growth}}>{proj.toFixed(0)}%</strong>.</>}
                                 {trend<=0&&<> Focus on expansion to reverse contraction trend.</>}
                               </div>
                             )
                           })()}
-                          {chartData.length<3&&<div style={{fontSize:12,color:'#4A5A6E'}}>Need more periods for trend analysis.</div>}
+                          {chartData.length<3&&<div style={{fontSize:12,color:T.textMuted}}>Need more periods for trend analysis.</div>}
                         </div>
 
                         {/* Seasonality */}
-                        <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,padding:'14px 16px'}}>
-                          <div style={{fontSize:11,fontWeight:600,color:'#CBD5E1',marginBottom:12}}>Seasonality Impact</div>
+                        <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,padding:'14px 16px'}}>
+                          <div style={{fontSize:11,fontWeight:600,color:T.accentPrimary,marginBottom:12}}>Seasonality Impact</div>
                           {bestMon&&(
                             <div style={{marginBottom:10}}>
                               <div style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:4}}>
-                                <span style={{color:'#94A3B8'}}>{bestMon.mon} Expansion</span>
-                                <span style={{color:'#4ADE80',fontWeight:600}}>+{bestMon.avg.toFixed(1)}%</span>
+                                <span style={{color:T.textSecondary}}>{bestMon.mon} Expansion</span>
+                                <span style={{color:T.growth,fontWeight:600}}>+{bestMon.avg.toFixed(1)}%</span>
                               </div>
-                              <div style={{height:4,background:'#1E2D45',borderRadius:2}}>
-                                <div style={{height:'100%',background:'#4ADE80',borderRadius:2,width:`${Math.min(bestMon.avg*4,100)}%`}}/>
+                              <div style={{height:4,background:T.borderDefault,borderRadius:2}}>
+                                <div style={{height:'100%',background:T.growth,borderRadius:2,width:`${Math.min(bestMon.avg*4,100)}%`}}/>
                               </div>
                             </div>
                           )}
                           {worstMon&&(
                             <div>
                               <div style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:4}}>
-                                <span style={{color:'#94A3B8'}}>{worstMon.mon} Risk</span>
-                                <span style={{color:'#F87171',fontWeight:600}}>{worstMon.avg.toFixed(1)}%</span>
+                                <span style={{color:T.textSecondary}}>{worstMon.mon} Risk</span>
+                                <span style={{color:T.decline,fontWeight:600}}>{worstMon.avg.toFixed(1)}%</span>
                               </div>
-                              <div style={{height:4,background:'#1E2D45',borderRadius:2}}>
-                                <div style={{height:'100%',background:'#F87171',borderRadius:2,width:`${Math.min(Math.abs(worstMon.avg)*4,100)}%`}}/>
+                              <div style={{height:4,background:T.borderDefault,borderRadius:2}}>
+                                <div style={{height:'100%',background:T.decline,borderRadius:2,width:`${Math.min(Math.abs(worstMon.avg)*4,100)}%`}}/>
                               </div>
-                              <div style={{fontSize:10,color:'#3D5068',marginTop:6,lineHeight:1.5}}>
+                              <div style={{fontSize:10,color:T.chartBaseline,marginTop:6,lineHeight:1.5}}>
                                 {worstMon.mon} historically shows lowest expansion. Plan campaigns accordingly.
                               </div>
                             </div>
@@ -2827,20 +3164,20 @@ export default function CommandCenter() {
                     </div>
 
                     {/* ── Monthly Growth Audit ────────────────────────────── */}
-                    <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,overflow:'hidden'}}>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}>
+                    <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,overflow:'hidden'}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:`1px solid ${T.borderDefault}`}}>
                         <div>
-                          <div style={{fontSize:14,fontWeight:700,color:'#E2E8F0'}}>Monthly Growth Audit</div>
-                          <div style={{fontSize:11,color:'#4A5A6E',marginTop:2}}>Expansion = Upsell + Cross-sell · Contraction = Downsell + Churn · All figures from bridge classification</div>
+                          <div style={{fontSize:14,fontWeight:700,color:T.textPrimary}}>Monthly Growth Audit</div>
+                          <div style={{fontSize:11,color:T.textMuted,marginTop:2}}>Expansion = Upsell + Cross-sell · Contraction = Downsell + Churn · All figures from bridge classification</div>
                         </div>
-                        {isAdmin&&<button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:600,color:'#4ADE80',background:'transparent',border:'none',cursor:'pointer'}}><Download size={12}/> Export CSV</button>}
+                        {isAdmin&&<button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:600,color:T.growth,background:'transparent',border:'none',cursor:'pointer'}}><Download size={12}/> Export CSV</button>}
                       </div>
                       <div style={{overflowX:'auto'}}>
                         <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
                           <thead>
-                            <tr style={{background:'#162035',borderBottom:'1px solid #1E2D45'}}>
+                            <tr style={{background:T.bgRaised,borderBottom:`1px solid ${T.borderDefault}`}}>
                               {['Fiscal Month','Net Retention','Gross Retention','Expansion MRR','Contraction MRR','Momentum'].map((h,i)=>(
-                                <th key={h} style={{padding:'10px 16px',textAlign:i===0?'left':'right',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#4A5A6E',whiteSpace:'nowrap'}}>{h}</th>
+                                <th key={h} style={{padding:'10px 16px',textAlign:i===0?'left':'right',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:T.textMuted,whiteSpace:'nowrap'}}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -2848,19 +3185,19 @@ export default function CommandCenter() {
                             {auditRows.slice(0,24).map((row,i)=>{
                               const isSel = normalizePeriod(row.period)===normalizePeriod(selPeriod)
                               const momScore = row.nrr!=null?(row.nrr>=110?3:row.nrr>=100?2:1):0
-                              const momColor = momScore===3?'#4ADE80':momScore===2?'#CBD5E1':'#F87171'
+                              const momColor = momScore===3?T.growth:momScore===2?T.accentPrimary:T.decline
                               return (
-                                <tr key={i} style={{borderBottom:'1px solid #1E2D45',background:isSel?'#162035':'transparent'}}
-                                  onMouseEnter={e=>!isSel&&(e.currentTarget.style.background='#0D1525')}
+                                <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`,background:isSel?T.bgRaised:'transparent'}}
+                                  onMouseEnter={e=>!isSel&&(e.currentTarget.style.background=T.bgMuted)}
                                   onMouseLeave={e=>!isSel&&(e.currentTarget.style.background='transparent')}>
-                                  <td style={{padding:'11px 16px',fontWeight:isSel?700:500,color:isSel?'#E2E8F0':'#94A3B8',fontFamily:"'JetBrains Mono',monospace"}}>{row.period}</td>
-                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:row.nrr>=100?'#4ADE80':row.nrr>=80?'#FCD34D':'#F87171'}}>{row.nrr!=null?row.nrr.toFixed(1)+'%':'—'}</td>
-                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:row.grr>=80?'#4ADE80':'#F87171'}}>{row.grr!=null?row.grr.toFixed(1)+'%':'—'}</td>
-                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:'#4ADE80'}}>{row.expansion>0?'+'+fmt(row.expansion):'—'}</td>
-                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:'#F87171'}}>{row.contraction<0?fmt(row.contraction):'—'}</td>
+                                  <td style={{padding:'11px 16px',fontWeight:isSel?700:500,color:isSel?T.textPrimary:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{row.period}</td>
+                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:row.nrr>=100?T.growth:row.nrr>=80?T.warning:T.decline}}>{row.nrr!=null?row.nrr.toFixed(1)+'%':'—'}</td>
+                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:row.grr>=80?T.growth:T.decline}}>{row.grr!=null?row.grr.toFixed(1)+'%':'—'}</td>
+                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:T.growth}}>{row.expansion>0?'+'+fmt(row.expansion):'—'}</td>
+                                  <td style={{padding:'11px 16px',textAlign:'right',fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:T.decline}}>{row.contraction<0?fmt(row.contraction):'—'}</td>
                                   <td style={{padding:'11px 16px',textAlign:'right'}}>
                                     <span style={{display:'inline-flex',gap:2}}>
-                                      {[1,2,3].map(n=><span key={n} style={{width:5,height:14,borderRadius:1,background:n<=momScore?momColor:'#1E2D45',display:'inline-block'}}/>)}
+                                      {[1,2,3].map(n=><span key={n} style={{width:5,height:14,borderRadius:1,background:n<=momScore?momColor:T.borderDefault,display:'inline-block'}}/>)}
                                     </span>
                                   </td>
                                 </tr>
@@ -2925,24 +3262,24 @@ export default function CommandCenter() {
 
                     return (
                       <div style={{...S.cardF}}>
-                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 20px',borderBottom:'1px solid #1E2D45'}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 20px',borderBottom:`1px solid ${T.borderDefault}`}}>
                           <div>
-                            <div style={{fontSize:13,fontWeight:700,color:'#E2E8F0',letterSpacing:'-0.01em'}}>Monthly ARR Bridge</div>
-                            <div style={{fontSize:11,color:'#4A5A6E',marginTop:2}}>
+                            <div style={{fontSize:13,fontWeight:700,color:T.textPrimary,letterSpacing:'-0.01em'}}>Monthly ARR Bridge</div>
+                            <div style={{fontSize:11,color:T.textMuted,marginTop:2}}>
                               {colPeriods[0]} → {colPeriods[colPeriods.length-1]} · {colPeriods.length} months · {selDims==='customer'?'Customer level':selDims==='product'?'Customer × Product':'Customer × Region'}
                             </div>
                           </div>
-                          <div style={{fontSize:10,color:'#3D5068',fontWeight:500}}>
+                          <div style={{fontSize:10,color:T.chartBaseline,fontWeight:500}}>
                             {selPeriod&&`Selected: ${selPeriod}`}
                           </div>
                         </div>
                         <div style={{overflowX:'auto'}}>
                           <table style={{borderCollapse:'collapse',minWidth:Math.max(colPeriods.length*90+180,560),fontSize:11}}>
                             <thead>
-                              <tr style={{background:'#162035'}}>
-                                <th style={{textAlign:'left',padding:'9px 16px',fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#4A5A6E',whiteSpace:'nowrap',borderBottom:'1px solid #1E2D45',position:'sticky',left:0,background:'#162035',minWidth:160}}>Movement</th>
+                              <tr style={{background:T.bgRaised}}>
+                                <th style={{textAlign:'left',padding:'9px 16px',fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textMuted,whiteSpace:'nowrap',borderBottom:`1px solid ${T.borderDefault}`,position:'sticky',left:0,background:T.bgRaised,minWidth:160}}>Movement</th>
                                 {colPeriods.map(p=>(
-                                  <th key={p} style={{textAlign:'right',padding:'9px 12px',fontSize:9,fontWeight:normalizePeriod(p)===normalizePeriod(selPeriod)?700:500,letterSpacing:'0.06em',color:normalizePeriod(p)===normalizePeriod(selPeriod)?'#CBD5E1':'#4A5A6E',whiteSpace:'nowrap',borderBottom:'1px solid #1E2D45',background:p===selPeriod?'#1A2840':'#162035'}}>
+                                  <th key={p} style={{textAlign:'right',padding:'9px 12px',fontSize:9,fontWeight:normalizePeriod(p)===normalizePeriod(selPeriod)?700:500,letterSpacing:'0.06em',color:normalizePeriod(p)===normalizePeriod(selPeriod)?T.accentPrimary:T.textMuted,whiteSpace:'nowrap',borderBottom:`1px solid ${T.borderDefault}`,background:p===selPeriod?T.bgElevated:T.bgRaised}}>
                                     {p}
                                   </th>
                                 ))}
@@ -2953,17 +3290,17 @@ export default function CommandCenter() {
                                 const hasAnyData = colPeriods.some(p=>lookup[p]?.[cat])
                                 if(!hasAnyData) return null
                                 return (
-                                  <tr key={cat} style={{borderBottom:'1px solid #1E2D45',background:ri%2===0?'transparent':'#0D1525'}}>
-                                    <td style={{padding:'8px 16px',position:'sticky',left:0,background:ri%2===0?'#0F1A2E':'#0D1525',display:'flex',alignItems:'center',gap:8,whiteSpace:'nowrap'}}>
-                                      <span style={{width:6,height:6,borderRadius:'50%',background:BC[cat]||'#64748B',flexShrink:0}}/>
-                                      <span style={{fontWeight:500,color:'#94A3B8'}}>{cat}</span>
+                                  <tr key={cat} style={{borderBottom:`1px solid ${T.borderDefault}`,background:ri%2===0?'transparent':T.bgMuted}}>
+                                    <td style={{padding:'8px 16px',position:'sticky',left:0,background:ri%2===0?T.bgSurface:T.bgMuted,display:'flex',alignItems:'center',gap:8,whiteSpace:'nowrap'}}>
+                                      <span style={{width:6,height:6,borderRadius:'50%',background:BC[cat]||T.textTertiary,flexShrink:0}}/>
+                                      <span style={{fontWeight:500,color:T.textSecondary}}>{cat}</span>
                                     </td>
                                     {colPeriods.map(p=>{
                                       const v = lookup[p]?.[cat]
                                       const isPos = (v||0)>=0
                                       const isCurrentPeriod = normalizePeriod(p)===normalizePeriod(selPeriod)
                                       return (
-                                        <td key={p} style={{textAlign:'right',padding:'8px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isCurrentPeriod?700:400,color:!v?'#2A3040':isPos?'#4ADE80':'#F87171',background:isCurrentPeriod?'rgba(26,40,64,0.6)':'transparent'}}>
+                                        <td key={p} style={{textAlign:'right',padding:'8px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isCurrentPeriod?700:400,color:!v?T.bgMuted:isPos?T.growth:T.decline,background:isCurrentPeriod?'rgba(26,40,64,0.6)':'transparent'}}>
                                           {v?fmt2(toARR(v)):'—'}
                                         </td>
                                       )
@@ -2972,8 +3309,8 @@ export default function CommandCenter() {
                                 )
                               })}
                               {/* Net row */}
-                              <tr style={{borderTop:'1px solid #253550',background:'#162035'}}>
-                                <td style={{padding:'9px 16px',position:'sticky',left:0,background:'#162035',fontWeight:700,color:'#E2E8F0',fontSize:11}}>Net Change</td>
+                              <tr style={{borderTop:`1px solid ${T.borderStrong}`,background:T.bgRaised}}>
+                                <td style={{padding:'9px 16px',position:'sticky',left:0,background:T.bgRaised,fontWeight:700,color:T.textPrimary,fontSize:11}}>Net Change</td>
                                 {colPeriods.map(p=>{
                                   const row = lookup[p]||{}
                                   const posSum = ['New Logo','Upsell','Cross-sell','Returning','Other In'].reduce((s,k)=>s+(Math.max(row[k]||0,0)),0)
@@ -2981,7 +3318,7 @@ export default function CommandCenter() {
                                   const net = toARR(posSum+negSum)
                                   const isCurrentPeriod = normalizePeriod(p)===normalizePeriod(selPeriod)
                                   return (
-                                    <td key={p} style={{textAlign:'right',padding:'9px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:700,color:net>=0?'#4ADE80':'#F87171',background:isCurrentPeriod?'rgba(26,40,64,0.8)':'#162035'}}>
+                                    <td key={p} style={{textAlign:'right',padding:'9px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:700,color:net>=0?T.growth:T.decline,background:isCurrentPeriod?'rgba(26,40,64,0.8)':T.bgRaised}}>
                                       {net?fmt2(net):'—'}
                                     </td>
                                   )
@@ -2999,10 +3336,10 @@ export default function CommandCenter() {
                     {/* ── Continuous monthly ARR trend ──────────────────── */}
                     <div style={{...S.card}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-                        <div style={{fontSize:14,fontWeight:700,color:'#E2E8F0',letterSpacing:'-0.01em'}}>ARR Trend — Monthly</div>
-                        <div style={{fontSize:10,color:'#4A5A6E'}}>All available months · continuous</div>
+                        <div style={{fontSize:14,fontWeight:700,color:T.textPrimary,letterSpacing:'-0.01em'}}>ARR Trend — Monthly</div>
+                        <div style={{fontSize:10,color:T.textMuted}}>All available months · continuous</div>
                       </div>
-                      <div style={{fontSize:11,color:'#64748B',marginBottom:16}}>Ending ARR each period</div>
+                      <div style={{fontSize:11,color:T.textTertiary,marginBottom:16}}>Ending ARR each period</div>
                       <div style={{height:220}}>
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={kpiRowsWindowed} margin={{left:8,right:16,bottom:4}}>
@@ -3012,16 +3349,16 @@ export default function CommandCenter() {
                                 <stop offset="95%" stopColor="#4ADE80" stopOpacity={0}/>
                               </linearGradient>
                             </defs>
-                            <XAxis dataKey="period" tick={{fontSize:9,fill:'#6B7280'}}
+                            <XAxis dataKey="period" tick={{fontSize:9,fill:T.textTertiary}}
                               interval={kpiRows.length>24?3:kpiRows.length>12?1:0}
                               axisLine={false} tickLine={false}/>
-                            <YAxis tickFormatter={v=>fmt(v)} tick={{fontSize:9,fill:'#6B7280'}} width={52} axisLine={false} tickLine={false}/>
+                            <YAxis tickFormatter={v=>fmt(v)} tick={{fontSize:9,fill:T.textTertiary}} width={52} axisLine={false} tickLine={false}/>
                             <Tooltip
                               formatter={(v,n)=>[fmt(v), n==='ending'?'Ending ARR':'Beginning ARR']}
-                              contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:4,fontSize:11,color:'#E2E8F0',boxShadow:'0 4px 12px rgba(0,0,0,0.4)'}}
-                              labelStyle={{color:'#64748B',marginBottom:3,fontSize:10}}/>
+                              contentStyle={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:4,fontSize:11,color:T.textPrimary,boxShadow:`0 4px 20px rgba(0,0,0,0.4)`}}
+                              labelStyle={{color:T.textTertiary,marginBottom:3,fontSize:10}}/>
                             <Area type="monotone" dataKey="ending" stroke="#4ADE80" strokeWidth={1.5}
-                              fill="url(#arrGrad)" dot={false} activeDot={{r:3,fill:'#4ADE80',strokeWidth:0}} name="ending"/>
+                              fill="url(#arrGrad)" dot={false} activeDot={{r:3,fill:T.growth,strokeWidth:0}} name="ending"/>
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
@@ -3030,31 +3367,31 @@ export default function CommandCenter() {
                     {/* ── NRR / GRR continuous monthly trend ────────────── */}
                     <div style={{...S.card}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-                        <div style={{fontSize:14,fontWeight:700,color:'#E2E8F0',letterSpacing:'-0.01em'}}>NRR & GRR — Monthly</div>
-                        <div style={{display:'flex',gap:16,fontSize:10,color:'#4A5A6E'}}>
+                        <div style={{fontSize:14,fontWeight:700,color:T.textPrimary,letterSpacing:'-0.01em'}}>NRR & GRR — Monthly</div>
+                        <div style={{display:'flex',gap:16,fontSize:10,color:T.textMuted}}>
                           <span style={{display:'flex',alignItems:'center',gap:5}}>
-                            <span style={{width:12,height:2,background:'#4ADE80',borderRadius:2,display:'inline-block'}}/>NRR
+                            <span style={{width:12,height:2,background:T.growth,borderRadius:2,display:'inline-block'}}/>NRR
                           </span>
                           <span style={{display:'flex',alignItems:'center',gap:5}}>
-                            <span style={{width:12,height:2,background:'#94A3B8',borderRadius:2,display:'inline-block'}}/>GRR
+                            <span style={{width:12,height:2,background:T.textSecondary,borderRadius:2,display:'inline-block'}}/>GRR
                           </span>
                         </div>
                       </div>
-                      <div style={{fontSize:11,color:'#64748B',marginBottom:16}}>100% = flat retention baseline</div>
+                      <div style={{fontSize:11,color:T.textTertiary,marginBottom:16}}>100% = flat retention baseline</div>
                       <div style={{height:220}}>
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={kpiRowsWindowed} margin={{left:8,right:16,bottom:4}}>
-                            <XAxis dataKey="period" tick={{fontSize:9,fill:'#6B7280'}}
+                            <XAxis dataKey="period" tick={{fontSize:9,fill:T.textTertiary}}
                               interval={kpiRows.length>24?3:kpiRows.length>12?1:0}
                               axisLine={false} tickLine={false}/>
-                            <YAxis tickFormatter={v=>`${v.toFixed(0)}%`} tick={{fontSize:9,fill:'#6B7280'}}
+                            <YAxis tickFormatter={v=>`${v.toFixed(0)}%`} tick={{fontSize:9,fill:T.textTertiary}}
                               domain={['dataMin - 5','dataMax + 5']} width={44} axisLine={false} tickLine={false}/>
-                            <ReferenceLine y={100} stroke="#253550" strokeDasharray="4 4"
-                              label={{value:'100%',position:'insideTopRight',fontSize:9,fill:'#3D5068'}}/>
+                            <ReferenceLine y={100} stroke={T.borderStrong} strokeDasharray="4 4"
+                              label={{value:'100%',position:'insideTopRight',fontSize:9,fill:T.chartBaseline}}/>
                             <Tooltip
                               formatter={(v,n)=>[`${Number(v).toFixed(1)}%`, n]}
-                              contentStyle={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:4,fontSize:11,color:'#E2E8F0',boxShadow:'0 4px 12px rgba(0,0,0,0.4)'}}
-                              labelStyle={{color:'#64748B',marginBottom:3,fontSize:10}}/>
+                              contentStyle={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:4,fontSize:11,color:T.textPrimary,boxShadow:`0 4px 20px rgba(0,0,0,0.4)`}}
+                              labelStyle={{color:T.textTertiary,marginBottom:3,fontSize:10}}/>
                             <Line type="monotone" dataKey="nrr" stroke="#4ADE80" strokeWidth={1.5}
                               dot={false} activeDot={{r:3,fill:"#4ADE80"}} name="NRR" connectNulls/>
                             <Line type="monotone" dataKey="grr" stroke="#94A3B8" strokeWidth={1.5}
@@ -3066,31 +3403,31 @@ export default function CommandCenter() {
 
                     {/* ── Monthly data table ─────────────────────────────── */}
                     <div style={{...S.cardF}}>
-                      <div style={{padding:'12px 20px',borderBottom:'1px solid #1E2D45'}}>
-                        <div style={{fontSize:13,fontWeight:700,color:'#E2E8F0'}}>Monthly Detail</div>
+                      <div style={{padding:'12px 20px',borderBottom:`1px solid ${T.borderDefault}`}}>
+                        <div style={{fontSize:13,fontWeight:700,color:T.textPrimary}}>Monthly Detail</div>
                       </div>
                       <div style={{overflowX:'auto'}}>
                         <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                          <thead><tr style={{background:'#162035'}}>
+                          <thead><tr style={{background:T.bgRaised}}>
                             {['Period','Beg ARR','End ARR','New Logo','Upsell','Downsell','Churn','GRR','NRR'].map(h=>(
-                              <th key={h} style={{padding:'9px 14px',textAlign:'left',fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#4A5A6E',whiteSpace:'nowrap',borderBottom:'1px solid #1E2D45'}}>{h}</th>
+                              <th key={h} style={{padding:'9px 14px',textAlign:'left',fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textMuted,whiteSpace:'nowrap',borderBottom:`1px solid ${T.borderDefault}`}}>{h}</th>
                             ))}
                           </tr></thead>
                           <tbody>{kpiRows.map((row,i)=>{
                             const isSelected = selPeriod && normalizePeriod(row.period) === normalizePeriod(selPeriod)
                             return (
-                              <tr key={i} style={{borderBottom:'1px solid #1E2D45',background:isSelected?'#162035':'transparent'}}
-                                onMouseEnter={e=>!isSelected&&(e.currentTarget.style.background='#111827')}
+                              <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`,background:isSelected?T.bgRaised:'transparent'}}
+                                onMouseEnter={e=>!isSelected&&(e.currentTarget.style.background=T.bgSurface)}
                                 onMouseLeave={e=>!isSelected&&(e.currentTarget.style.background='transparent')}>
-                                <td style={{padding:'8px 14px',fontWeight:isSelected?700:400,color:isSelected?'#E2E8F0':'#94A3B8',fontFamily:"'JetBrains Mono',monospace"}}>{row.period}</td>
-                                <td style={{padding:'8px 14px',color:'#64748B',fontFamily:"'JetBrains Mono',monospace"}}>{fmt(toARR(row.beginning))}</td>
-                                <td style={{padding:'8px 14px',color:'#94A3B8',fontFamily:"'JetBrains Mono',monospace"}}>{fmt(toARR(row.ending))}</td>
-                                <td style={{padding:'8px 14px',color:'#4ADE80',fontWeight:500,fontFamily:"'JetBrains Mono',monospace"}}>{row.new_logo?`+${fmt(toARR(row.new_logo))}`:'—'}</td>
-                                <td style={{padding:'8px 14px',color:'#4ADE80',fontWeight:500,fontFamily:"'JetBrains Mono',monospace"}}>{row.upsell?`+${fmt(toARR(row.upsell))}`:'—'}</td>
-                                <td style={{padding:'8px 14px',color:'#F87171',fontWeight:500,fontFamily:"'JetBrains Mono',monospace"}}>{row.downsell?fmt(toARR(row.downsell)):'—'}</td>
-                                <td style={{padding:'8px 14px',color:'#F87171',fontWeight:500,fontFamily:"'JetBrains Mono',monospace"}}>{row.churn?fmt(toARR(row.churn)):'—'}</td>
-                                <td style={{padding:'8px 14px',fontWeight:600,fontFamily:"'JetBrains Mono',monospace",color:(row.grr||0)>=80?'#4ADE80':(row.grr||0)>=60?'#FCD34D':'#F87171'}}>{fmtPct(row.grr)}</td>
-                                <td style={{padding:'8px 14px',fontWeight:600,fontFamily:"'JetBrains Mono',monospace",color:(row.nrr||0)>=100?'#4ADE80':(row.nrr||0)>=80?'#FCD34D':'#F87171'}}>{fmtPct(row.nrr)}</td>
+                                <td style={{padding:'8px 14px',fontWeight:isSelected?700:400,color:isSelected?T.textPrimary:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{row.period}</td>
+                                <td style={{padding:'8px 14px',color:T.textTertiary,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(toARR(row.beginning))}</td>
+                                <td style={{padding:'8px 14px',color:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(toARR(row.ending))}</td>
+                                <td style={{padding:'8px 14px',color:T.growth,fontWeight:500,fontFamily:"'JetBrains Mono',monospace"}}>{row.new_logo?`+${fmt(toARR(row.new_logo))}`:'—'}</td>
+                                <td style={{padding:'8px 14px',color:T.growth,fontWeight:500,fontFamily:"'JetBrains Mono',monospace"}}>{row.upsell?`+${fmt(toARR(row.upsell))}`:'—'}</td>
+                                <td style={{padding:'8px 14px',color:T.decline,fontWeight:500,fontFamily:"'JetBrains Mono',monospace"}}>{row.downsell?fmt(toARR(row.downsell)):'—'}</td>
+                                <td style={{padding:'8px 14px',color:T.decline,fontWeight:500,fontFamily:"'JetBrains Mono',monospace"}}>{row.churn?fmt(toARR(row.churn)):'—'}</td>
+                                <td style={{padding:'8px 14px',fontWeight:600,fontFamily:"'JetBrains Mono',monospace",color:(row.grr||0)>=80?T.growth:(row.grr||0)>=60?T.warning:T.decline}}>{fmtPct(row.grr)}</td>
+                                <td style={{padding:'8px 14px',fontWeight:600,fontFamily:"'JetBrains Mono',monospace",color:(row.nrr||0)>=100?T.growth:(row.nrr||0)>=80?T.warning:T.decline}}>{fmtPct(row.nrr)}</td>
                               </tr>
                             )
                           })}</tbody>
@@ -3099,7 +3436,7 @@ export default function CommandCenter() {
                     </div>
                     </>
                   ):(
-                    <div style={{textAlign:'center',padding:'48px 24px',color:'#4A5A6E',fontSize:13}}>
+                    <div style={{textAlign:'center',padding:'48px 24px',color:T.textMuted,fontSize:13}}>
                       No trend data available for the selected lookback and period type.
                     </div>
                   )}
@@ -3110,11 +3447,11 @@ export default function CommandCenter() {
               {!isCohort&&activeTab==='cohort_heatmap'&&(
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
                   {/* Context explanation */}
-                  <div style={{padding:'12px 16px',background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6,display:'flex',alignItems:'flex-start',gap:10}}>
+                  <div style={{padding:'12px 16px',background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,display:'flex',alignItems:'flex-start',gap:10}}>
                     <Info size={13} color="#64748B" style={{flexShrink:0,marginTop:1}}/>
                     <div>
-                      <div style={{fontSize:12,fontWeight:600,color:'#CBD5E1',marginBottom:3}}>Cohort Retention Heatmap</div>
-                      <div style={{fontSize:11,color:'#64748B',lineHeight:1.5}}>
+                      <div style={{fontSize:12,fontWeight:600,color:T.accentPrimary,marginBottom:3}}>Cohort Retention Heatmap</div>
+                      <div style={{fontSize:11,color:T.textTertiary,lineHeight:1.5}}>
                         Shows customer retention rates by acquisition cohort. Uses the same data file and field mapping already configured. Customer, Date and Revenue columns are required.
                       </div>
                     </div>
@@ -3123,17 +3460,17 @@ export default function CommandCenter() {
                   {/* Run state / results */}
                   {!cohortResults&&!cohortRunning&&(
                     <div style={{textAlign:'center',padding:'48px 24px'}}>
-                      <div style={{width:56,height:56,borderRadius:12,border:'1px solid #1E2D45',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px'}}>
+                      <div style={{width:56,height:56,borderRadius:12,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px'}}>
                         <Layers size={24} color="#3D5068"/>
                       </div>
-                      <div style={{fontSize:15,fontWeight:600,color:'#CBD5E1',marginBottom:6}}>Build Retention Heatmap</div>
-                      <div style={{fontSize:12,color:'#64748B',marginBottom:20,maxWidth:360,margin:'0 auto 20px'}}>
+                      <div style={{fontSize:15,fontWeight:600,color:T.accentPrimary,marginBottom:6}}>Build Retention Heatmap</div>
+                      <div style={{fontSize:12,color:T.textTertiary,marginBottom:20,maxWidth:360,margin:'0 auto 20px'}}>
                         Analyse cohort retention using your existing data. This runs a separate cohort pass on the same file.
                       </div>
-                      {cohortErr&&<div style={{marginBottom:16,padding:'10px 14px',background:'#1A0A0A',border:'1px solid #3A1A1A',borderRadius:6,fontSize:11,color:'#F87171'}}>{cohortErr}</div>}
+                      {cohortErr&&<div style={{marginBottom:16,padding:'10px 14px',background:`${T.decline}12`,border:`1px solid ${T.decline}40`,borderRadius:6,fontSize:11,color:T.decline}}>{cohortErr}</div>}
                       <button onClick={runInlineCohort} style={{
                         padding:'10px 28px',borderRadius:6,border:'1px solid #2D5A3D',
-                        background:'#1A3A2A',color:'#4ADE80',fontSize:13,fontWeight:600,cursor:'pointer',
+                        background:T.selectionBg,color:T.growth,fontSize:13,fontWeight:600,cursor:'pointer',
                       }}>
                         Run Cohort Analysis
                       </button>
@@ -3143,7 +3480,7 @@ export default function CommandCenter() {
                   {cohortRunning&&(
                     <div style={{textAlign:'center',padding:'48px 24px'}}>
                       <Loader2 size={24} color="#64748B" style={{animation:'spin 1s linear infinite',margin:'0 auto 12px',display:'block'}}/>
-                      <div style={{fontSize:12,color:'#64748B'}}>Running cohort analysis…</div>
+                      <div style={{fontSize:12,color:T.textTertiary}}>Running cohort analysis…</div>
                     </div>
                   )}
 
@@ -3152,22 +3489,22 @@ export default function CommandCenter() {
 
                       {/* Header: metadata + view toggle + re-run */}
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                        <div style={{fontSize:11,color:'#64748B'}}>
+                        <div style={{fontSize:11,color:T.textTertiary}}>
                           {cohortResults.retention?.length||0} cohorts · {cohortResults.retention?.[0] ? Object.keys(cohortResults.retention[0]).filter(k=>k!=='cohort').length : 0} periods
                         </div>
                         <div style={{display:'flex',alignItems:'center',gap:8}}>
                           {/* View toggle */}
-                          <div style={{display:'flex',background:'#0B1220',borderRadius:5,border:'1px solid #1E2D45',overflow:'hidden',height:28}}>
+                          <div style={{display:'flex',background:T.bgPage,borderRadius:5,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:28}}>
                             {[['pct','Retention %'],['arr','Revenue $'],['per_cust','$ / Customer']].map(([v,l])=>(
                               <button key={v} onClick={()=>setCohortView(v)} style={{
                                 padding:'0 10px',height:28,fontSize:10,fontWeight:cohortView===v?600:400,border:'none',
-                                cursor:'pointer',background:cohortView===v?'#162035':'transparent',
-                                color:cohortView===v?'#CBD5E1':'#4A5A6E',whiteSpace:'nowrap',
+                                cursor:'pointer',background:cohortView===v?T.bgRaised:'transparent',
+                                color:cohortView===v?T.accentPrimary:T.textMuted,whiteSpace:'nowrap',
                               }}>{l}</button>
                             ))}
                           </div>
                           <button onClick={()=>setCohortResults(null)}
-                            style={{height:28,padding:'0 10px',fontSize:11,color:'#4A5A6E',background:'transparent',border:'1px solid #1E2D45',borderRadius:5,cursor:'pointer'}}>
+                            style={{height:28,padding:'0 10px',fontSize:11,color:T.textMuted,background:'transparent',border:`1px solid ${T.borderDefault}`,borderRadius:5,cursor:'pointer'}}>
                             ↺ Re-run
                           </button>
                         </div>
@@ -3176,8 +3513,8 @@ export default function CommandCenter() {
                       {/* Retention % view */}
                       {cohortView==='pct'&&cohortResults.retention?.length>0&&(
                         <div style={{...S.card}}>
-                          <div style={{fontSize:13,fontWeight:700,color:'#E2E8F0',marginBottom:4}}>Retention Rate %</div>
-                          <div style={{fontSize:11,color:'#64748B',marginBottom:16}}>% of original cohort ARR retained each period</div>
+                          <div style={{fontSize:13,fontWeight:700,color:T.textPrimary,marginBottom:4}}>Retention Rate %</div>
+                          <div style={{fontSize:11,color:T.textTertiary,marginBottom:16}}>% of original cohort ARR retained each period</div>
                           <CohortHeatmap data={cohortResults.retention} title="" isPercent={true}/>
                         </div>
                       )}
@@ -3185,11 +3522,11 @@ export default function CommandCenter() {
                       {/* Revenue $ view — use revenue heatmap data if available */}
                       {cohortView==='arr'&&(
                         <div style={{...S.card}}>
-                          <div style={{fontSize:13,fontWeight:700,color:'#E2E8F0',marginBottom:4}}>Revenue by Cohort ($)</div>
-                          <div style={{fontSize:11,color:'#64748B',marginBottom:16}}>Absolute revenue retained per cohort each period</div>
+                          <div style={{fontSize:13,fontWeight:700,color:T.textPrimary,marginBottom:4}}>Revenue by Cohort ($)</div>
+                          <div style={{fontSize:11,color:T.textTertiary,marginBottom:16}}>Absolute revenue retained per cohort each period</div>
                           {cohortResults.heatmap?.length>0
                             ? <CohortHeatmap data={cohortResults.heatmap} title="" isPercent={false}/>
-                            : <div style={{textAlign:'center',color:'#4A5A6E',padding:'32px 0',fontSize:12}}>Revenue cohort data not available. Re-run with revenue metric mapped.</div>
+                            : <div style={{textAlign:'center',color:T.textMuted,padding:'32px 0',fontSize:12}}>Revenue cohort data not available. Re-run with revenue metric mapped.</div>
                           }
                         </div>
                       )}
@@ -3197,11 +3534,11 @@ export default function CommandCenter() {
                       {/* $ per customer view — derived from revenue / heatmap */}
                       {cohortView==='per_cust'&&(
                         <div style={{...S.card}}>
-                          <div style={{fontSize:13,fontWeight:700,color:'#E2E8F0',marginBottom:4}}>Revenue per Customer</div>
-                          <div style={{fontSize:11,color:'#64748B',marginBottom:16}}>Average ARR per retained customer each period</div>
+                          <div style={{fontSize:13,fontWeight:700,color:T.textPrimary,marginBottom:4}}>Revenue per Customer</div>
+                          <div style={{fontSize:11,color:T.textTertiary,marginBottom:16}}>Average ARR per retained customer each period</div>
                           {(()=>{
                             if (!cohortResults.retention?.length || !cohortResults.heatmap?.length) {
-                              return <div style={{textAlign:'center',color:'#4A5A6E',padding:'32px 0',fontSize:12}}>Requires both retention % and revenue data.</div>
+                              return <div style={{textAlign:'center',color:T.textMuted,padding:'32px 0',fontSize:12}}>Requires both retention % and revenue data.</div>
                             }
                             // Compute per-customer: revenue[row][col] / (retention%[row][col]/100 * cohortSize)
                             // We approximate: revenue heatmap values are already per-cohort totals
@@ -3225,21 +3562,21 @@ export default function CommandCenter() {
                       {/* Period summary table — always visible */}
                       {cohortResults.fy_summary?.length>0&&(
                         <div style={{...S.cardF}}>
-                          <div style={{padding:'12px 20px',borderBottom:'1px solid #1E2D45'}}>
-                            <div style={{fontSize:13,fontWeight:700,color:'#E2E8F0'}}>Period Summary</div>
+                          <div style={{padding:'12px 20px',borderBottom:`1px solid ${T.borderDefault}`}}>
+                            <div style={{fontSize:13,fontWeight:700,color:T.textPrimary}}>Period Summary</div>
                           </div>
                           <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                            <thead><tr style={{background:'#162035'}}>
+                            <thead><tr style={{background:T.bgRaised}}>
                               {['Period','Revenue','Customers','Rev / Customer'].map(h=>(
-                                <th key={h} style={{textAlign:'left',padding:'9px 14px',fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#4A5A6E',borderBottom:'1px solid #1E2D45'}}>{h}</th>
+                                <th key={h} style={{textAlign:'left',padding:'9px 14px',fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textMuted,borderBottom:`1px solid ${T.borderDefault}`}}>{h}</th>
                               ))}
                             </tr></thead>
                             <tbody>{cohortResults.fy_summary.map((row,i)=>(
-                              <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
-                                <td style={{padding:'9px 14px',fontWeight:600,color:'#E2E8F0'}}>{String(Object.values(row)[0])}</td>
-                                <td style={{padding:'9px 14px',color:'#4ADE80',fontFamily:"'JetBrains Mono',monospace"}}>{fmt(toARR(row.revenue))}</td>
-                                <td style={{padding:'9px 14px',color:'#94A3B8',fontFamily:"'JetBrains Mono',monospace"}}>{(row.customers||0).toLocaleString()}</td>
-                                <td style={{padding:'9px 14px',color:'#94A3B8',fontFamily:"'JetBrains Mono',monospace"}}>{fmt(toARR(row.rev_per_customer))}</td>
+                              <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`}}>
+                                <td style={{padding:'9px 14px',fontWeight:600,color:T.textPrimary}}>{String(Object.values(row)[0])}</td>
+                                <td style={{padding:'9px 14px',color:T.growth,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(toARR(row.revenue))}</td>
+                                <td style={{padding:'9px 14px',color:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{(row.customers||0).toLocaleString()}</td>
+                                <td style={{padding:'9px 14px',color:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(toARR(row.rev_per_customer))}</td>
                               </tr>
                             ))}</tbody>
                           </table>
@@ -3255,42 +3592,58 @@ export default function CommandCenter() {
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
 
                   {/* ── Movers context bar ──────────────────────────────── */}
-                  <div style={{display:'flex',alignItems:'center',gap:20,padding:'10px 16px',background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:6}}>
+                  <div style={{display:'flex',alignItems:'center',gap:20,padding:'10px 16px',background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6}}>
                     <div>
-                      <span style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#4A5A6E'}}>Expansion</span>
-                      <span style={{fontSize:14,fontWeight:700,color:'#4ADE80',fontFamily:"'JetBrains Mono',monospace",marginLeft:8}}>
+                      <span style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textMuted}}>Expansion</span>
+                      <span style={{fontSize:14,fontWeight:700,color:T.growth,fontFamily:"'JetBrains Mono',monospace",marginLeft:8}}>
                         +{fmt(expansionList.reduce((s,r)=>s+Math.abs(getMoverValue(r,r._cat||moverCat)||0),0))}
                       </span>
-                      <span style={{fontSize:11,color:'#4A5A6E',marginLeft:4}}>({expansionList.length} accounts)</span>
+                      <span style={{fontSize:11,color:T.textMuted,marginLeft:4}}>({expansionList.length} accounts)</span>
                     </div>
-                    <div style={{width:1,height:16,background:'#253550'}}/>
+                    <div style={{width:1,height:16,background:T.borderStrong}}/>
                     <div>
-                      <span style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#4A5A6E'}}>Churn risk</span>
-                      <span style={{fontSize:14,fontWeight:700,color:'#F87171',fontFamily:"'JetBrains Mono',monospace",marginLeft:8}}>
+                      <span style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textMuted}}>Churn risk</span>
+                      <span style={{fontSize:14,fontWeight:700,color:T.decline,fontFamily:"'JetBrains Mono',monospace",marginLeft:8}}>
                         -{fmt(churnList.reduce((s,r)=>s+Math.abs(getMoverValue(r,r._cat||moverCat)||0),0))}
                       </span>
-                      <span style={{fontSize:11,color:'#4A5A6E',marginLeft:4}}>({churnList.length} accounts)</span>
+                      <span style={{fontSize:11,color:T.textMuted,marginLeft:4}}>({churnList.length} accounts)</span>
                     </div>
-                    <div style={{marginLeft:'auto',fontSize:11,color:'#4A5A6E'}}>{periodType==='Annual'?'YoY':'QoQ'} · {selLb}M · {selPeriod||'—'}</div>
+                    <div style={{marginLeft:'auto',fontSize:11,color:T.textMuted}}>{periodType==='Annual'?'YoY':'QoQ'} · {selLb}M · {selPeriod||'—'}</div>
                   </div>
+
+                  {/* ── AI Insight: Top Movers ── */}
+                  {effectiveByPeriod?.length>0&&(()=>{
+                    const row = effectiveByPeriod.find(r=>normalizePeriod(r._period)===normalizePeriod(selPeriod))
+                    const upsell = row?.['Upsell']||0
+                    const churn  = Math.abs(row?.['Churn']||0)
+                    const nl     = row?.['New Logo']||0
+                    const ratio  = churn>0?(upsell/churn).toFixed(1):'∞'
+                    const sev    = parseFloat(ratio)>=2?'success':parseFloat(ratio)>=1?'info':'risk'
+                    return <AiInsightCard theme={T}
+                      title="Movement Intelligence"
+                      headline={`Expansion-to-Churn ratio: ${ratio}x — ${parseFloat(ratio)>=1?'expansion winning':'churn dominating'}`}
+                      body={`Upsell of ${fmt(upsell)} vs churn of ${fmt(churn)}. New logos contributed ${fmt(nl)} this period.`}
+                      implication={parseFloat(ratio)<1?`Churn is outpacing expansion — net revenue is shrinking from the existing base. Prioritise retention immediately.`:`Expansion exceeds churn. Focus on maintaining upsell momentum while managing churn below current levels.`}
+                      severity={sev} expanded={false}/>
+                  })()}
 
                   {/* ── Two-column: Expansion | Churn Risk ─────────────── */}
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
 
                     {/* Expansion Opportunities */}
-                    <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
+                    <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
                       {/* Panel header */}
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:'1px solid #1E2D45',background:'#162035'}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:`1px solid ${T.borderDefault}`,background:T.bgRaised}}>
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
                           <div style={{width:28,height:28,borderRadius:6,background:'rgba(22,163,74,0.08)',display:'flex',alignItems:'center',justifyContent:'center'}}>
                             <TrendingUp size={13} color="#16A34A"/>
                           </div>
                           <div>
-                            <div style={{fontSize:13,fontWeight:700,color:'#16A34A'}}>Expansion Opportunities</div>
-                            <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8'}}>High upsell potential</div>
+                            <div style={{fontSize:13,fontWeight:700,color:T.growth}}>Expansion Opportunities</div>
+                            <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textSecondary}}>High upsell potential</div>
                           </div>
                         </div>
-                        <span style={{fontSize:11,fontWeight:700,background:'rgba(22,163,74,0.08)',color:'#16A34A',border:'1px solid #9CA3AF',padding:'3px 10px',borderRadius:20}}>
+                        <span style={{fontSize:11,fontWeight:700,background:'rgba(22,163,74,0.08)',color:T.growth,border:'1px solid #9CA3AF',padding:'3px 10px',borderRadius:20}}>
                           {expansionList.length} accounts
                         </span>
                       </div>
@@ -3320,30 +3673,30 @@ export default function CommandCenter() {
                                   beginningArr={customerArrMap[cust]?.beginningArr??row.beginning_arr??(ret?.beginning>0?ret.beginning:null)}
                                 />
                               )})
-                          : <div style={{textAlign:'center',color:'#7B8EA8',fontSize:13,padding:32}}>No expansion data for selected lookback</div>
+                          : <div style={{textAlign:'center',color:T.textSecondary,fontSize:13,padding:32}}>No expansion data for selected lookback</div>
                         }
                       </div>
                       {expansionList.length>0&&(
-                        <div style={{padding:'10px 16px',borderTop:'1px solid #1E2D45',textAlign:'center'}}>
-                          <span style={{fontSize:11,fontWeight:600,color:'#4ADE80',cursor:'pointer'}}>View all {expansionList.length} opportunities →</span>
+                        <div style={{padding:'10px 16px',borderTop:`1px solid ${T.borderDefault}`,textAlign:'center'}}>
+                          <span style={{fontSize:11,fontWeight:600,color:T.growth,cursor:'pointer'}}>View all {expansionList.length} opportunities →</span>
                         </div>
                       )}
                     </div>
 
                     {/* Churn Risk */}
-                    <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
+                    <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
                       {/* Panel header */}
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:'1px solid #1E2D45',background:'#162035'}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:`1px solid ${T.borderDefault}`,background:T.bgRaised}}>
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
                           <div style={{width:28,height:28,borderRadius:6,background:'rgba(220,38,38,0.06)',display:'flex',alignItems:'center',justifyContent:'center'}}>
                             <TrendingDown size={13} color="#DC2626"/>
                           </div>
                           <div>
-                            <div style={{fontSize:13,fontWeight:600,color:'#F87171'}}>Churn Risk</div>
-                            <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8'}}>Priority interventions</div>
+                            <div style={{fontSize:13,fontWeight:600,color:T.decline}}>Churn Risk</div>
+                            <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textSecondary}}>Priority interventions</div>
                           </div>
                         </div>
-                        <span style={{fontSize:11,fontWeight:700,background:'rgba(220,38,38,0.06)',color:'#DC2626',border:'1px solid #9CA3AF',padding:'3px 10px',borderRadius:20}}>
+                        <span style={{fontSize:11,fontWeight:700,background:'rgba(220,38,38,0.06)',color:T.risk,border:'1px solid #9CA3AF',padding:'3px 10px',borderRadius:20}}>
                           {churnList.length} accounts
                         </span>
                       </div>
@@ -3373,12 +3726,12 @@ export default function CommandCenter() {
                                   beginningArr={customerArrMap[cust]?.beginningArr??row.beginning_arr??(ret?.beginning>0?ret.beginning:null)}
                                 />
                               )})
-                          : <div style={{textAlign:'center',color:'#7B8EA8',fontSize:13,padding:32}}>No churn data for selected lookback</div>
+                          : <div style={{textAlign:'center',color:T.textSecondary,fontSize:13,padding:32}}>No churn data for selected lookback</div>
                         }
                       </div>
                       {churnList.length>0&&(
-                        <div style={{padding:'10px 16px',borderTop:'1px solid #1E2D45',textAlign:'center'}}>
-                          <span style={{fontSize:11,fontWeight:600,color:'#DC2626',cursor:'pointer'}}>View all {churnList.length} at-risk accounts →</span>
+                        <div style={{padding:'10px 16px',borderTop:`1px solid ${T.borderDefault}`,textAlign:'center'}}>
+                          <span style={{fontSize:11,fontWeight:600,color:T.risk,cursor:'pointer'}}>View all {churnList.length} at-risk accounts →</span>
                         </div>
                       )}
                     </div>
@@ -3386,20 +3739,20 @@ export default function CommandCenter() {
 
                   {/* ── All movers by category ────────────────────────── */}
                   {Object.keys(movers).length>0&&(
-                    <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
+                    <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
                       {/* Category tabs */}
-                      <div style={{display:'flex',alignItems:'center',gap:4,padding:'12px 16px',borderBottom:'1px solid #1E2D45',flexWrap:'wrap',background:'#0D1525'}}>
-                        <span style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#7B8EA8',marginRight:8}}>Filter:</span>
+                      <div style={{display:'flex',alignItems:'center',gap:4,padding:'12px 16px',borderBottom:`1px solid ${T.borderDefault}`,flexWrap:'wrap',background:T.bgMuted}}>
+                        <span style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textSecondary,marginRight:8}}>Filter:</span>
                         {Object.keys(movers).map(cat=>(
                           <button key={cat} onClick={()=>setMoverCat(cat)} style={{
                             display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,
-                            border:`1px solid ${moverCat===cat?'rgba(37,99,235,0.25)':'#E5E7EB'}`,
+                            border:`1px solid ${moverCat===cat?'rgba(37,99,235,0.25)':T.borderDefault}`,
                             background:moverCat===cat?'rgba(37,99,235,0.08)':'transparent',
-                            color:moverCat===cat?'#2563EB':'#6B7280',cursor:'pointer',transition:'all 0.12s',
+                            color:moverCat===cat?T.info:T.textTertiary,cursor:'pointer',transition:'all 0.12s',
                           }}>
-                            <span style={{width:6,height:6,borderRadius:'50%',background:BC[cat]||'#6B7280',flexShrink:0}}/>
+                            <span style={{width:6,height:6,borderRadius:'50%',background:BC[cat]||T.textTertiary,flexShrink:0}}/>
                             {cat}
-                            <span style={{fontSize:9,background:'#162035',color:'#7B8EA8',padding:'1px 5px',borderRadius:10}}>{(movers[cat]||[]).length}</span>
+                            <span style={{fontSize:9,background:T.bgRaised,color:T.textSecondary,padding:'1px 5px',borderRadius:10}}>{(movers[cat]||[]).length}</span>
                           </button>
                         ))}
                       </div>
@@ -3408,24 +3761,24 @@ export default function CommandCenter() {
                         <div style={{overflowX:'auto'}}>
                           <table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}>
                             <thead>
-                              <tr style={{background:'#162035',borderBottom:'2px solid #E5E7EB'}}>
+                              <tr style={{background:T.bgRaised,borderBottom:'2px solid #E5E7EB'}}>
                                 {Object.keys(movers[moverCat][0]).filter(k=>k!=='value'&&k!=='period'&&k!=='health'&&k!=='segment').map(k=>(
-                                  <th key={k} style={{textAlign:'left',padding:'10px 16px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:'#7B8EA8',whiteSpace:'nowrap'}}>{k}</th>
+                                  <th key={k} style={{textAlign:'left',padding:'10px 16px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:T.textSecondary,whiteSpace:'nowrap'}}>{k}</th>
                                 ))}
-                                <th style={{textAlign:'right',padding:'10px 16px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:'#7B8EA8'}}>Period</th>
-                                <th style={{textAlign:'right',padding:'10px 16px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:'#7B8EA8'}}>ARR Impact</th>
+                                <th style={{textAlign:'right',padding:'10px 16px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:T.textSecondary}}>Period</th>
+                                <th style={{textAlign:'right',padding:'10px 16px',fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',color:T.textSecondary}}>ARR Impact</th>
                               </tr>
                             </thead>
                             <tbody>
                               {movers[moverCat].slice(0,30).map((row,i)=>(
-                                <tr key={i} style={{borderBottom:'1px solid #1E2D45',transition:'background 0.1s'}}
-                                  onMouseEnter={e=>e.currentTarget.style.background='#111827'}
+                                <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`,transition:'background 0.1s'}}
+                                  onMouseEnter={e=>e.currentTarget.style.background=T.bgSurface}
                                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                                   {Object.keys(row).filter(k=>k!=='value'&&k!=='period'&&k!=='health'&&k!=='segment').map(k=>(
-                                    <td key={k} style={{padding:'10px 16px',color:'#FFFFFF',fontSize:13}}>{row[k]??'—'}</td>
+                                    <td key={k} style={{padding:'10px 16px',color:T.textPrimary,fontSize:13}}>{row[k]??'—'}</td>
                                   ))}
-                                  <td style={{textAlign:'right',padding:'10px 16px',color:'#7B8EA8',fontSize:12,fontFamily:"'JetBrains Mono',monospace"}}>{row.period||'—'}</td>
-                                  <td style={{textAlign:'right',padding:'10px 16px',fontWeight:700,fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:getMoverValue(row,moverCat)>=0?'#16A34A':'#DC2626'}}>
+                                  <td style={{textAlign:'right',padding:'10px 16px',color:T.textSecondary,fontSize:12,fontFamily:"'JetBrains Mono',monospace"}}>{row.period||'—'}</td>
+                                  <td style={{textAlign:'right',padding:'10px 16px',fontWeight:700,fontSize:13,fontFamily:"'JetBrains Mono',monospace",color:getMoverValue(row,moverCat)>=0?T.growth:T.risk}}>
                                     {getMoverValue(row,moverCat)>=0?'+':''}{fmt(getMoverValue(row,moverCat))}
                                   </td>
                                 </tr>
@@ -3441,26 +3794,26 @@ export default function CommandCenter() {
 
                             {/* MRR: TOP CUSTOMERS */}
               {!isCohort&&activeTab==='top_customers'&&(
-                <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,padding:0,overflow:'hidden'}}>
-                  <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}><div style={{...S.label}}>Top Customers by Ending ARR</div></div>
+                <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,padding:0,overflow:'hidden'}}>
+                  <div style={{padding:'14px 20px',borderBottom:`1px solid ${T.borderDefault}`}}><div style={{...S.label}}>Top Customers by Ending ARR</div></div>
                   {topCusts.length>0?(
                     <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                      <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
-                        <th style={{textAlign:'left',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8'}}>#</th>
-                        {Object.keys(topCusts[0]).map(k=><th key={k} style={{textAlign:'left',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8'}}>{k}</th>)}
+                      <thead><tr style={{borderBottom:`1px solid ${T.borderDefault}`}}>
+                        <th style={{textAlign:'left',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:T.textSecondary}}>#</th>
+                        {Object.keys(topCusts[0]).map(k=><th key={k} style={{textAlign:'left',padding:'10px 20px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:T.textSecondary}}>{k}</th>)}
                       </tr></thead>
                       <tbody>{topCusts.map((row,i)=>(
-                        <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
-                          <td style={{padding:'10px 20px',color:'#7B8EA8',fontWeight:600,fontSize:11}}>#{i+1}</td>
+                        <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`}}>
+                          <td style={{padding:'10px 20px',color:T.textSecondary,fontWeight:600,fontSize:11}}>#{i+1}</td>
                           {Object.values(row).map((val,j)=>(
-                            <td key={j} style={{padding:'10px 20px',color:typeof val==='number'?'white':'#6B7280',fontWeight:typeof val==='number'?700:400,fontFamily:typeof val==='number'?'DM Mono,monospace':'inherit'}}>
+                            <td key={j} style={{padding:'10px 20px',color:typeof val==='number'?'white':T.textTertiary,fontWeight:typeof val==='number'?700:400,fontFamily:typeof val==='number'?'DM Mono,monospace':'inherit'}}>
                               {typeof val==='number'?fmt(val):val??'—'}
                             </td>
                           ))}
                         </tr>
                       ))}</tbody>
                     </table>
-                  ):<div style={{padding:40,textAlign:'center',color:'#7B8EA8',fontSize:13}}>No customer data available.</div>}
+                  ):<div style={{padding:40,textAlign:'center',color:T.textSecondary,fontSize:13}}>No customer data available.</div>}
                 </div>
               )}
 
@@ -3474,33 +3827,33 @@ export default function CommandCenter() {
                       <div key={lb} style={{...S.card}}>
                         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
                           <div style={{...S.label}}>KPI Summary</div>
-                          <span style={{fontSize:9,background:'transparent',color:'#3D5068',border:'none',padding:'2px 0',fontWeight:400}}>{lb}M Lookback</span>
+                          <span style={{fontSize:9,background:'transparent',color:T.chartBaseline,border:'none',padding:'2px 0',fontWeight:400}}>{lb}M Lookback</span>
                         </div>
                         <KpiSummaryTable rows={kpiData}/>
                       </div>
                     )
                   })}
                   {!results?.pivot&&kpiRows.length>0&&(
-                    <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,padding:0,overflow:'hidden'}}>
-                      <div style={{padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}><div style={{...S.label}}>KPI Matrix — {periodType}</div></div>
+                    <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,padding:0,overflow:'hidden'}}>
+                      <div style={{padding:'14px 20px',borderBottom:`1px solid ${T.borderDefault}`}}><div style={{...S.label}}>KPI Matrix — {periodType}</div></div>
                       <div style={{overflowX:'auto'}}>
                         <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
-                          <thead><tr style={{borderBottom:'1px solid #1E2D45'}}>
+                          <thead><tr style={{borderBottom:`1px solid ${T.borderDefault}`}}>
                             {['Period','Beginning ARR','Ending ARR','New Logo','Upsell','Downsell','Churn','GRR','NRR'].map(h=>(
-                              <th key={h} style={{padding:'10px 16px',textAlign:'left',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8',whiteSpace:'nowrap'}}>{h}</th>
+                              <th key={h} style={{padding:'10px 16px',textAlign:'left',fontSize:9,fontWeight:700,textTransform:'uppercase',color:T.textSecondary,whiteSpace:'nowrap'}}>{h}</th>
                             ))}
                           </tr></thead>
                           <tbody>{kpiRows.map((row,i)=>(
-                            <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
-                              <td style={{padding:'8px 16px',fontWeight:700,color:'#FFFFFF',fontFamily:"'JetBrains Mono',monospace"}}>{row.period}</td>
-                              <td style={{padding:'8px 16px',color:'#7B8EA8',fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.beginning)}</td>
-                              <td style={{padding:'8px 16px',color:'#7B8EA8',fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.ending)}</td>
-                              <td style={{padding:'8px 16px',color:'#16A34A',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{row.new_logo?`+${fmt(row.new_logo)}`:'—'}</td>
-                              <td style={{padding:'8px 16px',color:'#4ADE80',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{row.upsell?`+${fmt(row.upsell)}`:'—'}</td>
-                              <td style={{padding:'8px 16px',color:'#7B8EA8',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{row.downsell?fmt(row.downsell):'—'}</td>
-                              <td style={{padding:'8px 16px',color:'#DC2626',fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{row.churn?fmt(row.churn):'—'}</td>
-                              <td style={{padding:'8px 16px',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:(row.grr||0)>=80?'#16A34A':'#DC2626'}}>{fmtPct(row.grr)}</td>
-                              <td style={{padding:'8px 16px',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:(row.nrr||0)>=100?'#16A34A':'#6B7280'}}>{fmtPct(row.nrr)}</td>
+                            <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`}}>
+                              <td style={{padding:'8px 16px',fontWeight:700,color:T.textPrimary,fontFamily:"'JetBrains Mono',monospace"}}>{row.period}</td>
+                              <td style={{padding:'8px 16px',color:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.beginning)}</td>
+                              <td style={{padding:'8px 16px',color:T.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{fmt(row.ending)}</td>
+                              <td style={{padding:'8px 16px',color:T.growth,fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{row.new_logo?`+${fmt(row.new_logo)}`:'—'}</td>
+                              <td style={{padding:'8px 16px',color:T.growth,fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{row.upsell?`+${fmt(row.upsell)}`:'—'}</td>
+                              <td style={{padding:'8px 16px',color:T.textSecondary,fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{row.downsell?fmt(row.downsell):'—'}</td>
+                              <td style={{padding:'8px 16px',color:T.risk,fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{row.churn?fmt(row.churn):'—'}</td>
+                              <td style={{padding:'8px 16px',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:(row.grr||0)>=80?T.growth:T.risk}}>{fmtPct(row.grr)}</td>
+                              <td style={{padding:'8px 16px',fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:(row.nrr||0)>=100?T.growth:T.textTertiary}}>{fmtPct(row.nrr)}</td>
                             </tr>
                           ))}</tbody>
                         </table>
@@ -3512,15 +3865,15 @@ export default function CommandCenter() {
 
               {/* OUTPUT TABLE */}
               {activeTab==='output'&&(
-                <div style={{background:'#0F1A2E',border:'1px solid #1E2D45',borderRadius:8,padding:0,overflow:'hidden'}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:'1px solid #1E2D45'}}>
+                <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,padding:0,overflow:'hidden'}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:`1px solid ${T.borderDefault}`}}>
                     <div style={{...S.label}}>Output — {results.output?.length?.toLocaleString()} rows</div>
                     {isAdmin?(
-                      <button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,padding:'6px 14px',borderRadius:10,border:'none',cursor:'pointer',background:'#1A3A2A',color:'#FFFFFF'}}>
+                      <button onClick={downloadCSV} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,padding:'6px 14px',borderRadius:10,border:'none',cursor:'pointer',background:T.selectionBg,color:T.textPrimary}}>
                         <Download size={11}/> Export CSV
                       </button>
                     ):(
-                      <button onClick={()=>router.push('/dashboard/upgrade')} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:600,color:'#7B8EA8',background:'#E5E7EB',border:'none',padding:'6px 14px',borderRadius:10,cursor:'pointer'}}>
+                      <button onClick={()=>router.push('/dashboard/upgrade')} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:600,color:T.textSecondary,background:T.borderDefault,border:'none',padding:'6px 14px',borderRadius:10,cursor:'pointer'}}>
                         <Lock size={11}/> Upgrade to Export
                       </button>
                     )}
@@ -3528,23 +3881,23 @@ export default function CommandCenter() {
                   {results.output?.length>0?(
                     <div style={{overflowX:'auto',maxHeight:500,overflowY:'auto'}}>
                       <table style={{borderCollapse:'collapse',width:'100%',fontSize:11}}>
-                        <thead style={{position:'sticky',top:0,background:'#0F1A2E',zIndex:1}}>
-                          <tr style={{borderBottom:'1px solid #1E2D45'}}>
+                        <thead style={{position:'sticky',top:0,background:T.bgSurface,zIndex:1}}>
+                          <tr style={{borderBottom:`1px solid ${T.borderDefault}`}}>
                             {Object.keys(results.output[0]).map(col=>(
-                              <th key={col} style={{textAlign:'left',padding:'10px 14px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#7B8EA8',whiteSpace:'nowrap',background:'#162035'}}>{col}</th>
+                              <th key={col} style={{textAlign:'left',padding:'10px 14px',fontSize:9,fontWeight:700,textTransform:'uppercase',color:T.textSecondary,whiteSpace:'nowrap',background:T.bgRaised}}>{col}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>{results.output.slice(0,200).map((row,i)=>(
-                          <tr key={i} style={{borderBottom:'1px solid #1E2D45'}}>
+                          <tr key={i} style={{borderBottom:`1px solid ${T.borderDefault}`}}>
                             {Object.values(row).map((val,j)=>(
-                              <td key={j} style={{padding:'7px 14px',color:'#7B8EA8',whiteSpace:'nowrap',fontFamily:typeof val==='number'?'DM Mono,monospace':'inherit'}}>{val??'—'}</td>
+                              <td key={j} style={{padding:'7px 14px',color:T.textSecondary,whiteSpace:'nowrap',fontFamily:typeof val==='number'?'DM Mono,monospace':'inherit'}}>{val??'—'}</td>
                             ))}
                           </tr>
                         ))}</tbody>
                       </table>
                     </div>
-                  ):<div style={{padding:40,textAlign:'center',color:'#7B8EA8',fontSize:13}}>No output data available.</div>}
+                  ):<div style={{padding:40,textAlign:'center',color:T.textSecondary,fontSize:13}}>No output data available.</div>}
                 </div>
               )}
 
