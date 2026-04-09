@@ -1034,8 +1034,24 @@ export default function CommandCenter() {
           if (cat) pRow[cat] = (pRow[cat] || 0) + val
         })
         if (periodMap.size >= 12) {
-          const arr = Array.from(periodMap.values()).sort((a,b) => pKey(a._period)-pKey(b._period))
-          console.log('[RL] ebp source1 output:', arr.length, 'periods')
+          // Normalize and filter same as Path A
+          const normCatKey = (k) => {
+            if (/^beginning.*(mrr|arr)/i.test(k)) return 'Beginning ARR'
+            if (/^ending.*(mrr|arr)/i.test(k))   return 'Ending ARR'
+            return k
+          }
+          const normalized1 = Array.from(periodMap.values()).map(row => {
+            const out = { _period: row._period }
+            Object.keys(row).forEach(k => {
+              if (k === '_period') return
+              const nk = normCatKey(k)
+              out[nk] = (out[nk] || 0) + (row[k] || 0)
+            })
+            return out
+          })
+          const valid1 = normalized1.filter(row => (row['Beginning ARR'] || 0) > 0)
+          const arr = (valid1.length > 0 ? valid1 : normalized1).sort((a,b) => pKey(a._period)-pKey(b._period))
+          console.log('[RL] ebp source1 output:', arr.length, 'valid periods of', periodMap.size)
           return arr
         }
       }
@@ -1123,8 +1139,35 @@ export default function CommandCenter() {
           if (cat) pRow[cat] = (pRow[cat] || 0) + val
         })
         if (periodMap.size >= 2) {
-          const arr = Array.from(periodMap.values()).sort((a,b) => pKey(a._period)-pKey(b._period))
-          console.log('[RL] ebp source4A result:', arr.length, 'periods, last=', arr[arr.length-1]?._period)
+          // Normalize category keys: 'Beginning MRR or ARR' → 'Beginning ARR' etc.
+          // and filter periods where Beginning ARR = 0 (no prior-period data exists)
+          const normCatKey = (k) => {
+            if (/^beginning.*(mrr|arr)/i.test(k)) return 'Beginning ARR'
+            if (/^ending.*(mrr|arr)/i.test(k))   return 'Ending ARR'
+            return k
+          }
+          // Re-key each period row with normalized category names
+          const normalized = Array.from(periodMap.values()).map(row => {
+            const out = { _period: row._period }
+            Object.keys(row).forEach(k => {
+              if (k === '_period') return
+              const nk = normCatKey(k)
+              out[nk] = (out[nk] || 0) + (row[k] || 0)
+            })
+            return out
+          })
+          // Only keep periods that have a valid Beginning ARR
+          // Periods with Beg=0 mean the prior period doesn't exist in the dataset
+          const valid = normalized.filter(row => (row['Beginning ARR'] || 0) > 0)
+          if (valid.length < 1) {
+            // Edge case: first-ever period may have no beginning (new business)
+            // Keep all if none have beginning > 0 (shouldn't happen with real data)
+            const arr = normalized.sort((a,b) => pKey(a._period)-pKey(b._period))
+            console.log('[RL] ebp source4A result (no filter):', arr.length, 'periods')
+            return arr
+          }
+          const arr = valid.sort((a,b) => pKey(a._period)-pKey(b._period))
+          console.log('[RL] ebp source4A result:', arr.length, 'valid periods of', periodMap.size, 'total, first=', arr[0]?._period, 'last=', arr[arr.length-1]?._period)
           return arr
         }
       }
