@@ -356,16 +356,16 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
 // The engine computes start/end for each bar automatically.
 function buildWaterfallSteps(data) {
   if (!data?.length) return []
-  const BOUNDARY = new Set(['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Prior ACV','Ending ACV'])
+  const BOUNDARY = new Set(['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Beginning MRR or ARR','Ending MRR or ARR','Prior ACV','Ending ACV'])
   const steps = []
   let running = 0
 
   data.forEach(item => {
     const { category, value } = item
-    if (category === 'Beginning ARR' || category === 'Beginning MRR') {
+    if (/^beginning/i.test(category)) {
       running = value
       steps.push({ type:'start', category, value, barStart:0, barEnd:value, delta:value })
-    } else if (BOUNDARY.has(category)) {
+    } else if (BOUNDARY.has(category) || /^ending/i.test(category)) {
       // Ending bar: full bar from 0, value = running total (reconciliation check)
       steps.push({ type:'end', category, value:running, barStart:0, barEnd:running, delta:0 })
     } else if (value !== 0) {
@@ -381,7 +381,7 @@ function buildWaterfallSteps(data) {
 function WaterfallBridge({data, showBoundary=false, height=280}) {
   if(!data?.length) return <div style={{height:180,display:'flex',alignItems:'center',justifyContent:'center',color:'#7B8EA8',fontSize:13}}>No bridge data</div>
 
-  const BOUNDARY = new Set(['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Prior ACV','Ending ACV'])
+  const BOUNDARY = new Set(['Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Beginning MRR or ARR','Ending MRR or ARR','Prior ACV','Ending ACV'])
   const ORDER=['Beginning ARR','Beginning MRR','Churn','Churn-Partial','Churn_Partial','Churn Partial','Downsell','Upsell','Cross-sell','Cross_sell','New Logo','Lapsed','Returning','Other In','Other Out','Add on','Add-on','Ending ARR','Ending MRR']
 
   // Sort and filter input
@@ -1273,14 +1273,21 @@ export default function CommandCenter() {
     if (selPeriod && effectiveByPeriod?.length) {
       const row = effectiveByPeriod.find(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
       if (row) {
-        const BOUNDARY_KEYS = new Set(['_period','Beginning ARR','Ending ARR','Beginning MRR','Ending MRR'])
-        base = Object.keys(row)
-          .filter(k => !BOUNDARY_KEYS.has(k))
-          .map(k => ({
-            // Normalize underscore category names e.g. Churn_Partial → Churn-Partial, Cross_sell → Cross-sell
-            category: k.replace(/_/g, '-').replace('Churn-Partial','Churn-Partial').replace('Cross-sell','Cross-sell'),
-            value: row[k] || 0
-          }))
+        const BOUNDARY_KEYS = new Set(['_period','Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Beginning MRR or ARR','Ending MRR or ARR','beginning','ending'])
+        // Normalize category names: underscore→hyphen, map API variants to display names
+        const normCat = (k) => {
+          if (/^beginning.*(mrr|arr)/i.test(k)) return 'Beginning ARR'
+          if (/^ending.*(mrr|arr)/i.test(k))   return 'Ending ARR'
+          return k.replace(/_/g,'-')
+        }
+        const catMap = new Map()
+        Object.keys(row).forEach(k => {
+          if (BOUNDARY_KEYS.has(k)) return
+          const cat = normCat(k)
+          catMap.set(cat, (catMap.get(cat)||0) + (row[k]||0))
+        })
+        base = Array.from(catMap.entries())
+          .map(([category,value]) => ({category,value}))
           .filter(r => r.value !== 0)
       }
     }
@@ -2199,7 +2206,7 @@ export default function CommandCenter() {
                                     .map(x => ({...x, category: normalize(x.category)}))
                                   const fullData = [
                                     {category:'Beginning ARR', value:toARR(beg)||0},
-                                    ...movements,
+                                    ...movements.map(m=>({...m, value:toARR(m.value)||0})),
                                     {category:'Ending ARR',    value:toARR(end)||0},
                                   ]
                                   return <WaterfallBridge data={fullData} showBoundary={true} height={300}/>
