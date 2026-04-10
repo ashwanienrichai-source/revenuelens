@@ -1132,19 +1132,27 @@ export default function CommandCenter() {
         }
       }
 
-      // ── PATH B: raw MRR file — atomic-first snapshot bridge ─────────────────
-      // Only reached when file has NO Bridge Classification column.
+      // ── PATH B: raw MRR file — forward-looking atomic bridge ──────────────────
+      // Forward-looking classification: builds full time series per entity FIRST,
+      // then classifies using future ARR to correctly separate Lapsed from Churn.
+      //
+      // LAPSED:    prev>0, cur=0, AND atomic entity has future ARR → not permanently gone
+      // CHURN:     prev>0, cur=0, AND no future ARR for this entity → permanently lost
+      // RETURNING: prev=0, cur>0, AND entity had ARR before prior period
+      //
+      // This requires scanning ALL periods, not just cur vs prior.
       const custKey    = cols.find(k => /customer.?name/i.test(k)) || cols.find(k => /^customer$/i.test(k)) || fieldMap.customer
       const arrKey     = cols.find(k => /^arr$/i.test(k)) || cols.find(k => /^mrr$/i.test(k)) || cols.find(k => /^revenue$/i.test(k)) || fieldMap.revenue
       const productKey = cols.find(k => /^product/i.test(k)) || fieldMap.product || null
       const channelKey = cols.find(k => /^channel/i.test(k)) || fieldMap.channel || null
       const regionKey  = cols.find(k => /^region/i.test(k))  || fieldMap.region  || null
-      console.log('[RL] ebp PATH B: MRR file → custKey=', custKey, 'arrKey=', arrKey)
+      console.log('[RL] ebp PATH B (forward-looking): custKey=', custKey, 'arrKey=', arrKey)
 
       if (custKey && dateKey && arrKey) {
-        const snapshots = new Map()   // period → Map<atomicKey, {arr, cust}>
-        const custSnaps = new Map()   // period → Map<cust, arr>
-        const allPeriods = new Set()
+        // ── Step 1: Build complete time series for every atomic entity ───────
+        const timelines   = new Map()  // atomicKey → Map<period, arr>
+        const custPeriod  = new Map()  // cust → Map<period, totalARR>  (for Cross-sell / Churn-Partial)
+        const allPeriods  = new Set()
 
         rawFileRows.forEach(row => {
           const period = normalizePeriod(String(row[dateKey] || ''))
@@ -1153,79 +1161,134 @@ export default function CommandCenter() {
           const prod = productKey ? String(row[productKey] || '').trim() : ''
           const chan = channelKey ? String(row[channelKey] || '').trim() : ''
           const reg  = regionKey  ? String(row[regionKey]  || '').trim() : ''
-          const arr  = parseFloat(String(row[arrKey] || '0').replace(/,/g,'')) || 0
+          const arr  = Math.max(parseFloat(String(row[arrKey] || '0').replace(/,/g,'')) || 0, 0)
           if (!cust) return
           allPeriods.add(period)
           const atomicK = [cust,prod,chan,reg].filter(Boolean).join('|||')
-          if (!snapshots.has(period)) snapshots.set(period, new Map())
-          const snap = snapshots.get(period)
-          const ex = snap.get(atomicK) || {arr:0, cust}
-          snap.set(atomicK, {arr: ex.arr + arr, cust})
-          if (!custSnaps.has(period)) custSnaps.set(period, new Map())
-          custSnaps.get(period).set(cust, (custSnaps.get(period).get(cust)||0) + arr)
+          // Atomic timeline
+          if (!timelines.has(atomicK)) timelines.set(atomicK, new Map())
+          timelines.get(atomicK).set(period, (timelines.get(atomicK).get(period)||0) + arr)
+          // Customer-level rollup (for cross-sell and churn-partial detection)
+          if (!custPeriod.has(cust)) custPeriod.set(cust, new Map())
+          custPeriod.get(cust).set(period, (custPeriod.get(cust).get(period)||0) + arr)
         })
 
         if (allPeriods.size >= 2) {
           const sortedPeriods = Array.from(allPeriods).sort((a,b) => pKey(a)-pKey(b))
+          const nPeriods = sortedPeriods.length
+
+          // ── Step 2: Pre-compute full ARR arrays per atomic entity ─────────
+          // This is the full time series including zeros for missing periods.
+          // We need it to do forward/backward lookups in O(1) during classification.
+          const tlArrays = new Map()  // atomicKey → Float64Array of arr per sortedPeriod
+          timelines.forEach((tlMap, atomicK) => {
+            const arr = new Float64Array(nPeriods)
+            sortedPeriods.forEach((p, i) => { arr[i] = tlMap.get(p) || 0 })
+            tlArrays.set(atomicK, arr)
+          })
+
+          // Customer total per period as flat array
+          const custArrays = new Map()  // cust → Float64Array
+          custPeriod.forEach((cpMap, cust) => {
+            const arr = new Float64Array(nPeriods)
+            sortedPeriods.forEach((p, i) => { arr[i] = cpMap.get(p) || 0 })
+            custArrays.set(cust, arr)
+          })
+
+          // ── Step 3: Compute bridge for each period using forward-looking ──
           const periodMap = new Map()
 
-          sortedPeriods.forEach(period => {
+          sortedPeriods.forEach((period, targetIdx) => {
+            // Compute prior period index
             const priorDate = new Date(Math.floor(pKey(period)/100), pKey(period)%100, 1)
             priorDate.setMonth(priorDate.getMonth() - selLb)
             const priorStr = MONTHS_ARR[priorDate.getMonth()] + '-' + priorDate.getFullYear()
-            const priorK   = pKey(priorStr)
-            const curAtomic  = snapshots.get(period)  || new Map()
-            const prevAtomic = snapshots.get(priorStr) || new Map()
-            const allAtomics = new Set([...curAtomic.keys(), ...prevAtomic.keys()])
+            const priorIdx = sortedPeriods.indexOf(priorStr)
+            if (priorIdx < 0) return  // prior period not in data → skip
 
             let beg=0, end=0, newLogo=0, crossSell=0, returning=0
             let upsell=0, downsell=0, churnPartial=0, churn=0, lapsed=0
 
-            allAtomics.forEach(atomicKey => {
-              const curE = curAtomic.get(atomicKey), prevE = prevAtomic.get(atomicKey)
-              const cur = curE?.arr||0, prev = prevE?.arr||0
-              const custId = (curE||prevE)?.cust||''
+            tlArrays.forEach((tlArr, atomicK) => {
+              const cur  = tlArr[targetIdx]
+              const prev = tlArr[priorIdx]
+              const cust = atomicK.split('|||')[0]
               beg += prev; end += cur
-              if (prev===0 && cur>0) {
-                const hasHist = sortedPeriods.some(p => pKey(p)<priorK && (snapshots.get(p)?.get(atomicKey)?.arr||0)>0)
-                if (hasHist) { returning += cur }
-                else {
-                  const custPrev = custSnaps.get(priorStr)?.get(custId)||0
-                  if (custPrev>0) crossSell += cur; else newLogo += cur
+
+              if (prev > 0 && cur === 0) {
+                // Entity was active at prior, gone at current.
+                // FORWARD-LOOKING: check if this atomic entity comes back AFTER current period.
+                let atomicFuture = false
+                for (let j = targetIdx + 1; j < nPeriods; j++) {
+                  if (tlArr[j] > 0) { atomicFuture = true; break }
                 }
-              } else if (prev>0 && cur===0) {
-                const custCur = custSnaps.get(period)?.get(custId)||0
-                if (custCur>0) {
-                  churnPartial += -prev
+
+                if (atomicFuture) {
+                  // Atomic entity returns later → LAPSED (temporary departure)
+                  lapsed += -prev
                 } else {
-                  const pbp = sortedPeriods.filter(p=>pKey(p)<priorK).sort((a,b)=>pKey(b)-pKey(a))[0]
-                  const wasAbsent = pbp ? (snapshots.get(pbp)?.get(atomicKey)?.arr||0)===0 : false
-                  const hadHist   = sortedPeriods.some(p=>pKey(p)<priorK && (snapshots.get(p)?.get(atomicKey)?.arr||0)>0)
-                  if (wasAbsent && hadHist) lapsed += -prev; else churn += -prev
+                  // No future return for this atomic entity.
+                  // Check if customer is still active elsewhere (other products/lines).
+                  const custCurr = custArrays.get(cust)?.[targetIdx] || 0
+                  if (custCurr > 0) {
+                    // Customer still active at other atomics → Churn-Partial
+                    churnPartial += -prev
+                  } else {
+                    // Customer fully gone, no return → permanent Churn
+                    churn += -prev
+                  }
                 }
-              } else if (cur>prev) { upsell += cur-prev
-              } else if (cur<prev) { downsell += cur-prev }
+
+              } else if (prev === 0 && cur > 0) {
+                // Entity became active. Was it here before the prior period?
+                let hadPast = false
+                for (let j = 0; j < priorIdx; j++) {
+                  if (tlArr[j] > 0) { hadPast = true; break }
+                }
+
+                if (hadPast) {
+                  // Existed before prior period → Returning
+                  returning += cur
+                } else {
+                  // Brand new to this atomic. Was the CUSTOMER active at prior period?
+                  const custPrior = custArrays.get(cust)?.[priorIdx] || 0
+                  const thisPrior = prev  // = 0 (we're in the prev===0 branch)
+                  const custOtherPrior = custPrior - thisPrior  // other products
+                  if (custOtherPrior > 0) {
+                    // Customer existed but this product/line is new → Cross-sell
+                    crossSell += cur
+                  } else {
+                    // Entirely new customer → New Logo
+                    newLogo += cur
+                  }
+                }
+
+              } else if (prev > 0 && cur > 0) {
+                const diff = cur - prev
+                if (diff > 0)      upsell   += diff
+                else if (diff < 0) downsell += diff
+              }
+              // prev===0 && cur===0 → no movement, no classification needed
             })
 
-            // Store all atomic movements — merging to customer level happens in filterByDimension
             periodMap.set(period, {
-              _period:          period,
-              'Beginning ARR':  beg,
-              'Ending ARR':     end,
-              'Churn':          churn,
-              'Churn-Partial':  churnPartial,
-              'Downsell':       downsell,
-              'Upsell':         upsell,
-              'Cross-sell':     crossSell,
-              'New Logo':       newLogo,
-              'Lapsed':         lapsed,
-              'Returning':      returning,
+              _period:         period,
+              'Beginning ARR': beg,
+              'Ending ARR':    end,
+              'Churn':         churn,
+              'Churn-Partial': churnPartial,
+              'Downsell':      downsell,
+              'Upsell':        upsell,
+              'Cross-sell':    crossSell,
+              'New Logo':      newLogo,
+              'Lapsed':        lapsed,
+              'Returning':     returning,
             })
           })
 
           const result = finalize(periodMap)
           if (result.length >= 1) {
-            console.log('[RL] ebp PATH B result:', result.length, 'periods — note: Lapsed=0 without pre-period history')
+            console.log('[RL] ebp PATH B forward-looking result:', result.length, 'periods, lapsed correctly classified')
             return result
           }
         }
