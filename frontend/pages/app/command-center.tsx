@@ -928,7 +928,7 @@ function FieldRow({label,required,value,columns,onChange,showError}) {
     <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',borderBottom:`1px solid ${T.borderDefault}`}}>
       <div style={{flex:1,fontSize:11,color:T.textSecondary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</div>
       <select value={value} onChange={e=>onChange(e.target.value)} style={{
-        fontSize:10,border:`1px solid ${showError&&!value?'rgba(255,71,87,0.4)':value?'rgba(37,99,235,0.25)':T.borderDefault}`,
+        fontSize:10,border:`1px solid ${showError&&!value?'rgba(255,71,87,0.4)':value?`${T.info}40`:T.borderDefault}`,
         borderRadius:8,padding:'5px 8px',background:T.bgRaised,
         color:showError&&!value?T.decline:value?T.growth:T.textSecondary,
         outline:'none',width:140,flexShrink:0,
@@ -1225,7 +1225,7 @@ export default function CommandCenter() {
 
           const result = finalize(periodMap)
           if (result.length >= 1) {
-            console.log('[RL] ebp PATH B result:', result.length, 'periods')
+            console.log('[RL] ebp PATH B result:', result.length, 'periods — note: Lapsed=0 without pre-period history')
             return result
           }
         }
@@ -2190,11 +2190,11 @@ export default function CommandCenter() {
           {/* STEP 1: Upload */}
           <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
             <div style={{...S.label}}>1. Upload Data</div>
-            {uploadErr&&<div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:'rgba(220,38,38,0.06)',color:T.risk,fontSize:10,display:'flex',gap:8}}><AlertCircle size={11} style={{flexShrink:0,marginTop:1}}/>{uploadErr}</div>}
+            {uploadErr&&<div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:`${T.decline}0F`,color:T.risk,fontSize:10,display:'flex',gap:8}}><AlertCircle size={11} style={{flexShrink:0,marginTop:1}}/>{uploadErr}</div>}
             <div onClick={()=>!uploading&&fileRef.current?.click()} style={{
               marginTop:10,borderRadius:12,border:`2px dashed ${file&&columns.length?`${T.growth}59`:uploading?`${T.growth}33`:T.borderStrong}`,
               padding:16,textAlign:'center',cursor:'pointer',
-              background:file&&columns.length?'rgba(74,222,128,0.04)':uploading?'rgba(74,222,128,0.03)':'rgba(22,32,53,0.8)',
+              background:file&&columns.length?`${T.growth}0A`:uploading?`${T.growth}08`:T.bgRaised,
             }}>
               <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadFile(f)}}/>
               {uploading?(<div><Loader2 size={18} color="#94A3B8" style={{margin:'0 auto 4px',animation:'spin 1s linear infinite'}}/><div style={{fontSize:11,color:T.textSecondary,fontWeight:500}}>Reading file…</div></div>)
@@ -2266,7 +2266,7 @@ export default function CommandCenter() {
 
         {/* Run button */}
         <div style={{padding:16,borderTop:`1px solid ${T.borderDefault}`,flexShrink:0}}>
-          {runErr&&<div style={{marginBottom:10,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:'rgba(220,38,38,0.06)',color:T.risk,fontSize:10,display:'flex',gap:6}}><AlertCircle size={10} style={{flexShrink:0}}/>{runErr}</div>}
+          {runErr&&<div style={{marginBottom:10,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:`${T.decline}0F`,color:T.risk,fontSize:10,display:'flex',gap:6}}><AlertCircle size={10} style={{flexShrink:0}}/>{runErr}</div>}
           <button onClick={runAnalysis} disabled={!step1||!step2||running} style={{
             width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:8,
             fontWeight:700,fontSize:13,padding:'12px 0',borderRadius:14,border:'none',cursor:canRun?'pointer':'not-allowed',
@@ -2841,7 +2841,7 @@ export default function CommandCenter() {
                                           {monthCols.map(p=>{
                                             const v = lookup[p]?.['Beginning ARR']||0
                                             const isSel = p===selPeriod
-                                            return <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:T.textPrimary,background:isSel?'rgba(26,40,64,0.8)':T.bgRaised}}>{fmtAbs(v)}</td>
+                                            return <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:T.textPrimary,background:isSel?T.bgElevated:T.bgRaised}}>{fmtAbs(v)}</td>
                                           })}
                                         </tr>
                                         {/* Movement rows */}
@@ -2859,7 +2859,7 @@ export default function CommandCenter() {
                                                 const isSel = p===selPeriod
                                                 const beg = lookup[p]?.['Beginning ARR']||1
                                                 return (
-                                                  <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isSel?700:400,color:!v||v===0?T.bgMuted:v>0?T.growth:T.decline,background:isSel?'rgba(26,40,64,0.6)':'transparent'}}>
+                                                  <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isSel?700:400,color:!v||v===0?T.bgMuted:v>0?T.growth:T.decline,background:isSel?T.selectionBg:'transparent'}}>
                                                     {v===0?'—':fmt2(v)}
                                                   </td>
                                                 )
@@ -2873,7 +2873,7 @@ export default function CommandCenter() {
                                           {monthCols.map(p=>{
                                             const v = lookup[p]?.['Ending ARR']||0
                                             const isSel = p===selPeriod
-                                            return <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:T.growth,background:isSel?'rgba(26,40,64,0.8)':T.bgRaised}}>{fmtAbs(v)}</td>
+                                            return <td key={p} style={{textAlign:'right',padding:'9px 14px',fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:T.growth,background:isSel?T.bgElevated:T.bgRaised}}>{fmtAbs(v)}</td>
                                           })}
                                         </tr>
                                         {/* NRR row */}
@@ -2885,7 +2885,7 @@ export default function CommandCenter() {
                                             const end = row['Ending ARR']||0
                                             const nrr = row._nrr ?? (beg>0?(end/beg*100):null)
                                             const isSel = p===selPeriod
-                                            return <td key={p} style={{textAlign:'right',padding:'8px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:900,color:nrr>=100?T.growth:T.decline,background:isSel?'rgba(26,40,64,0.5)':'transparent'}}>{nrr!=null?`${nrr.toFixed(1)}%`:'—'}</td>
+                                            return <td key={p} style={{textAlign:'right',padding:'8px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:900,color:nrr>=100?T.growth:T.decline,background:isSel?T.selectionBg:'transparent'}}>{nrr!=null?`${nrr.toFixed(1)}%`:'—'}</td>
                                           })}
                                         </tr>
                                         {/* GRR row */}
@@ -2897,7 +2897,7 @@ export default function CommandCenter() {
                                             const contractions = Object.keys(row).filter(k=>!BOUNDARY.has(k)&&(row[k]||0)<0).reduce((s,k)=>s+(row[k]||0),0)
                                             const grr = row._grr ?? (beg>0?((beg+contractions)/beg*100):null)
                                             const isSel = p===selPeriod
-                                            return <td key={p} style={{textAlign:'right',padding:'8px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:900,color:grr>=80?T.growth:T.decline,background:isSel?'rgba(26,40,64,0.5)':'transparent'}}>{grr!=null?`${grr.toFixed(1)}%`:'—'}</td>
+                                            return <td key={p} style={{textAlign:'right',padding:'8px 14px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:900,color:grr>=80?T.growth:T.decline,background:isSel?T.selectionBg:'transparent'}}>{grr!=null?`${grr.toFixed(1)}%`:'—'}</td>
                                           })}
                                         </tr>
                                       </tbody>
@@ -3065,8 +3065,8 @@ export default function CommandCenter() {
                               {[
                                 {sev:'HIGH', sevColor:T.decline, sevBg:`${T.decline}14`, title:'Include Price/Volume in net sum',                  body:'Filter to 8 core categories only. Exclude Price Impact, Volume Impact, Price on Volume from movement total.'},
                                 {sev:'HIGH', sevColor:T.decline, sevBg:`${T.decline}14`, title:'Lapsed Bridge Value = 0 (reads current MRR)',       body:'Lapsed value = −BeginningARR (negative of Prior ARR). Current MRR is 0 for lapsed units — use the Beg ARR row, not current.'},
-                                {sev:'MED',  sevColor:T.warning, sevBg:'rgba(252,211,77,0.08)',  title:'Returning Bridge Value = delta instead of full current', body:'Returning BridgeValue = Current ARR in full. Prior=0 for returning units, so no Beginning ARR row exists. Bridge value = full current period ARR.'},
-                                {sev:'MED',  sevColor:T.warning, sevBg:'rgba(252,211,77,0.08)',  title:'Lapsed re-entry period misclassified as Returning', body:'If 12M lookback prior > 0 (unit existed 12M ago), re-entry is Downsell, not Returning. Returning only fires when prior = 0 (lookback window falls inside the zero-gap).'},
+                                {sev:'MED',  sevColor:T.warning, sevBg:`${T.warning}14`,  title:'Returning Bridge Value = delta instead of full current', body:'Returning BridgeValue = Current ARR in full. Prior=0 for returning units, so no Beginning ARR row exists. Bridge value = full current period ARR.'},
+                                {sev:'MED',  sevColor:T.warning, sevBg:`${T.warning}14`,  title:'Lapsed re-entry period misclassified as Returning', body:'If 12M lookback prior > 0 (unit existed 12M ago), re-entry is Downsell, not Returning. Returning only fires when prior = 0 (lookback window falls inside the zero-gap).'},
                                 {sev:'LOW',  sevColor:T.textTertiary, sevBg:'rgba(100,116,139,0.08)', title:'Other In/Out absent despite Channel/Region data',   body:'Zero Other In/Out rows currently. Channel-shifted units fall into New Logo/Churn instead. Implement migration detection if needed.'},
                               ].map((c,i)=>(
                                 <div key={i} style={{marginBottom:10,padding:'12px 16px',borderLeft:`3px solid ${c.sevColor}`,background:c.sevBg,borderRadius:'0 6px 6px 0'}}>
@@ -3444,7 +3444,7 @@ export default function CommandCenter() {
                                       const isPos = (v||0)>=0
                                       const isCurrentPeriod = normalizePeriod(p)===normalizePeriod(selPeriod)
                                       return (
-                                        <td key={p} style={{textAlign:'right',padding:'8px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isCurrentPeriod?700:400,color:!v?T.bgMuted:isPos?T.growth:T.decline,background:isCurrentPeriod?'rgba(26,40,64,0.6)':'transparent'}}>
+                                        <td key={p} style={{textAlign:'right',padding:'8px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:isCurrentPeriod?700:400,color:!v?T.bgMuted:isPos?T.growth:T.decline,background:isCurrentPeriod?T.selectionBg:'transparent'}}>
                                           {v?fmt2(toARR(v)):'—'}
                                         </td>
                                       )
@@ -3462,7 +3462,7 @@ export default function CommandCenter() {
                                   const net = toARR(posSum+negSum)
                                   const isCurrentPeriod = normalizePeriod(p)===normalizePeriod(selPeriod)
                                   return (
-                                    <td key={p} style={{textAlign:'right',padding:'9px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:700,color:net>=0?T.growth:T.decline,background:isCurrentPeriod?'rgba(26,40,64,0.8)':T.bgRaised}}>
+                                    <td key={p} style={{textAlign:'right',padding:'9px 12px',fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:700,color:net>=0?T.growth:T.decline,background:isCurrentPeriod?T.bgElevated:T.bgRaised}}>
                                       {net?fmt2(net):'—'}
                                     </td>
                                   )
@@ -3779,7 +3779,7 @@ export default function CommandCenter() {
                       {/* Panel header */}
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:`1px solid ${T.borderDefault}`,background:T.bgRaised}}>
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
-                          <div style={{width:28,height:28,borderRadius:6,background:'rgba(22,163,74,0.08)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                          <div style={{width:28,height:28,borderRadius:6,background:`${T.success}14`,display:'flex',alignItems:'center',justifyContent:'center'}}>
                             <TrendingUp size={13} color="#16A34A"/>
                           </div>
                           <div>
@@ -3787,7 +3787,7 @@ export default function CommandCenter() {
                             <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textSecondary}}>High upsell potential</div>
                           </div>
                         </div>
-                        <span style={{fontSize:11,fontWeight:700,background:'rgba(22,163,74,0.08)',color:T.growth,border:'1px solid #9CA3AF',padding:'3px 10px',borderRadius:20}}>
+                        <span style={{fontSize:11,fontWeight:700,background:`${T.success}14`,color:T.growth,border:'1px solid #9CA3AF',padding:'3px 10px',borderRadius:20}}>
                           {expansionList.length} accounts
                         </span>
                       </div>
@@ -3832,7 +3832,7 @@ export default function CommandCenter() {
                       {/* Panel header */}
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:`1px solid ${T.borderDefault}`,background:T.bgRaised}}>
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
-                          <div style={{width:28,height:28,borderRadius:6,background:'rgba(220,38,38,0.06)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                          <div style={{width:28,height:28,borderRadius:6,background:`${T.decline}0F`,display:'flex',alignItems:'center',justifyContent:'center'}}>
                             <TrendingDown size={13} color="#DC2626"/>
                           </div>
                           <div>
@@ -3840,7 +3840,7 @@ export default function CommandCenter() {
                             <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textSecondary}}>Priority interventions</div>
                           </div>
                         </div>
-                        <span style={{fontSize:11,fontWeight:700,background:'rgba(220,38,38,0.06)',color:T.risk,border:'1px solid #9CA3AF',padding:'3px 10px',borderRadius:20}}>
+                        <span style={{fontSize:11,fontWeight:700,background:`${T.decline}0F`,color:T.risk,border:'1px solid #9CA3AF',padding:'3px 10px',borderRadius:20}}>
                           {churnList.length} accounts
                         </span>
                       </div>
@@ -3890,7 +3890,7 @@ export default function CommandCenter() {
                         {Object.keys(movers).map(cat=>(
                           <button key={cat} onClick={()=>setMoverCat(cat)} style={{
                             display:'flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:20,fontSize:11,fontWeight:600,
-                            border:`1px solid ${moverCat===cat?'rgba(37,99,235,0.25)':T.borderDefault}`,
+                            border:`1px solid ${moverCat===cat?`${T.info}40`:T.borderDefault}`,
                             background:moverCat===cat?'rgba(37,99,235,0.08)':'transparent',
                             color:moverCat===cat?T.info:T.textTertiary,cursor:'pointer',transition:'all 0.12s',
                           }}>
