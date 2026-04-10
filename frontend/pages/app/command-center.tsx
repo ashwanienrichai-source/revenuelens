@@ -1007,123 +1007,41 @@ export default function CommandCenter() {
   //   3. results.kpi_matrix                 — API annual summary (last resort)
   //   4. rawFileRows client bridge           — only when API has no monthly data
   const effectiveByPeriod = useMemo(() => {
-    if (!results) return []
-
     const MONTHS_ARR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     const pKey = (p) => { const m = p?.match(/^([A-Za-z]{3})-(\d{4})$/); return m ? parseInt(m[2])*100+MONTHS_ARR.indexOf(m[1]) : 0 }
-    const isMonthPeriod = (p) => /^[A-Za-z]{3}-\d{4}$/.test(p||'')
+    const isMonthP = (p) => /^[A-Za-z]{3}-\d{4}$/.test(p||'')
 
-    // ── SOURCE 1: results.output — raw bridge output rows grouped by date+lb ──
-    if (results.output?.length > 0) {
-      const firstRow = results.output[0]
-      const cols = Object.keys(firstRow)
-      const dateKey = cols.find(k => /^date$/i.test(k)) || cols.find(k => /activity.?date/i.test(k)) || cols.find(k => /^period$/i.test(k))
+    // Normalize category labels from any variant → canonical display names
+    const normCat = (k) => {
+      if (/^beginning.*(mrr|arr)/i.test(k)) return 'Beginning ARR'
+      if (/^ending.*(mrr|arr)/i.test(k))   return 'Ending ARR'
+      return k   // preserve 'Lapsed', 'Churn_Partial', 'Cross_sell' etc as-is
+    }
+
+    // Filter out periods where Beginning ARR = 0 (prior period doesn't exist in dataset)
+    // and sort chronologically
+    const finalize = (periodMap) => {
+      const rows = Array.from(periodMap.values())
+      const valid = rows.filter(r => (r['Beginning ARR'] || 0) > 0)
+      const result = (valid.length > 0 ? valid : rows)
+        .sort((a,b) => pKey(a._period) - pKey(b._period))
+      console.log('[RL] ebp finalize:', result.length, 'valid of', rows.length, 'total. First:', result[0]?._period, 'Last:', result[result.length-1]?._period)
+      return result
+    }
+
+    // ── PRIORITY: if rawFileRows has pre-classified bridge data, use it as truth ──
+    // This covers the bridge output file (has Bridge Classification + Bridge Value).
+    // We skip API sources entirely — the pre-classified file IS the ground truth.
+    if (rawFileRows.length > 0) {
+      const cols = Object.keys(rawFileRows[0])
+      const dateKey = cols.find(k => /^date$/i.test(k)) || cols.find(k => /activity.?date/i.test(k)) || cols.find(k => /^period$/i.test(k)) || fieldMap.date
       const catKey  = cols.find(k => /^classification$/i.test(k)) || cols.find(k => /bridge.?class/i.test(k)) || cols.find(k => /^category$/i.test(k))
       const valKey  = cols.find(k => /^amount$/i.test(k)) || cols.find(k => /bridge.?value/i.test(k)) || cols.find(k => /^value$/i.test(k))
       const lbKey   = cols.find(k => /month.?lookback/i.test(k)) || cols.find(k => /^lookback$/i.test(k))
+
+      // ── PATH A: file has pre-classified bridge data ─────────────────────────
       if (dateKey && catKey && valKey) {
-        const periodMap = new Map()
-        results.output.forEach(row => {
-          if (lbKey && parseInt(String(row[lbKey])) !== selLb) return
-          const period = normalizePeriod(String(row[dateKey] || ''))
-          if (!isMonthPeriod(period)) return
-          if (!periodMap.has(period)) periodMap.set(period, { _period: period })
-          const pRow = periodMap.get(period)
-          const cat = String(row[catKey] || '').trim()
-          const val = parseFloat(String(row[valKey])) || 0
-          if (cat) pRow[cat] = (pRow[cat] || 0) + val
-        })
-        if (periodMap.size >= 12) {
-          // Normalize and filter same as Path A
-          const normCatKey = (k) => {
-            if (/^beginning.*(mrr|arr)/i.test(k)) return 'Beginning ARR'
-            if (/^ending.*(mrr|arr)/i.test(k))   return 'Ending ARR'
-            return k
-          }
-          const normalized1 = Array.from(periodMap.values()).map(row => {
-            const out = { _period: row._period }
-            Object.keys(row).forEach(k => {
-              if (k === '_period') return
-              const nk = normCatKey(k)
-              out[nk] = (out[nk] || 0) + (row[k] || 0)
-            })
-            return out
-          })
-          const valid1 = normalized1.filter(row => (row['Beginning ARR'] || 0) > 0)
-          const arr = (valid1.length > 0 ? valid1 : normalized1).sort((a,b) => pKey(a._period)-pKey(b._period))
-          console.log('[RL] ebp source1 output:', arr.length, 'valid periods of', periodMap.size)
-          return arr
-        }
-      }
-    }
-
-    // ── SOURCE 2: results.bridge[lb].by_period — API per-period aggregates ───
-    const byPeriod = results.bridge?.[String(selLb)]?.by_period
-    if (byPeriod?.length > 0) {
-      const normalized = byPeriod
-        .map(r => ({ ...r, _period: normalizePeriod(r._period || r.period || '') }))
-        .filter(r => isMonthPeriod(r._period))
-        .sort((a,b) => pKey(a._period)-pKey(b._period))
-      if (normalized.length >= 2) {
-        console.log('[RL] ebp source2 by_period:', normalized.length, 'periods')
-        return normalized
-      }
-    }
-
-    // ── SOURCE 3: kpi_matrix — API monthly KPI rows ───────────────────────────
-    if (results.kpi_matrix?.length > 0) {
-      const pick = (obj, ...keys) => { for (const k of keys) { if (obj[k] != null) return obj[k] } return undefined }
-      const lbField = Object.keys(results.kpi_matrix[0]).find(k => /lookback/i.test(k))
-      const src = lbField ? results.kpi_matrix.filter(r => parseInt(String(r[lbField])) === selLb) : results.kpi_matrix
-      const rows = (src.length > 0 ? src : results.kpi_matrix).map(r => {
-        const period = normalizePeriod(String(pick(r,'period','Period','month','date') || ''))
-        if (!isMonthPeriod(period)) return null
-        return {
-          _period:         period,
-          'Beginning ARR': pick(r,'beginning_arr','beginning','beg_arr') ?? 0,
-          'Ending ARR':    pick(r,'ending_arr','ending','end_arr') ?? 0,
-          'New Logo':      pick(r,'new_logo','new_arr') ?? 0,
-          'Upsell':        pick(r,'upsell','expansion') ?? 0,
-          'Downsell':      pick(r,'downsell','contraction') ?? 0,
-          'Churn':         pick(r,'churn','churn_arr') ?? 0,
-          'Returning':     pick(r,'returning') ?? 0,
-          'Lapsed':        pick(r,'lapsed') ?? 0,
-          _nrr:            pick(r,'nrr','net_retention') ?? null,
-          _grr:            pick(r,'grr','gross_retention') ?? null,
-        }
-      }).filter(Boolean).sort((a,b) => pKey(a._period)-pKey(b._period))
-      if (rows.length >= 2) {
-        console.log('[RL] ebp source3 kpi_matrix:', rows.length, 'periods')
-        return rows
-      }
-    }
-
-    // ── SOURCE 4: client-side bridge from raw file (last resort) ─────────────
-    // Two sub-paths:
-    //   A) File has Bridge Classification column → group by date+lb+classification (exact, fast)
-    //   B) Pure MRR file (no pre-classified data) → atomic-first ARR snapshot bridge
-    if (rawFileRows.length > 0) {
-      const cols = Object.keys(rawFileRows[0])
-
-      // Common column detection
-      const dateKey = cols.find(k => /^date$/i.test(k)) ||
-                      cols.find(k => /activity.?date/i.test(k)) ||
-                      cols.find(k => /^period$/i.test(k)) ||
-                      fieldMap.date
-      const lbKey   = cols.find(k => /month.?lookback/i.test(k)) ||
-                      cols.find(k => /^lookback$/i.test(k))
-
-      // Check if file has pre-classified bridge data
-      const catKey  = cols.find(k => /^classification$/i.test(k)) ||
-                      cols.find(k => /bridge.?class/i.test(k)) ||
-                      cols.find(k => /^category$/i.test(k))
-      const valKey  = cols.find(k => /^amount$/i.test(k)) ||
-                      cols.find(k => /bridge.?value/i.test(k)) ||
-                      cols.find(k => /^value$/i.test(k))
-
-      // ── PATH A: pre-classified bridge output file ─────────────────────────
-      if (dateKey && catKey && valKey) {
-        console.log('[RL] ebp source4A: bridge output file, catKey=',catKey,'valKey=',valKey,'lbKey=',lbKey)
+        console.log('[RL] ebp PATH A: bridge output file → catKey=', catKey, 'valKey=', valKey, 'lbKey=', lbKey)
         const periodMap = new Map()
         rawFileRows.forEach(row => {
           if (lbKey) {
@@ -1131,65 +1049,36 @@ export default function CommandCenter() {
             if (rowLb !== selLb) return
           }
           const period = normalizePeriod(String(row[dateKey] || ''))
-          if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return
+          if (!isMonthP(period)) return
           if (!periodMap.has(period)) periodMap.set(period, { _period: period })
           const pRow = periodMap.get(period)
-          const cat = String(row[catKey] || '').trim()
+          const cat = normCat(String(row[catKey] || '').trim())
           const val = parseFloat(String(row[valKey])) || 0
           if (cat) pRow[cat] = (pRow[cat] || 0) + val
         })
         if (periodMap.size >= 2) {
-          // Normalize category keys: 'Beginning MRR or ARR' → 'Beginning ARR' etc.
-          // and filter periods where Beginning ARR = 0 (no prior-period data exists)
-          const normCatKey = (k) => {
-            if (/^beginning.*(mrr|arr)/i.test(k)) return 'Beginning ARR'
-            if (/^ending.*(mrr|arr)/i.test(k))   return 'Ending ARR'
-            return k
-          }
-          // Re-key each period row with normalized category names
-          const normalized = Array.from(periodMap.values()).map(row => {
-            const out = { _period: row._period }
-            Object.keys(row).forEach(k => {
-              if (k === '_period') return
-              const nk = normCatKey(k)
-              out[nk] = (out[nk] || 0) + (row[k] || 0)
-            })
-            return out
-          })
-          // Only keep periods that have a valid Beginning ARR
-          // Periods with Beg=0 mean the prior period doesn't exist in the dataset
-          const valid = normalized.filter(row => (row['Beginning ARR'] || 0) > 0)
-          if (valid.length < 1) {
-            // Edge case: first-ever period may have no beginning (new business)
-            // Keep all if none have beginning > 0 (shouldn't happen with real data)
-            const arr = normalized.sort((a,b) => pKey(a._period)-pKey(b._period))
-            console.log('[RL] ebp source4A result (no filter):', arr.length, 'periods')
-            return arr
-          }
-          const arr = valid.sort((a,b) => pKey(a._period)-pKey(b._period))
-          console.log('[RL] ebp source4A result:', arr.length, 'valid periods of', periodMap.size, 'total, first=', arr[0]?._period, 'last=', arr[arr.length-1]?._period)
-          return arr
+          const result = finalize(periodMap)
+          if (result.length >= 1) return result
         }
       }
 
-      // ── PATH B: pure MRR file — atomic-first ARR snapshot bridge ──────────
-      // Used when file has no pre-classified bridge data (raw subscription snapshots).
-      // Classifies at atomic level (Cust+Prod+Chan+Reg), rolls up to selDims.
+      // ── PATH B: raw MRR file — atomic-first snapshot bridge ─────────────────
+      // Only reached when file has NO Bridge Classification column.
       const custKey    = cols.find(k => /customer.?name/i.test(k)) || cols.find(k => /^customer$/i.test(k)) || fieldMap.customer
       const arrKey     = cols.find(k => /^arr$/i.test(k)) || cols.find(k => /^mrr$/i.test(k)) || cols.find(k => /^revenue$/i.test(k)) || fieldMap.revenue
       const productKey = cols.find(k => /^product/i.test(k)) || fieldMap.product || null
       const channelKey = cols.find(k => /^channel/i.test(k)) || fieldMap.channel || null
       const regionKey  = cols.find(k => /^region/i.test(k))  || fieldMap.region  || null
-      console.log('[RL] ebp source4B: MRR file, custKey=',custKey,'arrKey=',arrKey)
+      console.log('[RL] ebp PATH B: MRR file → custKey=', custKey, 'arrKey=', arrKey)
 
       if (custKey && dateKey && arrKey) {
-        const snapshots = new Map()   // period → Map<atomicKey, {arr,cust}>
+        const snapshots = new Map()   // period → Map<atomicKey, {arr, cust}>
         const custSnaps = new Map()   // period → Map<cust, arr>
         const allPeriods = new Set()
 
         rawFileRows.forEach(row => {
           const period = normalizePeriod(String(row[dateKey] || ''))
-          if (!period || !/^[A-Za-z]{3}-\d{4}$/.test(period)) return
+          if (!isMonthP(period)) return
           const cust = String(row[custKey] || '').trim()
           const prod = productKey ? String(row[productKey] || '').trim() : ''
           const chan = channelKey ? String(row[channelKey] || '').trim() : ''
@@ -1200,8 +1089,8 @@ export default function CommandCenter() {
           const atomicK = [cust,prod,chan,reg].filter(Boolean).join('|||')
           if (!snapshots.has(period)) snapshots.set(period, new Map())
           const snap = snapshots.get(period)
-          const existing = snap.get(atomicK) || {arr:0, cust}
-          snap.set(atomicK, {arr: existing.arr + arr, cust})
+          const ex = snap.get(atomicK) || {arr:0, cust}
+          snap.set(atomicK, {arr: ex.arr + arr, cust})
           if (!custSnaps.has(period)) custSnaps.set(period, new Map())
           custSnaps.get(period).set(cust, (custSnaps.get(period).get(cust)||0) + arr)
         })
@@ -1219,14 +1108,14 @@ export default function CommandCenter() {
             const prevAtomic = snapshots.get(priorStr) || new Map()
             const allAtomics = new Set([...curAtomic.keys(), ...prevAtomic.keys()])
 
-            let beg=0,end=0,newLogo=0,crossSell=0,returning=0,upsell=0,downsell=0,churnPartial=0,churn=0,lapsed=0
+            let beg=0, end=0, newLogo=0, crossSell=0, returning=0
+            let upsell=0, downsell=0, churnPartial=0, churn=0, lapsed=0
 
             allAtomics.forEach(atomicKey => {
               const curE = curAtomic.get(atomicKey), prevE = prevAtomic.get(atomicKey)
               const cur = curE?.arr||0, prev = prevE?.arr||0
               const custId = (curE||prevE)?.cust||''
               beg += prev; end += cur
-
               if (prev===0 && cur>0) {
                 const hasHist = sortedPeriods.some(p => pKey(p)<priorK && (snapshots.get(p)?.get(atomicKey)?.arr||0)>0)
                 if (hasHist) { returning += cur }
@@ -1239,8 +1128,7 @@ export default function CommandCenter() {
                 if (custCur>0) {
                   churnPartial += -prev
                 } else {
-                  const periodsBeforePrior = sortedPeriods.filter(p=>pKey(p)<priorK).sort((a,b)=>pKey(b)-pKey(a))
-                  const pbp = periodsBeforePrior[0]
+                  const pbp = sortedPeriods.filter(p=>pKey(p)<priorK).sort((a,b)=>pKey(b)-pKey(a))[0]
                   const wasAbsent = pbp ? (snapshots.get(pbp)?.get(atomicKey)?.arr||0)===0 : false
                   const hadHist   = sortedPeriods.some(p=>pKey(p)<priorK && (snapshots.get(p)?.get(atomicKey)?.arr||0)>0)
                   if (wasAbsent && hadHist) lapsed += -prev; else churn += -prev
@@ -1249,7 +1137,7 @@ export default function CommandCenter() {
               } else if (cur<prev) { downsell += cur-prev }
             })
 
-            // Always store all atomic movements — merging happens at display time in filterByDimension
+            // Store all atomic movements — merging to customer level happens in filterByDimension
             periodMap.set(period, {
               _period:          period,
               'Beginning ARR':  beg,
@@ -1265,13 +1153,90 @@ export default function CommandCenter() {
             })
           })
 
-          const result = Array.from(periodMap.values())
-          if (result.length >= 2) {
-            console.log('[RL] ebp source4B result:', result.length, 'periods')
+          const result = finalize(periodMap)
+          if (result.length >= 1) {
+            console.log('[RL] ebp PATH B result:', result.length, 'periods')
             return result
           }
         }
       }
+    }
+
+    // ── API sources — used only when no raw file uploaded ────────────────────
+    if (!results) return []
+
+    // Source 1: results.output
+    if (results.output?.length > 0) {
+      const firstRow = results.output[0]
+      const cols = Object.keys(firstRow)
+      const dateKey = cols.find(k => /^date$/i.test(k)) || cols.find(k => /activity.?date/i.test(k)) || cols.find(k => /^period$/i.test(k))
+      const catKey  = cols.find(k => /^classification$/i.test(k)) || cols.find(k => /bridge.?class/i.test(k)) || cols.find(k => /^category$/i.test(k))
+      const valKey  = cols.find(k => /^amount$/i.test(k)) || cols.find(k => /bridge.?value/i.test(k)) || cols.find(k => /^value$/i.test(k))
+      const lbKey   = cols.find(k => /month.?lookback/i.test(k)) || cols.find(k => /^lookback$/i.test(k))
+      if (dateKey && catKey && valKey) {
+        const periodMap = new Map()
+        results.output.forEach(row => {
+          if (lbKey && parseInt(String(row[lbKey])) !== selLb) return
+          const period = normalizePeriod(String(row[dateKey] || ''))
+          if (!isMonthP(period)) return
+          if (!periodMap.has(period)) periodMap.set(period, { _period: period })
+          const pRow = periodMap.get(period)
+          const cat = normCat(String(row[catKey] || '').trim())
+          const val = parseFloat(String(row[valKey])) || 0
+          if (cat) pRow[cat] = (pRow[cat] || 0) + val
+        })
+        if (periodMap.size >= 12) {
+          const result = finalize(periodMap)
+          if (result.length >= 1) { console.log('[RL] ebp source1 API output:', result.length); return result }
+        }
+      }
+    }
+
+    // Source 2: results.bridge[lb].by_period
+    const byPeriod = results.bridge?.[String(selLb)]?.by_period
+    if (byPeriod?.length > 0) {
+      const periodMap = new Map()
+      byPeriod.forEach(r => {
+        const period = normalizePeriod(r._period || r.period || '')
+        if (!isMonthP(period)) return
+        if (!periodMap.has(period)) periodMap.set(period, { _period: period })
+        const pRow = periodMap.get(period)
+        Object.keys(r).forEach(k => {
+          if (k === '_period' || k === 'period') return
+          const cat = normCat(k)
+          pRow[cat] = (pRow[cat] || 0) + (r[k] || 0)
+        })
+      })
+      if (periodMap.size >= 2) {
+        const result = finalize(periodMap)
+        if (result.length >= 1) { console.log('[RL] ebp source2 by_period:', result.length); return result }
+      }
+    }
+
+    // Source 3: results.kpi_matrix
+    if (results.kpi_matrix?.length > 0) {
+      const pick = (obj, ...keys) => { for (const k of keys) { if (obj[k] != null) return obj[k] } return undefined }
+      const lbField = Object.keys(results.kpi_matrix[0]).find(k => /lookback/i.test(k))
+      const src = lbField ? results.kpi_matrix.filter(r => parseInt(String(r[lbField])) === selLb) : results.kpi_matrix
+      const rows = (src.length > 0 ? src : results.kpi_matrix).map(r => {
+        const period = normalizePeriod(String(pick(r,'period','Period','month','date') || ''))
+        if (!isMonthP(period)) return null
+        return {
+          _period:         period,
+          'Beginning ARR': pick(r,'beginning_arr','beginning','beg_arr') ?? 0,
+          'Ending ARR':    pick(r,'ending_arr','ending','end_arr') ?? 0,
+          'New Logo':      pick(r,'new_logo','new_arr') ?? 0,
+          'Upsell':        pick(r,'upsell','expansion') ?? 0,
+          'Downsell':      pick(r,'downsell','contraction') ?? 0,
+          'Churn':         pick(r,'churn','churn_arr') ?? 0,
+          'Lapsed':        pick(r,'lapsed') ?? 0,
+          'Returning':     pick(r,'returning') ?? 0,
+          _nrr:            pick(r,'nrr','net_retention') ?? null,
+          _grr:            pick(r,'grr','gross_retention') ?? null,
+        }
+      }).filter(r => r && (r['Beginning ARR'] || 0) > 0)
+        .sort((a,b) => pKey(a._period)-pKey(b._period))
+      if (rows.length >= 2) { console.log('[RL] ebp source3 kpi_matrix:', rows.length); return rows }
     }
 
     return []
