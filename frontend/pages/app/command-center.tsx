@@ -23,144 +23,214 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender
 // Tokens are theme-aware: dark (default), light, colorBlind, highContrast modes.
 
 const THEMES = {
+
+  // ── 1. DARK (Teal — Premium Analytics) ─────────────────────────────────────
   dark: {
-    bgPage:        '#0B1220',
-    bgSurface:     '#0F1A2E',
-    bgRaised:      '#162035',
-    bgElevated:    '#1A2840',
-    bgMuted:       '#0D1525',
-    textPrimary:   '#E2E8F0',
-    textSecondary: '#94A3B8',
-    textTertiary:  '#64748B',
-    textMuted:     '#4A5A6E',
-    textInverse:   '#0F172A',
-    borderSubtle:  'rgba(229,231,235,0.07)',
-    borderDefault: '#1E2D45',
+    bgPage:        '#0b1326',
+    bgSurface:     '#131b2e',
+    bgRaised:      '#171f33',
+    bgElevated:    '#1c253a',
+    bgMuted:       '#0f1828',
+    textPrimary:   '#e6edf3',
+    textSecondary: '#94a3b8',
+    textTertiary:  '#64748b',
+    textMuted:     '#4a5568',
+    textInverse:   '#0b1326',
+    borderSubtle:  'rgba(230,237,243,0.06)',
+    borderDefault: '#1e2d45',
     borderStrong:  '#253550',
-    growth:        '#2DD4BF',
-    decline:       '#F87171',
-    neutral:       '#64748B',
-    insight:       '#A78BFA',
-    warning:       '#F59E0B',
-    info:          '#60A5FA',
-    success:       '#34D399',
-    risk:          '#EF4444',
-    chartBaseline:    '#3D5068',
-    chartExpansion:   '#14B8A6',
-    chartContraction: '#F87171',
-    chartNeutral:     '#4A5A6E',
-    chartGrid:        '#1E2D45',
-    chartAxis:        '#4A5A6E',
-    accentPrimary:      '#CBD5E1',
-    accentPrimaryHover: '#E2E8F0',
-    focusRing:          'rgba(45,212,191,0.4)',
-    selectionBg:        'rgba(45,212,191,0.08)',
+    // Semantic — teal brand, red negative
+    growth:        '#14b8a6',
+    decline:       '#f87171',
+    neutral:       '#64748b',
+    insight:       '#a78bfa',
+    warning:       '#f59e0b',
+    info:          '#60a5fa',
+    success:       '#34d399',
+    risk:          '#ef4444',
+    // Bridge chart tokens
+    chartBaseline:    '#3d5068',
+    chartExpansion:   '#14b8a6',
+    chartContraction: '#f87171',
+    chartNeutral:     '#4a5568',
+    chartGrid:        '#1e2d45',
+    chartAxis:        '#4a5568',
+    // Brand (teal)
+    brandPrimary:   '#14b8a6',
+    brandSoft:      'rgba(20,184,166,0.10)',
+    brandBorder:    'rgba(20,184,166,0.28)',
+    // Interactions
+    accentPrimary:      '#e6edf3',
+    accentPrimaryHover: '#ffffff',
+    focusRing:          'rgba(20,184,166,0.45)',
+    selectionBg:        'rgba(20,184,166,0.10)',
     mono: "'JetBrains Mono',monospace",
   },
+
+  // ── 2. LIGHT-PURPLE (Default — Executive / Clean) ──────────────────────────
   light: {
-    bgPage:        '#F8FAFC',
-    bgSurface:     '#FFFFFF',
-    bgRaised:      '#F1F5F9',
-    bgElevated:    '#FFFFFF',
-    bgMuted:       '#F8FAFC',
-    textPrimary:   '#0F172A',
-    textSecondary: '#475569',
-    textTertiary:  '#64748B',
-    textMuted:     '#94A3B8',
-    textInverse:   '#FFFFFF',
-    borderSubtle:  'rgba(15,23,42,0.06)',
-    borderDefault: 'rgba(15,23,42,0.10)',
-    borderStrong:  'rgba(15,23,42,0.16)',
-    growth:        '#0D9488',
-    decline:       '#DC2626',
-    neutral:       '#64748B',
-    insight:       '#7C3AED',
-    warning:       '#D97706',
-    info:          '#2563EB',
+    bgPage:        '#f8f9ff',
+    bgSurface:     '#ffffff',
+    bgRaised:      '#eff4ff',
+    bgElevated:    '#ffffff',
+    bgMuted:       '#f1f5f9',
+    textPrimary:   '#0b1c30',
+    textSecondary: '#4a4455',
+    textTertiary:  '#64748b',
+    textMuted:     '#94a3b8',
+    textInverse:   '#ffffff',
+    borderSubtle:  'rgba(11,28,48,0.06)',
+    borderDefault: 'rgba(11,28,48,0.10)',
+    borderStrong:  'rgba(99,14,212,0.20)',
+    // Semantic — purple brand, red negative
+    growth:        '#630ed4',
+    decline:       '#ba1a1a',
+    neutral:       '#64748b',
+    insight:       '#7c3aed',
+    warning:       '#d97706',
+    info:          '#2563eb',
     success:       '#059669',
-    risk:          '#DC2626',
-    chartBaseline:    '#94A3B8',
-    chartExpansion:   '#0D9488',
-    chartContraction: '#DC2626',
-    chartNeutral:     '#64748B',
-    chartGrid:        'rgba(15,23,42,0.06)',
-    chartAxis:        '#94A3B8',
-    accentPrimary:      '#0F172A',
-    accentPrimaryHover: '#1E293B',
-    focusRing:          'rgba(13,148,136,0.35)',
-    selectionBg:        'rgba(13,148,136,0.06)',
+    risk:          '#ba1a1a',
+    // Bridge chart tokens
+    chartBaseline:    '#94a3b8',
+    chartExpansion:   '#630ed4',
+    chartContraction: '#ba1a1a',
+    chartNeutral:     '#64748b',
+    chartGrid:        'rgba(11,28,48,0.07)',
+    chartAxis:        '#94a3b8',
+    // Brand (purple)
+    brandPrimary:   '#630ed4',
+    brandSoft:      'rgba(99,14,212,0.10)',
+    brandBorder:    'rgba(99,14,212,0.28)',
+    // Interactions
+    accentPrimary:      '#0b1c30',
+    accentPrimaryHover: '#1e293b',
+    focusRing:          'rgba(99,14,212,0.35)',
+    selectionBg:        'rgba(99,14,212,0.08)',
     mono: "'JetBrains Mono',monospace",
   },
+
+  // ── 3. LIGHT-RED (Alert / Risk-Focused) ────────────────────────────────────
+  'light-red': {
+    bgPage:        '#f8f9ff',
+    bgSurface:     '#ffffff',
+    bgRaised:      '#f3f4f6',
+    bgElevated:    '#ffffff',
+    bgMuted:       '#f1f5f9',
+    textPrimary:   '#0b1c30',
+    textSecondary: '#4a4455',
+    textTertiary:  '#64748b',
+    textMuted:     '#94a3b8',
+    textInverse:   '#ffffff',
+    borderSubtle:  'rgba(11,28,48,0.06)',
+    borderDefault: 'rgba(11,28,48,0.10)',
+    borderStrong:  'rgba(153,27,27,0.25)',
+    // Semantic — red brand, dark-red negative
+    growth:        '#991b1b',
+    decline:       '#dc2626',
+    neutral:       '#64748b',
+    insight:       '#7c3aed',
+    warning:       '#d97706',
+    info:          '#2563eb',
+    success:       '#059669',
+    risk:          '#dc2626',
+    // Bridge chart tokens
+    chartBaseline:    '#94a3b8',
+    chartExpansion:   '#991b1b',
+    chartContraction: '#dc2626',
+    chartNeutral:     '#64748b',
+    chartGrid:        'rgba(11,28,48,0.07)',
+    chartAxis:        '#94a3b8',
+    // Brand (red)
+    brandPrimary:   '#991b1b',
+    brandSoft:      'rgba(153,27,27,0.10)',
+    brandBorder:    'rgba(153,27,27,0.28)',
+    // Interactions
+    accentPrimary:      '#0b1c30',
+    accentPrimaryHover: '#1e293b',
+    focusRing:          'rgba(153,27,27,0.35)',
+    selectionBg:        'rgba(153,27,27,0.08)',
+    mono: "'JetBrains Mono',monospace",
+  },
+
+  // ── 4. COLOR-BLIND (Deuteranopia-safe) ─────────────────────────────────────
   colorBlind: {
-    bgPage:        '#0B1220',
-    bgSurface:     '#0F1A2E',
-    bgRaised:      '#162035',
-    bgElevated:    '#1A2840',
-    bgMuted:       '#0D1525',
-    textPrimary:   '#E2E8F0',
-    textSecondary: '#94A3B8',
-    textTertiary:  '#64748B',
-    textMuted:     '#4A5A6E',
-    textInverse:   '#0F172A',
-    borderSubtle:  'rgba(229,231,235,0.07)',
-    borderDefault: '#1E2D45',
+    bgPage:        '#0b1326',
+    bgSurface:     '#131b2e',
+    bgRaised:      '#171f33',
+    bgElevated:    '#1c253a',
+    bgMuted:       '#0f1828',
+    textPrimary:   '#e6edf3',
+    textSecondary: '#94a3b8',
+    textTertiary:  '#64748b',
+    textMuted:     '#4a5568',
+    textInverse:   '#0b1326',
+    borderSubtle:  'rgba(230,237,243,0.06)',
+    borderDefault: '#1e2d45',
     borderStrong:  '#253550',
-    growth:        '#60A5FA',
-    decline:       '#FB923C',
-    neutral:       '#64748B',
-    insight:       '#A78BFA',
-    warning:       '#FCD34D',
-    info:          '#38BDF8',
-    success:       '#34D399',
-    risk:          '#FB923C',
-    chartBaseline:    '#3D5068',
-    chartExpansion:   '#60A5FA',
-    chartContraction: '#FB923C',
-    chartNeutral:     '#4A5A6E',
-    chartGrid:        '#1E2D45',
-    chartAxis:        '#4A5A6E',
-    accentPrimary:      '#CBD5E1',
-    accentPrimaryHover: '#E2E8F0',
-    focusRing:          'rgba(96,165,250,0.4)',
-    selectionBg:        'rgba(96,165,250,0.08)',
+    growth:        '#60a5fa',
+    decline:       '#fb923c',
+    neutral:       '#64748b',
+    insight:       '#a78bfa',
+    warning:       '#fcd34d',
+    info:          '#38bdf8',
+    success:       '#34d399',
+    risk:          '#fb923c',
+    chartBaseline:    '#3d5068',
+    chartExpansion:   '#60a5fa',
+    chartContraction: '#fb923c',
+    chartNeutral:     '#4a5568',
+    chartGrid:        '#1e2d45',
+    chartAxis:        '#4a5568',
+    brandPrimary:   '#60a5fa',
+    brandSoft:      'rgba(96,165,250,0.10)',
+    brandBorder:    'rgba(96,165,250,0.28)',
+    accentPrimary:      '#e6edf3',
+    accentPrimaryHover: '#ffffff',
+    focusRing:          'rgba(96,165,250,0.45)',
+    selectionBg:        'rgba(96,165,250,0.10)',
     mono: "'JetBrains Mono',monospace",
   },
+
+  // ── 5. HIGH CONTRAST (WCAG AAA) ────────────────────────────────────────────
   highContrast: {
     bgPage:        '#000000',
-    bgSurface:     '#0A0A0A',
+    bgSurface:     '#0a0a0a',
     bgRaised:      '#141414',
-    bgElevated:    '#1A1A1A',
+    bgElevated:    '#1a1a1a',
     bgMuted:       '#050505',
-    textPrimary:   '#FFFFFF',
-    textSecondary: '#E5E5E5',
-    textTertiary:  '#CCCCCC',
-    textMuted:     '#AAAAAA',
+    textPrimary:   '#ffffff',
+    textSecondary: '#e5e5e5',
+    textTertiary:  '#cccccc',
+    textMuted:     '#aaaaaa',
     textInverse:   '#000000',
     borderSubtle:  'rgba(255,255,255,0.15)',
     borderDefault: 'rgba(255,255,255,0.25)',
     borderStrong:  'rgba(255,255,255,0.40)',
-    growth:        '#00FF94',
-    decline:       '#FF4444',
-    neutral:       '#AAAAAA',
-    insight:       '#CC99FF',
-    warning:       '#FFB800',
-    info:          '#66AAFF',
-    success:       '#00FF94',
-    risk:          '#FF4444',
+    growth:        '#00ff94',
+    decline:       '#ff4444',
+    neutral:       '#aaaaaa',
+    insight:       '#cc99ff',
+    warning:       '#ffb800',
+    info:          '#66aaff',
+    success:       '#00ff94',
+    risk:          '#ff4444',
     chartBaseline:    '#666666',
-    chartExpansion:   '#00FF94',
-    chartContraction: '#FF4444',
+    chartExpansion:   '#00ff94',
+    chartContraction: '#ff4444',
     chartNeutral:     '#888888',
     chartGrid:        'rgba(255,255,255,0.12)',
     chartAxis:        '#888888',
-    accentPrimary:      '#FFFFFF',
-    accentPrimaryHover: '#E5E5E5',
-    focusRing:          'rgba(255,255,255,0.5)',
-    selectionBg:        'rgba(255,255,255,0.1)',
+    brandPrimary:   '#00ff94',
+    brandSoft:      'rgba(0,255,148,0.12)',
+    brandBorder:    'rgba(0,255,148,0.40)',
+    accentPrimary:      '#ffffff',
+    accentPrimaryHover: '#e5e5e5',
+    focusRing:          'rgba(255,255,255,0.6)',
+    selectionBg:        'rgba(255,255,255,0.12)',
     mono: "'JetBrains Mono',monospace",
   },
 }
-
 // Active theme — resolved inside component via: const T = THEMES[themeMode]
 // — will be driven by state in component, defaulting to dark
 // Usage: T.growth, T.bgSurface, T.textPrimary etc.
@@ -410,7 +480,7 @@ function KpiChip({label,value,sub,subGood,accent,theme=null}) {
     <div style={{
       background:  T.bgSurface,
       border:      `1px solid ${T.borderDefault}`,
-      borderTop:   accent ? `2px solid ${T.borderStrong}` : `1px solid ${T.borderDefault}`,
+      borderTop:   accent ? `2px solid ${T.brandPrimary||T.borderStrong}` : `1px solid ${T.borderDefault}`,
       borderRadius:6,
       padding:     '12px 14px',
     }}>
@@ -931,7 +1001,7 @@ export default function CommandCenter() {
   const [rerunning, setRerunning]   = useState(false)
   const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
   const [histChartWindow, setHistChartWindow] = useState(24)  // Historical perf chart window
-  const [themeMode, setThemeMode] = useState<'dark'|'light'|'colorBlind'|'highContrast'>('dark')
+  const [themeMode, setThemeMode] = useState<'dark'|'light'|'light-red'|'colorBlind'|'highContrast'>('dark')
   const [showThemeMenu, setShowThemeMenu] = useState(false)
 
   const isAdmin  = canDownload(profile)
@@ -1885,6 +1955,10 @@ export default function CommandCenter() {
     pos:     T.growth,
     neg:     T.decline,
     warn:    T.warning,
+    // Brand tokens — use brandPrimary if defined, fall back to growth
+    brand:       T.brandPrimary || T.growth,
+    brandSoft:   T.brandSoft    || `${T.growth}1A`,
+    brandBorder: T.brandBorder  || `${T.growth}45`,
   }
   // Bridge colors — always from active theme
   const BCT = getBridgeColor(T)
@@ -1902,7 +1976,7 @@ export default function CommandCenter() {
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <div data-theme={themeMode} style={{display:'flex',height:'100vh',overflow:'hidden',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:themeMode==='light'?'light':'dark'}}>
+    <div data-theme={themeMode} style={{display:'flex',height:'100vh',overflow:'hidden',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:(themeMode==='light'||themeMode==='light-red')?'light':'dark'}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&family=JetBrains+Mono:wght@400;500;600&display=swap');
         :root {
@@ -1910,9 +1984,9 @@ export default function CommandCenter() {
           --surface:     #0F1A2E;
           --raised:      #162035;
           /* ── Semantic tokens (dark default) ── */
-          --bg-primary:    #0B1220;
+          --bg-primary:    #0b1326;
           --bg-secondary:  #0F1A2E;
-          --bg-card:       #0F1A2E;
+          --bg-card:       #131b2e;
           --bg-raised:     #162035;
           --bg-elevated:   #1A2840;
           --bg-muted:      #0D1525;
@@ -1927,7 +2001,7 @@ export default function CommandCenter() {
           --border-default: #1E2D45;
           --border-strong:  #253550;
 
-          --color-growth:   #2DD4BF;
+          --color-growth:   #14b8a6;
           --color-decline:  #F87171;
           --color-neutral:  #64748B;
           --color-insight:  #A78BFA;
@@ -1937,7 +2011,7 @@ export default function CommandCenter() {
           --color-risk:     #EF4444;
 
           --chart-baseline:    #3D5068;
-          --chart-expansion:   #14B8A6;
+          --chart-expansion:   #14b8a6;
           --chart-contraction: #F87171;
           --chart-neutral:     #4A5A6E;
           --chart-grid:        #1E2D45;
@@ -1955,7 +2029,7 @@ export default function CommandCenter() {
           --text-2:      #94A3B8;
           --text-3:      #64748B;
           --text-4:      #4A5A6E;
-          --pos:         #2DD4BF;
+          --pos:         #14b8a6;
           --neg:         #F87171;
           --warn:        #F59E0B;
           --neutral:     #3D5068;
@@ -1965,21 +2039,38 @@ export default function CommandCenter() {
         }
 
         /* ── Light mode ── */
+        [data-theme="light-red"] {
+          --bg-primary:    #f8f9ff; --bg-secondary: #f3f4f6; --bg-card: #ffffff;
+          --bg-raised:     #f3f4f6; --bg-elevated: #ffffff;  --bg-muted: #f1f5f9;
+          --text-primary:  #0b1c30; --text-secondary: #4a4455; --text-tertiary: #64748b;
+          --text-muted:    #94a3b8; --text-inverse: #ffffff;
+          --border-subtle: rgba(11,28,48,0.06); --border-default: rgba(11,28,48,0.10); --border-strong: rgba(153,27,27,0.25);
+          --color-growth:  #991b1b; --color-decline: #dc2626; --color-insight: #7c3aed;
+          --color-warning: #d97706; --color-info: #2563eb; --color-success: #059669; --color-risk: #dc2626;
+          --chart-expansion: #991b1b; --chart-contraction: #dc2626; --chart-baseline: #94a3b8;
+          --chart-neutral: #64748b; --chart-grid: rgba(11,28,48,0.07); --chart-axis: #94a3b8;
+          --accent-primary: #0b1c30; --accent-primary-hover: #1e293b;
+          --focus-ring: rgba(153,27,27,0.35); --selection-bg: rgba(153,27,27,0.08);
+          --border: rgba(11,28,48,0.10); --border2: rgba(153,27,27,0.25);
+          --text: #0b1c30; --text-2: #4a4455; --text-3: #94a3b8; --text-4: #64748b;
+          --pos: #991b1b; --neg: #dc2626; --warn: #d97706; --neutral: #64748b; --accent: #0b1c30;
+        }
+
         [data-theme="light"] {
           --bg-primary:    #F8FAFC; --bg-secondary: #F1F5F9; --bg-card: #FFFFFF;
           --bg-raised:     #F1F5F9; --bg-elevated: #FFFFFF;  --bg-muted: #F8FAFC;
           --text-primary:  #0F172A; --text-secondary: #475569; --text-tertiary: #64748B;
           --text-muted:    #94A3B8; --text-inverse: #FFFFFF;
           --border-subtle: rgba(15,23,42,0.06); --border-default: rgba(15,23,42,0.10); --border-strong: rgba(15,23,42,0.16);
-          --color-growth:  #0D9488; --color-decline: #DC2626; --color-insight: #7C3AED;
-          --color-warning: #D97706; --color-info: #2563EB; --color-success: #059669; --color-risk: #DC2626;
-          --chart-expansion: #0D9488; --chart-contraction: #DC2626; --chart-baseline: #94A3B8;
-          --chart-neutral: #64748B; --chart-grid: rgba(15,23,42,0.06); --chart-axis: #94A3B8;
-          --accent-primary: #0F172A; --accent-primary-hover: #1E293B;
-          --focus-ring: rgba(13,148,136,0.35); --selection-bg: rgba(13,148,136,0.06);
-          --border: rgba(15,23,42,0.10); --border2: rgba(15,23,42,0.16);
-          --text: #0F172A; --text-2: #475569; --text-3: #94A3B8; --text-4: #64748B;
-          --pos: #0D9488; --neg: #DC2626; --warn: #D97706; --neutral: #64748B; --accent: #0F172A;
+          --color-growth:  #630ed4; --color-decline: #ba1a1a; --color-insight: #7c3aed;
+          --color-warning: #d97706; --color-info: #2563eb; --color-success: #059669; --color-risk: #ba1a1a;
+          --chart-expansion: #630ed4; --chart-contraction: #ba1a1a; --chart-baseline: #94a3b8;
+          --chart-neutral: #64748b; --chart-grid: rgba(11,28,48,0.07); --chart-axis: #94a3b8;
+          --accent-primary: #0b1c30; --accent-primary-hover: #1e293b;
+          --focus-ring: rgba(99,14,212,0.35); --selection-bg: rgba(99,14,212,0.08);
+          --border: rgba(11,28,48,0.10); --border2: rgba(99,14,212,0.20);
+          --text: #0b1c30; --text-2: #4a4455; --text-3: #94a3b8; --text-4: #64748b;
+          --pos: #630ed4; --neg: #ba1a1a; --warn: #d97706; --neutral: #64748b; --accent: #0b1c30;
         }
 
         /* ── Color-blind mode (deuteranopia-safe) ── */
@@ -2068,11 +2159,11 @@ export default function CommandCenter() {
           </button>
           <div style={{position:'relative'}}>
             <button onClick={()=>setShowThemeMenu(v=>!v)} title="Theme" style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary,fontSize:10}}>
-              {themeMode==='dark'?'🌙':themeMode==='light'?'☀️':themeMode==='colorBlind'?'👁️':'⬤'}
+              {themeMode==='dark'?'🌙':themeMode==='light'?'🟣':themeMode==='light-red'?'🔴':themeMode==='colorBlind'?'👁️':'⬤'}
             </button>
             {showThemeMenu&&(
               <div style={{position:'absolute',right:0,top:'110%',background:T.bgElevated,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:8,zIndex:999,minWidth:140,boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}}>
-                {[['dark','🌙  Dark'],['light','☀️  Light'],['colorBlind','👁️  Color-Safe'],['highContrast','⬤  High Contrast']].map(([mode,label])=>(
+                {[['dark','🌙  Dark (Analytics)'],['light','🟣  Light (Purple)'],['light-red','🔴  Light (Alert)'],['colorBlind','👁️  Color-Safe'],['highContrast','⬤  High Contrast']].map(([mode,label])=>(
                   <button key={mode} onClick={()=>{setThemeMode(mode as any);setShowThemeMenu(false)}}
                     style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,fontWeight:themeMode===mode?700:400,background:themeMode===mode?T.selectionBg:'transparent',color:themeMode===mode?T.growth:T.textSecondary}}>
                     {label}
@@ -2087,7 +2178,7 @@ export default function CommandCenter() {
         <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
           {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3]].map(([n,lbl,done,active])=>(
             <div key={n} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 8px',borderRadius:10,background:active?T.bgRaised:'transparent',marginBottom:2}}>
-              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?T.selectionBg:active?T.bgRaised:T.borderDefault,color:done?T.growth:active?T.accentPrimary:T.textMuted}}>{done?'✓':n}</div>
+              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?(T.brandSoft||T.selectionBg):active?T.bgRaised:T.borderDefault,color:done?(T.brandPrimary||T.growth):active?T.accentPrimary:T.textMuted}}>{done?'✓':n}</div>
               <span style={{fontSize:11,fontWeight:600,color:active?T.accentPrimary:T.textMuted}}>{lbl}</span>
             </div>
           ))}
@@ -2131,7 +2222,7 @@ export default function CommandCenter() {
                         <Icon size={12} color={active?T.growth:T.textSecondary}/>
                       </div>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:11,fontWeight:700,color:active?T.growth:T.textPrimary,lineHeight:1.2}}>{ec.label}</div>
+                        <div style={{fontSize:11,fontWeight:700,color:active?(T.brandPrimary||T.growth):T.textPrimary,lineHeight:1.2}}>{ec.label}</div>
                         <div style={{fontSize:9,color:T.textTertiary,marginTop:2}}>{ec.desc}</div>
                       </div>
                       {active&&<CheckCircle size={12} color="#4ADE80"/>}
@@ -2179,8 +2270,8 @@ export default function CommandCenter() {
           <button onClick={runAnalysis} disabled={!step1||!step2||running} style={{
             width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:8,
             fontWeight:700,fontSize:13,padding:'12px 0',borderRadius:14,border:'none',cursor:canRun?'pointer':'not-allowed',
-            background:canRun?T.selectionBg:T.bgRaised,
-            color:canRun?T.growth:T.textMuted,transition:'opacity 0.15s',
+            background:canRun?T.brandSoft||T.selectionBg:T.bgRaised,
+            color:canRun?T.brandPrimary||T.growth:T.textMuted,transition:'opacity 0.15s',
           }}>
             {running?<Loader2 size={14} color={canRun?T.growth:T.textMuted} style={{animation:'spin 1s linear infinite'}}/>:<Zap size={14}/>}
             {running?'Analyzing…':'Run Analysis'}
@@ -2234,7 +2325,7 @@ export default function CommandCenter() {
                       <button key={opt.lb}
                         onClick={()=>{setSelLb(opt.lb); if(opt.pt!==periodType) applyPeriodType(opt.pt)}}
                         disabled={rerunning}
-                        style={{padding:'0 12px',height:30,fontSize:11,fontWeight:selLb===opt.lb?600:400,border:'none',borderBottom:`2px solid ${selLb===opt.lb?T.accentPrimary:'transparent'}`,cursor:rerunning?'not-allowed':'pointer',background:selLb===opt.lb?T.bgRaised:'transparent',color:selLb===opt.lb?T.accentPrimary:T.textMuted,transition:'all 0.12s',opacity:rerunning?0.6:1,whiteSpace:'nowrap'}}>
+                        style={{padding:'0 12px',height:30,fontSize:11,fontWeight:selLb===opt.lb?600:400,border:'none',borderBottom:`2px solid ${selLb===opt.lb?(T.brandPrimary||T.accentPrimary):'transparent'}`,cursor:rerunning?'not-allowed':'pointer',background:selLb===opt.lb?T.bgRaised:'transparent',color:selLb===opt.lb?(T.brandPrimary||T.accentPrimary):T.textMuted,transition:'all 0.12s',opacity:rerunning?0.6:1,whiteSpace:'nowrap'}}>
                         {opt.label}
                       </button>
                     ))}
@@ -2320,9 +2411,9 @@ export default function CommandCenter() {
                   }
                 }} style={{
                   padding:'0 16px',height:40,fontSize:12,fontWeight:activeTab===tab.id?500:400,
-                  border:'none',borderBottom:`2px solid ${activeTab===tab.id?T.accentPrimary:'transparent'}`,
+                  border:'none',borderBottom:`2px solid ${activeTab===tab.id?(T.brandPrimary||T.accentPrimary):'transparent'}`,
                   background:'transparent',cursor:'pointer',
-                  color:activeTab===tab.id?T.accentPrimary:T.textMuted,
+                  color:activeTab===tab.id?(T.brandPrimary||T.accentPrimary):T.textMuted,
                   transition:'color 0.12s',whiteSpace:'nowrap',
                 }}>{tab.label}</button>
               ))}
@@ -2554,7 +2645,7 @@ export default function CommandCenter() {
                         <div style={{display:'flex',borderBottom:`1px solid ${T.borderDefault}`,marginBottom:20}}>
                           {SUB_TABS.map(t=>(
                             <button key={t} onClick={()=>setSummarySubTab(t)}
-                              style={{padding:'10px 18px',fontSize:13,fontWeight:summarySubTab===t?600:400,border:'none',borderBottom:`2px solid ${summarySubTab===t?T.accentPrimary:'transparent'}`,background:'transparent',color:summarySubTab===t?T.accentPrimary:T.textMuted,cursor:'pointer',transition:'all 0.12s',whiteSpace:'nowrap'}}>
+                              style={{padding:'10px 18px',fontSize:13,fontWeight:summarySubTab===t?600:400,border:'none',borderBottom:`2px solid ${summarySubTab===t?(T.brandPrimary||T.accentPrimary):'transparent'}`,background:'transparent',color:summarySubTab===t?(T.brandPrimary||T.accentPrimary):T.textMuted,cursor:'pointer',transition:'all 0.12s',whiteSpace:'nowrap'}}>
                               {t}
                             </button>
                           ))}
