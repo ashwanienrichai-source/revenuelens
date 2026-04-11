@@ -480,24 +480,19 @@ function KpiChip({label,value,sub,subGood,accent,theme=null}) {
     <div style={{
       background:  T.bgSurface,
       border:      `1px solid ${T.borderDefault}`,
-      borderTop:   accent ? `3px solid ${T.brandPrimary||T.growth}` : `1px solid ${T.borderDefault}`,
-      borderRadius:8,
-      padding:     '14px 16px',
-      position:'relative',overflow:'hidden',
-      transition:'box-shadow 0.2s ease',
+      borderTop:   accent ? `2px solid ${T.brandPrimary||T.borderStrong}` : `1px solid ${T.borderDefault}`,
+      borderRadius:6,
+      padding:     '12px 14px',
     }}>
-      {/* Subtle bg glow on accent */}
-      {accent&&<div style={{position:'absolute',top:0,left:0,right:0,height:40,background:`linear-gradient(180deg,${T.brandSoft||T.selectionBg},transparent)`,pointerEvents:'none'}}/>}
-      <div style={{fontSize:8.5,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textMuted,marginBottom:8,position:'relative'}}>
+      <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:7}}>
         {label}
       </div>
-      <div style={{fontFamily:"'JetBrains Mono',monospace",fontFeatureSettings:"'tnum'",fontSize:22,fontWeight:700,lineHeight:1,color:valColor,letterSpacing:'-0.03em',position:'relative'}}>
+      <div style={{fontFamily:"'JetBrains Mono',monospace",fontFeatureSettings:"'tnum'",fontSize:19,fontWeight:700,lineHeight:1,color:valColor,letterSpacing:'-0.02em'}}>
         {value}
       </div>
       {sub!=null&&(
-        <div style={{marginTop:5,fontSize:10,fontWeight:600,color:subColor,display:'flex',alignItems:'center',gap:3}}>
-          {subGood===true?<span style={{fontSize:9}}>↑</span>:subGood===false?<span style={{fontSize:9}}>↓</span>:null}
-          {sub}
+        <div style={{marginTop:4,fontSize:10,fontWeight:500,color:subColor}}>
+          {subGood===true?'↑ ':subGood===false?'↓ ':''}{sub}
         </div>
       )}
     </div>
@@ -2036,10 +2031,10 @@ export default function CommandCenter() {
 
   // Component style helpers — all consume tokens
   const S = {
-    card:  { background:T.bgSurface, border:`1px solid ${T.borderDefault}`, borderRadius:8, padding:20, boxShadow:'0 1px 3px rgba(0,0,0,0.06)' },
+    card:  { background:T.bgSurface, border:`1px solid ${T.borderDefault}`, borderRadius:6, padding:20 },
     cardF: { background:T.bgSurface, border:`1px solid ${T.borderDefault}`, borderRadius:6, padding:0, overflow:'hidden' },
-    label: { fontSize:8.5, fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'0.12em', color:T.textMuted, marginBottom:8 },
-    th:    { fontSize:8.5, fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'0.1em', color:T.textMuted, padding:'9px 14px', background:T.bgRaised, borderBottom:`1px solid ${T.borderDefault}`, textAlign:'left' as const, whiteSpace:'nowrap' as const },
+    label: { fontSize:9, fontWeight:600, textTransform:'uppercase' as const, letterSpacing:'0.1em', color:T.textMuted },
+    th:    { fontSize:9, fontWeight:600, textTransform:'uppercase' as const, letterSpacing:'0.08em', color:T.textMuted, padding:'9px 14px', background:T.bgRaised, borderBottom:`1px solid ${T.borderDefault}`, textAlign:'left' as const, whiteSpace:'nowrap' as const },
     td:    { padding:'9px 14px', color:T.textSecondary, fontSize:12, borderBottom:`1px solid ${T.borderDefault}` },
     mono:  { fontFamily:T.mono, fontFeatureSettings:"'tnum'" },
   }
@@ -2047,9 +2042,9 @@ export default function CommandCenter() {
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <div data-theme={themeMode} style={{display:'flex',height:'100vh',overflow:'hidden',background:T.bgPage,fontFamily:"'DM Sans',system-ui,sans-serif",color:T.textPrimary,colorScheme:(themeMode==='light'||themeMode==='light-red')?'light':'dark'}}>
+    <div data-theme={themeMode} style={{display:'flex',height:'100vh',overflow:'hidden',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:(themeMode==='light'||themeMode==='light-red')?'light':'dark'}}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&family=JetBrains+Mono:wght@400;500;600&display=swap');
         :root {
           --bg:          #0B1220;
           --surface:     #0F1A2E;
@@ -2105,7 +2100,7 @@ export default function CommandCenter() {
           --warn:        #F59E0B;
           --neutral:     #3D5068;
           --accent:      #CBD5E1;
-          --font:        'DM Sans', system-ui, sans-serif;
+          --font:        'Inter', system-ui, sans-serif;
           --mono:        'JetBrains Mono', monospace;
         }
 
@@ -2163,7 +2158,7 @@ export default function CommandCenter() {
           --pos: #00FF94; --neg: #FF4444;
         }
         *{box-sizing:border-box}
-        body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg-primary);color:var(--text-primary);}
+        body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-primary);color:var(--text-primary);}
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:#253550;border-radius:4px}
@@ -2199,34 +2194,6 @@ export default function CommandCenter() {
           *{animation-duration:0.01ms!important;transition-duration:0.01ms!important}
         }
 
-        /* ── Premium table styles ── */
-        table{border-collapse:collapse;width:100%}
-        th{user-select:none;white-space:nowrap}
-        td{white-space:nowrap}
-
-        /* ── Premium number formatting ── */
-        .num{font-variant-numeric:tabular-nums;font-feature-settings:'tnum'}
-
-        /* ── Card hover lift ── */
-        .card-hover{transition:box-shadow 0.2s ease,transform 0.2s ease}
-        .card-hover:hover{box-shadow:0 4px 20px rgba(0,0,0,0.12);transform:translateY(-1px)}
-
-        /* ── Premium select styling ── */
-        select{cursor:pointer}
-
-        /* ── KPI card accent line ── */
-        .kpi-card{position:relative;overflow:hidden}
-        .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--kpi-accent,transparent)}
-
-        /* ── Glow effect for brand elements ── */
-        .brand-glow{filter:drop-shadow(0 0 8px var(--color-growth))}
-
-        /* ── Premium input focus ── */
-        input:focus,select:focus{
-          outline:2px solid var(--focus-ring,rgba(20,184,166,0.35));
-          outline-offset:1px;
-        }
-
         /* ── Color-blind mode secondary encoding — growth/decline icons ── */
         [data-theme="colorBlind"] .cb-growth::before{content:'↑ ';font-size:0.8em}
         [data-theme="colorBlind"] .cb-decline::before{content:'↓ ';font-size:0.8em}
@@ -2241,144 +2208,30 @@ export default function CommandCenter() {
         [data-theme="light"] ::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,0.35)}
       `}</style>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          GLOBAL HEADER — full width, sticky, mission-control feel
-      ══════════════════════════════════════════════════════════════════ */}
-      <div style={{
-        height:52, display:'flex', alignItems:'center', justifyContent:'space-between',
-        padding:'0 20px', flexShrink:0,
-        background:T.bgSurface,
-        borderBottom:`1px solid ${T.borderDefault}`,
-        zIndex:100,
-      }}>
-        {/* Left: Logo + workspace */}
-        <div style={{display:'flex',alignItems:'center',gap:16}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{
-              width:30,height:30,borderRadius:8,
-              background:`linear-gradient(135deg,${T.brandPrimary||T.growth},${T.insight})`,
-              display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
-            }}>
-              <BarChart3 size={15} color="#fff"/>
-            </div>
-            <div>
-              <div style={{fontSize:14,fontWeight:800,color:T.textPrimary,letterSpacing:'-0.02em',lineHeight:1}}>RevenueLens</div>
-              <div style={{fontSize:8,fontWeight:700,textTransform:'uppercase' as const,letterSpacing:'0.14em',color:T.textMuted,marginTop:1}}>AI · Revenue Intelligence</div>
-            </div>
+      {/* ══ LEFT SIDEBAR ══════════════════════════════════════════════════ */}
+      <aside style={{width:256,display:'flex',flexDirection:'column',flexShrink:0,borderRight:`1px solid ${T.borderDefault}`,background:T.bgSurface,overflow:'hidden'}}>
+
+        {/* Logo */}
+        <div style={{height:56,display:'flex',alignItems:'center',gap:12,padding:'0 20px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
+          <div style={{width:28,height:28,borderRadius:6,background:T.bgRaised,border:`1px solid ${T.borderStrong}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            <BarChart3 size={13} color="#94A3B8"/>
           </div>
-          {/* Separator */}
-          <div style={{width:1,height:20,background:T.borderDefault}}/>
-          {/* Workspace label */}
-          <div style={{fontSize:12,color:T.textSecondary,fontWeight:500}}>
-            {file ? <span style={{color:T.textPrimary,fontWeight:600}}>{file.name?.replace(/\.(csv|xlsx?)$/i,'')}</span> : <span style={{color:T.textMuted}}>No workspace</span>}
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:900,color:T.textPrimary,letterSpacing:'-0.01em',lineHeight:1}}>RevenueLens</div>
+            <div style={{fontSize:8,fontWeight:600,textTransform:'uppercase' as const,letterSpacing:'0.12em',color:T.textMuted,marginTop:2}}>Analytics</div>
           </div>
-        </div>
-
-        {/* Center: Global controls (only when results exist) */}
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {results&&!isCohort&&(
-            <>
-              {/* Lookback selector */}
-              <div style={{display:'flex',alignItems:'center',background:T.bgPage,borderRadius:6,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:28}}>
-                {[{lb:1,label:'MoM'},{lb:3,label:'QoQ'},{lb:12,label:'YoY'}].map(opt=>(
-                  <button key={opt.lb} onClick={()=>setSelLb(opt.lb)} disabled={rerunning}
-                    style={{padding:'0 10px',height:28,fontSize:11,fontWeight:selLb===opt.lb?700:400,
-                      border:'none',cursor:'pointer',
-                      background:selLb===opt.lb?T.brandPrimary||T.growth:'transparent',
-                      color:selLb===opt.lb?'#fff':T.textMuted,
-                      transition:'all 0.15s',
-                    }}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Period */}
-              <select value={selPeriod} onChange={e=>setSelPeriod(e.target.value)}
-                disabled={availablePeriods.length===0}
-                style={{height:28,fontSize:11,fontWeight:600,border:`1px solid ${T.borderStrong}`,
-                  borderRadius:6,padding:'0 26px 0 10px',background:T.bgRaised,
-                  color:T.textPrimary,outline:'none',cursor:'pointer',
-                  fontFamily:"'DM Sans',system-ui,sans-serif",appearance:'none',
-                  backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%234A5A6E' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-                  backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center',minWidth:90}}>
-                {availablePeriods.map(p=><option key={p} value={p}>{p}</option>)}
-              </select>
-
-              {/* Dimension granularity */}
-              <div style={{display:'flex',alignItems:'center',background:T.bgPage,borderRadius:6,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:28}}>
-                {[{key:'customer',label:'Cust'},{key:'product',label:'× Prod',avail:!!fieldMap.product},{key:'region',label:'× Region',avail:!!fieldMap.region}].map(opt=>(
-                  <button key={opt.key} onClick={()=>opt.avail!==false&&!rerunning&&applyDimFilter(opt.key)}
-                    disabled={opt.avail===false||rerunning}
-                    style={{padding:'0 9px',height:28,fontSize:11,fontWeight:selDims===opt.key?700:400,border:'none',
-                      cursor:(opt.avail===false||rerunning)?'not-allowed':'pointer',
-                      background:selDims===opt.key?T.brandPrimary||T.growth:'transparent',
-                      color:selDims===opt.key?'#fff':opt.avail===false?T.bgMuted:T.textMuted,
-                      transition:'all 0.15s',opacity:opt.avail===false?0.35:1,
-                    }}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-
-              {rerunning&&(
-                <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:T.textMuted}}>
-                  <Loader2 size={11} style={{animation:'spin 1s linear infinite'}}/> Updating…
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Right: Actions */}
-        <div style={{display:'flex',alignItems:'center',gap:6}}>
-          {results&&(
-            <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('');setCohortResults(null);setRawFileRows([])}}
-              style={{height:28,width:28,display:'flex',alignItems:'center',justifyContent:'center',
-                borderRadius:6,border:`1px solid ${T.borderDefault}`,
-                background:'transparent',cursor:'pointer',color:T.textMuted}}
-              title="Reset">
-              <RefreshCw size={12}/>
-            </button>
-          )}
-          {results&&(isAdmin?(
-            <button onClick={downloadCSV}
-              style={{height:28,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,
-                padding:'0 12px',borderRadius:6,
-                border:`1px solid ${T.brandBorder||T.borderStrong}`,
-                cursor:'pointer',background:T.brandSoft||T.selectionBg,color:T.brandPrimary||T.growth}}>
-              <Download size={11}/> Export
-            </button>
-          ):(
-            <button onClick={()=>router.push('/dashboard/upgrade')}
-              style={{height:28,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:500,
-                color:T.textMuted,border:`1px solid ${T.borderDefault}`,padding:'0 10px',borderRadius:6,background:'transparent',cursor:'pointer'}}>
-              <Lock size={11}/> Upgrade
-            </button>
-          ))}
-          <button onClick={()=>router.push('/dashboard')}
-            style={{height:28,width:28,display:'flex',alignItems:'center',justifyContent:'center',
-              borderRadius:6,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary}}>
-            <Home size={13}/>
+          <button onClick={()=>router.push('/dashboard')} style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary}}>
+            <Home size={12}/>
           </button>
-          {/* Theme toggle */}
           <div style={{position:'relative'}}>
-            <button onClick={()=>setShowThemeMenu(v=>!v)} title="Theme"
-              style={{height:28,width:28,display:'flex',alignItems:'center',justifyContent:'center',
-                borderRadius:6,background:'transparent',border:'none',cursor:'pointer',fontSize:13}}>
+            <button onClick={()=>setShowThemeMenu(v=>!v)} title="Theme" style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary,fontSize:10}}>
               {themeMode==='dark'?'🌙':themeMode==='light'?'🟣':themeMode==='light-red'?'🔴':themeMode==='colorBlind'?'👁️':'⬤'}
             </button>
             {showThemeMenu&&(
-              <div style={{position:'absolute',right:0,top:'110%',background:T.bgElevated,
-                border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:8,
-                zIndex:999,minWidth:160,boxShadow:'0 8px 32px rgba(0,0,0,0.4)'}}>
+              <div style={{position:'absolute',right:0,top:'110%',background:T.bgElevated,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:8,zIndex:999,minWidth:140,boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}}>
                 {[['dark','🌙  Dark (Analytics)'],['light','🟣  Light (Purple)'],['light-red','🔴  Light (Alert)'],['colorBlind','👁️  Color-Safe'],['highContrast','⬤  High Contrast']].map(([mode,label])=>(
                   <button key={mode} onClick={()=>{setThemeMode(mode as any);setShowThemeMenu(false)}}
-                    style={{display:'block',width:'100%',textAlign:'left',padding:'7px 10px',
-                      borderRadius:5,border:'none',cursor:'pointer',fontSize:11,
-                      fontWeight:themeMode===mode?700:400,
-                      background:themeMode===mode?T.selectionBg:'transparent',
-                      color:themeMode===mode?T.brandPrimary||T.growth:T.textSecondary}}>
+                    style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,fontWeight:themeMode===mode?700:400,background:themeMode===mode?T.selectionBg:'transparent',color:themeMode===mode?T.growth:T.textSecondary}}>
                     {label}
                   </button>
                 ))}
@@ -2386,45 +2239,18 @@ export default function CommandCenter() {
             )}
           </div>
         </div>
-      </div>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          BODY — Left Panel + Right Panel
-      ══════════════════════════════════════════════════════════════════ */}
-      <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+        {/* Progress steps */}
+        <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
+          {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3]].map(([n,lbl,done,active])=>(
+            <div key={n} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 8px',borderRadius:10,background:active?T.bgRaised:'transparent',marginBottom:2}}>
+              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?(T.brandSoft||T.selectionBg):active?T.bgRaised:T.borderDefault,color:done?(T.brandPrimary||T.growth):active?T.accentPrimary:T.textMuted}}>{done?'✓':n}</div>
+              <span style={{fontSize:11,fontWeight:600,color:active?T.accentPrimary:T.textMuted}}>{lbl}</span>
+            </div>
+          ))}
+        </div>
 
-        {/* ══ LEFT PANEL — Data Control Center ═════════════════════════ */}
-        <aside style={{
-          width:264,flexShrink:0,display:'flex',flexDirection:'column',
-          borderRight:`1px solid ${T.borderDefault}`,
-          background:T.bgSurface,overflow:'hidden',
-        }}>
-          {/* Step indicators */}
-          <div style={{padding:'14px 16px 10px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
-            <div style={{fontSize:9,fontWeight:700,textTransform:'uppercase' as const,letterSpacing:'0.1em',color:T.textMuted,marginBottom:10}}>Setup</div>
-            {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3]].map(([n,lbl,done,active])=>(
-              <div key={n} style={{display:'flex',alignItems:'center',gap:9,padding:'5px 8px',borderRadius:8,
-                background:active?T.bgRaised:'transparent',marginBottom:1}}>
-                <div style={{
-                  width:18,height:18,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',
-                  fontSize:9,fontWeight:900,flexShrink:0,
-                  background:done?(T.brandSoft||T.selectionBg):active?T.bgElevated:T.borderDefault,
-                  border:done?`1px solid ${T.brandPrimary||T.growth}`:active?`1px solid ${T.borderStrong}`:'none',
-                  color:done?(T.brandPrimary||T.growth):active?T.textPrimary:T.textMuted,
-                }}>
-                  {done?'✓':n}
-                </div>
-                <span style={{fontSize:11,fontWeight:active||done?600:400,
-                  color:done?(T.brandPrimary||T.growth):active?T.textPrimary:T.textMuted}}>
-                  {lbl}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Scrollable setup content */}
-          <div style={{flex:1,overflowY:'auto'}}>
-            {/* Scrollable sidebar content */}
+        {/* Scrollable sidebar content */}
         <div style={{flex:1,overflowY:'auto'}}>
 
           {/* STEP 1: Upload */}
@@ -2532,17 +2358,117 @@ export default function CommandCenter() {
             <Lock size={11}/> Export <span style={{marginLeft:'auto',fontSize:9,background:T.borderStrong,color:T.textSecondary,padding:'2px 6px',borderRadius:10,fontWeight:700}}>PRO</span>
           </button>}
         </div>
-      
+      </aside>
+
+      {/* ══ RIGHT PANEL ═══════════════════════════════════════════════════ */}
+      <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:T.bgPage}}>
+
+        {/* ── PAGE HEADER ───────────────────────────────────────────── */}
+        <header style={{flexShrink:0,borderBottom:`1px solid ${T.borderDefault}`,background:T.bgSurface}}>
+
+          {/* Row 1: Title + all controls in ONE line */}
+          <div style={{display:'flex',alignItems:'center',padding:'0 28px',height:52,gap:16}}>
+
+            {/* Title */}
+            <div style={{fontSize:15,fontWeight:700,color:T.textPrimary,letterSpacing:'-0.01em',flexShrink:0}}>
+              Customer Analytics
+            </div>
+
+            <div style={{flex:1}}/>
+
+            {/* ── GLOBAL FILTER BAR — always visible across all tabs ─── */}
+            {results&&(
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+
+                {/* Lookback pills: MoM 1M | QoQ 3M | YoY 12M — single unified control */}
+                {!isCohort&&(
+                  <div style={{display:'flex',alignItems:'center',background:T.bgPage,borderRadius:5,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:30}}>
+                    {[
+                      {lb:1,  label:'MoM 1M',  pt:'Month'},
+                      {lb:3,  label:'QoQ 3M',  pt:'Quarter'},
+                      {lb:12, label:'YoY 12M', pt:'Annual'},
+                    ].map(opt=>(
+                      <button key={opt.lb}
+                        onClick={()=>{setSelLb(opt.lb); if(opt.pt!==periodType) applyPeriodType(opt.pt)}}
+                        disabled={rerunning}
+                        style={{padding:'0 12px',height:30,fontSize:11,fontWeight:selLb===opt.lb?600:400,border:'none',borderBottom:`2px solid ${selLb===opt.lb?(T.brandPrimary||T.accentPrimary):'transparent'}`,cursor:rerunning?'not-allowed':'pointer',background:selLb===opt.lb?T.bgRaised:'transparent',color:selLb===opt.lb?(T.brandPrimary||T.accentPrimary):T.textMuted,transition:'all 0.12s',opacity:rerunning?0.6:1,whiteSpace:'nowrap'}}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {!isCohort&&<div style={{width:1,height:18,background:T.borderDefault}}/>}
+
+                {/* Period dropdown — all real data months, latest selected by default */}
+                {!isCohort&&(
+                  <div style={{display:'flex',alignItems:'center',gap:6,height:30}}>
+                    <span style={{fontSize:11,fontWeight:500,color:T.textMuted,whiteSpace:'nowrap'}}>Period</span>
+                    <select
+                      value={selPeriod}
+                      onChange={e=>setSelPeriod(e.target.value)}
+                      disabled={availablePeriods.length===0}
+                      style={{height:30,fontSize:11,fontWeight:500,border:`1px solid ${T.borderStrong}`,borderRadius:5,padding:'0 28px 0 10px',background:T.bgRaised,color:availablePeriods.length>0?T.accentPrimary:T.chartBaseline,outline:'none',cursor:availablePeriods.length>0?'pointer':'default',fontFamily:"'Inter',system-ui,sans-serif",appearance:'none',backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%234A5A6E' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center',minWidth:100}}>
+                      {availablePeriods.length===0
+                        ? <option value="">— run analysis —</option>
+                        : availablePeriods.map(p=><option key={p} value={p}>{p}</option>)
+                      }
+                    </select>
+                  </div>
+                )}
+
+                {!isCohort&&<div style={{width:1,height:18,background:T.borderDefault}}/>}
+
+                {/* Dimension — customer / product / region */}
+                {!isCohort&&(
+                  <div style={{display:'flex',alignItems:'center',background:T.bgPage,borderRadius:5,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:30}}>
+                    {[
+                      {key:'customer',label:'Customer'},
+                      {key:'product', label:'× Product',available:!!fieldMap.product},
+                      {key:'region',  label:'× Region', available:!!fieldMap.region},
+                    ].map(opt=>(
+                      <button key={opt.key}
+                        onClick={()=>opt.available!==false&&!rerunning&&applyDimFilter(opt.key)}
+                        disabled={opt.available===false||rerunning}
+                        style={{padding:'0 10px',height:30,fontSize:11,fontWeight:selDims===opt.key?500:400,border:'none',cursor:(opt.available===false||rerunning)?'not-allowed':'pointer',background:selDims===opt.key?T.bgRaised:'transparent',color:selDims===opt.key?T.accentPrimary:opt.available===false?T.bgMuted:T.textMuted,transition:'all 0.12s'}}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Rerunning indicator */}
+                {rerunning&&(
+                  <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:T.textMuted}}>
+                    <Loader2 size={11} style={{animation:'spin 1s linear infinite'}}/> Updating…
+                  </div>
+                )}
+
+                {/* Reset */}
+                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('');setCohortResults(null);setRawFileRows([])}}
+                  style={{height:30,width:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:`1px solid ${T.borderDefault}`,background:'transparent',cursor:'pointer',color:T.textMuted}}
+                  onMouseEnter={e=>{e.currentTarget.style.color=T.accentPrimary;e.currentTarget.style.borderColor=T.borderStrong}}
+                  onMouseLeave={e=>{e.currentTarget.style.color=T.textMuted;e.currentTarget.style.borderColor=T.borderDefault}}>
+                  <RefreshCw size={12}/>
+                </button>
+
+                {/* Export */}
+                {isAdmin?(
+                  <button onClick={downloadCSV} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,padding:'0 12px',borderRadius:5,border:'1px solid #2D5A3D',cursor:'pointer',background:T.selectionBg,color:T.growth}}>
+                    <Download size={11}/> Export
+                  </button>
+                ):(
+                  <button onClick={()=>router.push('/dashboard/upgrade')} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:500,color:T.textMuted,border:`1px solid ${T.borderDefault}`,padding:'0 12px',borderRadius:5,background:'transparent',cursor:'pointer'}}>
+                    <Lock size={11}/> Upgrade
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-        </aside>
 
-        {/* ══ RIGHT PANEL — Live Analytics Command Center ══════════════ */}
-        <main style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',background:T.bgPage}}>
-
-          {/* Tab navigation bar */}
+          {/* Row 2: Tab navigation — at top level */}
           {results&&(
-            <div style={{display:'flex',borderBottom:`1px solid ${T.borderDefault}`,
-              paddingLeft:20,background:T.bgSurface,overflowX:'auto',flexShrink:0}}>
+            <div style={{display:'flex',borderTop:`1px solid ${T.borderDefault}`,paddingLeft:28,background:T.bgSurface,overflowX:'auto'}}>
               {TABS.map(tab=>(
                 <button key={tab.id} onClick={()=>{
                   setActiveTab(tab.id)
@@ -2550,29 +2476,22 @@ export default function CommandCenter() {
                     runInlineCohort()
                   }
                 }} style={{
-                  padding:'0 16px',height:40,fontSize:12,
-                  fontWeight:activeTab===tab.id?600:400,
-                  border:'none',
-                  borderBottom:`2px solid ${activeTab===tab.id?(T.brandPrimary||T.growth):'transparent'}`,
+                  padding:'0 16px',height:40,fontSize:12,fontWeight:activeTab===tab.id?500:400,
+                  border:'none',borderBottom:`2px solid ${activeTab===tab.id?(T.brandPrimary||T.accentPrimary):'transparent'}`,
                   background:'transparent',cursor:'pointer',
-                  color:activeTab===tab.id?(T.brandPrimary||T.growth):T.textMuted,
+                  color:activeTab===tab.id?(T.brandPrimary||T.accentPrimary):T.textMuted,
                   transition:'color 0.12s',whiteSpace:'nowrap',
                 }}>{tab.label}</button>
               ))}
             </div>
           )}
+        </header>
 
-          {/* Empty state */}
-          {/* ── EMPTY STATE ─────────────────────────────────────────────── */}
+        {/* ── EMPTY STATE ─────────────────────────────────────────────── */}
         {!results&&(
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
             <div style={{textAlign:'center',maxWidth:480}}>
-              <div style={{width:80,height:80,borderRadius:24,
-                  background:`linear-gradient(135deg,${T.brandSoft||T.selectionBg},${T.bgRaised})`,
-                  border:`1px solid ${T.brandBorder||T.borderStrong}`,
-                  display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',
-                  boxShadow:`0 0 40px ${T.brandSoft||'rgba(20,184,166,0.08)'}`}}>
-                  <BarChart3 size={28} color={T.brandPrimary||T.growth}/></div>
+              <div style={{width:80,height:80,borderRadius:24,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={28} color="#4A5A6E" style={{opacity:1}}/></div>
               <h2 style={{fontSize:24,fontWeight:900,color:T.textPrimary,margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
               <p style={{color:T.textSecondary,fontSize:14,marginBottom:32,lineHeight:1.6}}>
                 {engine==='cohort'?'Upload data, map fields, then run to see retention heatmaps.'
@@ -2600,16 +2519,14 @@ export default function CommandCenter() {
           </div>
         )}
 
-        
+        {/* ── RESULTS ──────────────────────────────────────────────────── */}
+        {results&&(
+          <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
 
-          {/* Results area */}
-          {results&&(
-            <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-              
             {/* KPI Section — only shown on Summary tab */}
             {(activeTab==='summary'||isCohort)&&(
-            <div style={{padding:'12px 24px',borderBottom:`1px solid ${T.borderDefault}`,background:T.bgSurface,flexShrink:0}}>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8}}>
+            <div style={{padding:'14px 28px',borderBottom:`1px solid ${T.borderDefault}`,background:T.bgPage,flexShrink:0}}>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10}}>
                 {isCohort?(<>
                   <KpiChip theme={T} label="Total Revenue"  value={fmt(results.summary?.total_revenue)} accent/>
                   <KpiChip theme={T} label="Customers"      value={(results.summary?.n_customers||0).toLocaleString()}/>
@@ -2716,7 +2633,7 @@ export default function CommandCenter() {
 
                   {/* ── AI narrative insight bar ─────────────────────── */}
                   {narrative&&(
-                    <div style={{padding:'12px 16px',background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderLeft:`3px solid ${T.brandPrimary||T.growth}`,borderRadius:8,display:'flex',alignItems:'flex-start',gap:10,marginBottom:14}}>
+                    <div style={{padding:'12px 18px',background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderLeft:'3px solid #3D5068',borderRadius:6,display:'flex',alignItems:'center',gap:10,margin:'0 0 16px'}}>
                       <Info size={12} color="#64748B" style={{flexShrink:0}}/>
                       <p style={{margin:0,fontSize:13,color:T.textPrimary,lineHeight:1.55,fontWeight:400}}>{narrative}</p>
                     </div>
@@ -2724,7 +2641,7 @@ export default function CommandCenter() {
 
                   {/* ── Metadata chip ────────────────────────────────── */}
                   {results?.metadata&&(
-                    <div style={{padding:'6px 12px',borderRadius:20,border:`1px solid ${T.borderDefault}`,background:T.bgSurface,display:'inline-flex',alignItems:'center',gap:8,alignSelf:'flex-start',marginBottom:14}}>
+                    <div style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${T.borderStrong}`,background:T.bgRaised,display:'inline-flex',alignItems:'center',gap:8,alignSelf:'flex-start',marginBottom:16}}>
                       <span style={{fontSize:11,color:T.textPrimary,fontWeight:600}}>{results.metadata.dimensions?.length>0?`Customer × ${results.metadata.dimensions.join(' × ')}`:'Customer level'}</span>
                       <span style={{color:T.borderDefault}}>·</span>
                       <span style={{fontSize:11,color:T.textSecondary}}>{results.metadata.row_count?.toLocaleString()} rows</span>
@@ -2791,7 +2708,7 @@ export default function CommandCenter() {
                     return (
                       <div>
                         {/* ── Sub-tab bar ───────────────────────────────── */}
-                        <div style={{display:'flex',borderBottom:`1px solid ${T.borderDefault}`,marginBottom:20,overflowX:'auto'}}>
+                        <div style={{display:'flex',borderBottom:`1px solid ${T.borderDefault}`,marginBottom:20}}>
                           {SUB_TABS.map(t=>(
                             <button key={t} onClick={()=>setSummarySubTab(t)}
                               style={{padding:'10px 18px',fontSize:13,fontWeight:summarySubTab===t?600:400,border:'none',borderBottom:`2px solid ${summarySubTab===t?(T.brandPrimary||T.accentPrimary):'transparent'}`,background:'transparent',color:summarySubTab===t?(T.brandPrimary||T.accentPrimary):T.textMuted,cursor:'pointer',transition:'all 0.12s',whiteSpace:'nowrap'}}>
@@ -4195,11 +4112,9 @@ export default function CommandCenter() {
               )}
 
             </div>{/* end tab content */}
-            </div>
-          )}
-
-        </main>
-      </div>
+          </div>
+        )}
+      </main>
     </div>
   )
 }
