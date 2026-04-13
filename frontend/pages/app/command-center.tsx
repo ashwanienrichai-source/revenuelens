@@ -1968,21 +1968,21 @@ export default function CommandCenter() {
     a.download=`revenuelens_${engine}_${new Date().toISOString().slice(0,10)}.csv`; a.click()
   }
 
-  // ── Full cohort analysis — identical to /app/cohort page ───────────────────
+  // ── Inline cohort analysis for Cohort Heatmap tab ────────────────────────
   async function runInlineCohort() {
     if (!file || cohortRunning) return
     setCohortRunning(true); setCohortErr('')
     try {
       const fd = new FormData(); fd.append('file', file)
-      fd.append('metric',                fieldMap.revenue||'')
-      fd.append('customer_col',          fieldMap.customer||'')
-      fd.append('date_col',              fieldMap.date||'')
-      fd.append('fiscal_col',            fieldMap.fiscal||'None')
-      fd.append('cohort_types',          JSON.stringify(cohortTypes))
-      fd.append('period_filter',         periodFilter)
-      fd.append('selected_fiscal_year',  selectedFY)
-      fd.append('individual_cols',       JSON.stringify(useSingle?individualCols.filter(c=>c&&c!=='None'):[]))
-      fd.append('hierarchies',           JSON.stringify(useMulti?hierarchies.filter(h=>h.some(c=>c&&c!=='None')):[]))
+      fd.append('metric',       fieldMap.revenue||'')
+      fd.append('customer_col', fieldMap.customer||'')
+      fd.append('date_col',     fieldMap.date||'')
+      fd.append('fiscal_col',   fieldMap.fiscal||'None')
+      fd.append('cohort_types', JSON.stringify(cohortTypes))
+      fd.append('period_filter',periodFilter)
+      fd.append('selected_fiscal_year', selectedFY)
+      fd.append('individual_cols', JSON.stringify(useSingle?individualCols.filter(x=>x&&x!=='None'):[]))
+      fd.append('hierarchies',     JSON.stringify(useMulti?hierarchies.filter(h=>h.some(x=>x&&x!=='None')):[]))
       const {data} = await axios.post(`${API}/api/cohort/analyze`, fd, {timeout:120000})
       setCohortResults(data)
     } catch(e) {
@@ -2240,7 +2240,7 @@ export default function CommandCenter() {
 
         {/* Progress steps */}
         <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
-          {(engine==='cohort'?[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3],[4,'Cohort Config',step3,step3&&engine==='cohort']]:[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3]]).map(([n,lbl,done,active])=>(
+          {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3]].map(([n,lbl,done,active])=>(
             <div key={n} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 8px',borderRadius:10,background:active?T.bgRaised:'transparent',marginBottom:2}}>
               <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?(T.brandSoft||T.selectionBg):active?T.bgRaised:T.borderDefault,color:done?(T.brandPrimary||T.growth):active?T.accentPrimary:T.textMuted}}>{done?'✓':n}</div>
               <span style={{fontSize:11,fontWeight:600,color:active?T.accentPrimary:T.textMuted}}>{lbl}</span>
@@ -2328,24 +2328,18 @@ export default function CommandCenter() {
 
         </div>
 
-        {/* ── STEP 4: Cohort Configuration — shown only when engine is cohort ── */}
+        {/* Cohort Config — step 4 when cohort engine selected */}
         {step2&&engine==='cohort'&&(
           <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
-            <div style={{...S.label,marginBottom:10}}>4. Cohort Config</div>
+            <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:10}}>4. Cohort Config</div>
 
-            {/* Cohort types */}
             <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:12}}>
               {[{id:'SG',label:'Size Cohorts'},{id:'PC',label:'Percentile Cohorts'},{id:'RC',label:'Revenue Cohorts'}].map(ct=>{
                 const on=cohortTypes.includes(ct.id)
                 return (
                   <button key={ct.id} onClick={()=>setCohortTypes(prev=>on?prev.filter(x=>x!==ct.id):[...prev,ct.id])}
-                    style={{display:'flex',alignItems:'center',gap:8,padding:'7px 10px',borderRadius:6,cursor:'pointer',
-                      border:`1px solid ${on?T.borderStrong:T.borderDefault}`,
-                      background:on?T.bgRaised:T.bgPage,textAlign:'left',width:'100%'}}>
-                    <div style={{width:12,height:12,borderRadius:2,flexShrink:0,
-                      border:`2px solid ${on?T.growth:T.textMuted}`,
-                      background:on?T.growth:'transparent',
-                      display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    style={{display:'flex',alignItems:'center',gap:8,padding:'7px 10px',borderRadius:6,cursor:'pointer',border:`1px solid ${on?T.borderStrong:T.borderDefault}`,background:on?T.bgRaised:T.bgPage,textAlign:'left',width:'100%'}}>
+                    <div style={{width:12,height:12,borderRadius:2,flexShrink:0,border:`2px solid ${on?T.growth:T.textMuted}`,background:on?T.growth:'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
                       {on&&<div style={{width:4,height:4,borderRadius:1,background:T.bgPage}}/>}
                     </div>
                     <span style={{fontSize:10,fontWeight:on?600:400,color:on?T.textPrimary:T.textSecondary}}>{ct.label}</span>
@@ -2354,109 +2348,26 @@ export default function CommandCenter() {
               })}
             </div>
 
-            {/* Period filter */}
             <div style={{marginBottom:10}}>
               <div style={{fontSize:8,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:6}}>Period Filter</div>
               <div style={{display:'flex',background:T.bgPage,border:`1px solid ${T.borderDefault}`,borderRadius:5,overflow:'hidden',height:26}}>
-                {[['all','All'],['annual','Annual'],['quarterly','Qtrly']].map(([val,lbl])=>(
+                {['all','annual','quarterly'].map(val=>(
                   <button key={val} onClick={()=>setPeriodFilter(val)}
-                    style={{flex:1,height:26,fontSize:9,border:'none',cursor:'pointer',
-                      fontWeight:periodFilter===val?600:400,
-                      background:periodFilter===val?T.bgRaised:'transparent',
-                      color:periodFilter===val?T.accentPrimary:T.textMuted}}>
-                    {lbl}
+                    style={{flex:1,height:26,fontSize:9,border:'none',cursor:'pointer',fontWeight:periodFilter===val?600:400,background:periodFilter===val?T.bgRaised:'transparent',color:periodFilter===val?T.accentPrimary:T.textMuted}}>
+                    {val==='all'?'All':val==='annual'?'Annual':'Qtrly'}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Fiscal year column */}
             <div style={{marginBottom:10}}>
               <div style={{fontSize:8,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:6}}>Fiscal Year Column</div>
               <select value={fieldMap.fiscal||''} onChange={e=>setFieldMap(prev=>({...prev,fiscal:e.target.value}))}
-                style={{width:'100%',height:28,padding:'0 8px',borderRadius:5,border:`1px solid ${T.borderDefault}`,
-                  background:T.bgPage,color:fieldMap.fiscal?T.textPrimary:T.textMuted,fontSize:10,outline:'none',cursor:'pointer'}}>
+                style={{width:'100%',height:28,padding:'0 8px',borderRadius:5,border:`1px solid ${T.borderDefault}`,background:T.bgPage,color:fieldMap.fiscal?T.textPrimary:T.textMuted,fontSize:10,outline:'none',cursor:'pointer'}}>
                 <option value="">None</option>
                 {columns.map(col=><option key={col} value={col}>{col}</option>)}
               </select>
             </div>
-
-            {/* Advanced toggle */}
-            <button onClick={()=>setShowOpt(v=>!v)}
-              style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',
-                padding:'5px 0',background:'transparent',border:'none',cursor:'pointer'}}>
-              <span style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted}}>Advanced</span>
-              {showOpt?<ChevronUp size={9} color={T.textMuted}/>:<ChevronDown size={9} color={T.textMuted}/>}
-            </button>
-            {showOpt&&(
-              <div style={{marginTop:8,display:'flex',flexDirection:'column',gap:8}}>
-                {/* Individual col grouping */}
-                <div>
-                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5}}>
-                    <div onClick={()=>setUseSingle(v=>!v)} style={{width:12,height:12,borderRadius:2,cursor:'pointer',flexShrink:0,
-                      border:`2px solid ${useSingle?T.growth:T.textMuted}`,background:useSingle?T.growth:'transparent',
-                      display:'flex',alignItems:'center',justifyContent:'center'}}>
-                      {useSingle&&<div style={{width:4,height:4,borderRadius:1,background:T.bgPage}}/>}
-                    </div>
-                    <span style={{fontSize:9,fontWeight:600,color:T.textSecondary,cursor:'pointer'}} onClick={()=>setUseSingle(v=>!v)}>Individual column</span>
-                  </div>
-                  {useSingle&&(
-                    <div style={{paddingLeft:18,display:'flex',flexDirection:'column',gap:4}}>
-                      {individualCols.map((col,i)=>(
-                        <div key={i} style={{display:'flex',gap:4}}>
-                          <select value={col} onChange={e=>{const n=[...individualCols];n[i]=e.target.value;setIndividualCols(n)}}
-                            style={{flex:1,height:24,padding:'0 6px',borderRadius:4,border:`1px solid ${T.borderDefault}`,background:T.bgPage,color:T.textPrimary,fontSize:9,outline:'none'}}>
-                            <option value="">None</option>
-                            {columns.map(col2=><option key={col2} value={col2}>{col2}</option>)}
-                          </select>
-                          {individualCols.length>1&&<button onClick={()=>setIndividualCols(prev=>prev.filter((_,j)=>j!==i))}
-                            style={{width:24,height:24,borderRadius:4,border:`1px solid ${T.borderDefault}`,background:'transparent',color:T.textMuted,cursor:'pointer',fontSize:10}}>✕</button>}
-                        </div>
-                      ))}
-                      <button onClick={()=>setIndividualCols(prev=>[...prev,''])}
-                        style={{fontSize:9,fontWeight:600,color:T.growth,background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}>+ Add</button>
-                    </div>
-                  )}
-                </div>
-                {/* Hierarchy grouping */}
-                <div>
-                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5}}>
-                    <div onClick={()=>setUseMulti(v=>!v)} style={{width:12,height:12,borderRadius:2,cursor:'pointer',flexShrink:0,
-                      border:`2px solid ${useMulti?T.growth:T.textMuted}`,background:useMulti?T.growth:'transparent',
-                      display:'flex',alignItems:'center',justifyContent:'center'}}>
-                      {useMulti&&<div style={{width:4,height:4,borderRadius:1,background:T.bgPage}}/>}
-                    </div>
-                    <span style={{fontSize:9,fontWeight:600,color:T.textSecondary,cursor:'pointer'}} onClick={()=>setUseMulti(v=>!v)}>Hierarchy grouping</span>
-                  </div>
-                  {useMulti&&(
-                    <div style={{paddingLeft:18,display:'flex',flexDirection:'column',gap:6}}>
-                      {hierarchies.map((hier,hi)=>(
-                        <div key={hi}>
-                          <div style={{fontSize:8,color:T.textMuted,marginBottom:3}}>Level {hi+1}</div>
-                          <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
-                            {hier.map((col,ci)=>(
-                              <div key={ci} style={{display:'flex',gap:3}}>
-                                <select value={col} onChange={e=>{const n=hierarchies.map(h=>[...h]);n[hi][ci]=e.target.value;setHierarchies(n)}}
-                                  style={{height:22,padding:'0 5px',borderRadius:3,border:`1px solid ${T.borderDefault}`,background:T.bgPage,color:T.textPrimary,fontSize:9,outline:'none'}}>
-                                  <option value="">None</option>
-                                  {columns.map(c2=><option key={c2} value={c2}>{c2}</option>)}
-                                </select>
-                                {hier.length>1&&<button onClick={()=>{const n=hierarchies.map(h=>[...h]);n[hi]=n[hi].filter((_,j)=>j!==ci);setHierarchies(n)}}
-                                  style={{width:22,height:22,borderRadius:3,border:`1px solid ${T.borderDefault}`,background:'transparent',color:T.textMuted,cursor:'pointer',fontSize:9}}>✕</button>}
-                              </div>
-                            ))}
-                            <button onClick={()=>{const n=hierarchies.map(h=>[...h]);n[hi]=[...n[hi],''];setHierarchies(n)}}
-                              style={{fontSize:9,color:T.growth,background:'transparent',border:'none',cursor:'pointer',fontWeight:600}}>+col</button>
-                          </div>
-                        </div>
-                      ))}
-                      <button onClick={()=>setHierarchies(prev=>[...prev,['','']])}
-                        style={{fontSize:9,fontWeight:600,color:T.growth,background:'transparent',border:'none',cursor:'pointer'}}>+ Level</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -3782,6 +3693,7 @@ export default function CommandCenter() {
               )}
 
               {/* COHORT HEATMAP TAB — embedded inside MRR/ARR Analytics */}
+
 
               {/* MRR: TOP MOVERS — hero two-column layout */}
               {!isCohort&&activeTab==='top_movers'&&(
