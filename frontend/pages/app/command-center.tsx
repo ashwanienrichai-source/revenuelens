@@ -1036,7 +1036,11 @@ export default function CommandCenter() {
   const [rawFileRows, setRawFileRows] = useState([])
 
   useEffect(() => {
-    if (!file || !results) { setRawFileRows([]); return }
+    if (!file) { setRawFileRows([]); return }
+    // Parse file immediately on upload — don't wait for results.
+    // This ensures rawFileRows is ready when effectiveByPeriod first runs
+    // after results arrive, so PATH A/B fire on the very first render
+    // and Lapsed/Returning/forward-looking classifications are correct immediately.
     console.log('[RL] FileReader: reading', file.name, file.size, 'bytes')
     const reader = new FileReader()
     reader.onload = (e) => {
@@ -1068,7 +1072,7 @@ export default function CommandCenter() {
       } catch(err) { console.error('[RL] FileReader error:', err) }
     }
     reader.readAsText(file)
-  }, [file, results])
+  }, [file])
 
   // ── Effective by_period ─────────────────────────────────────────────────────
   // Source priority (most → least reliable):
@@ -1573,7 +1577,7 @@ export default function CommandCenter() {
     'Add on', 'Add-on'
   ])
   const REGION_LEVEL_CATS = new Set([
-    'New Logo', 'Upsell', 'Downsell', 'Churn', 'Other In', 'Other Out'
+    'New Logo', 'Upsell', 'Downsell', 'Churn', 'Lapsed', 'Returning', 'Other In', 'Other Out'
   ])
   const ATOMIC_LEVEL_CATS = new Set([
     // Atomic level: all movements including Other In/Out (channel/region shifts)
@@ -1658,9 +1662,14 @@ export default function CommandCenter() {
 
   // ── Waterfall with period + dimension filter + canonical ordering applied ──
   const selectedWfall = useMemo(() => {
+    // Prefer effectiveByPeriod over API wfall — it has correct Lapsed classification.
+    // If no period selected, fall back to latest period in effectiveByPeriod,
+    // then fall back to API wfall only if effectiveByPeriod is empty.
     let base = wfall
-    if (selPeriod && effectiveByPeriod?.length) {
-      const row = effectiveByPeriod.find(r => normalizePeriod(r._period) === normalizePeriod(selPeriod))
+    const ebpSource = effectiveByPeriod?.length ? effectiveByPeriod : null
+    const targetPeriod = selPeriod || (ebpSource ? ebpSource[ebpSource.length-1]?._period : null)
+    if (targetPeriod && ebpSource) {
+      const row = ebpSource.find(r => normalizePeriod(r._period) === normalizePeriod(targetPeriod))
       if (row) {
         const BOUNDARY_KEYS = new Set(['_period','Beginning ARR','Ending ARR','Beginning MRR','Ending MRR','Beginning MRR or ARR','Ending MRR or ARR','beginning','ending'])
         // Normalize category names: underscore→hyphen, map API variants to display names
