@@ -2356,7 +2356,7 @@ export default function CommandCenter() {
 
             {/* Period filter */}
             <div style={{marginBottom:10}}>
-              <div style={{fontSize:8,fontWeight:600,textTransform:'uppercase' as const,letterSpacing:'0.1em',color:T.textMuted,marginBottom:6}}>Period Filter</div>
+              <div style={{fontSize:8,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:6}}>Period Filter</div>
               <div style={{display:'flex',background:T.bgPage,border:`1px solid ${T.borderDefault}`,borderRadius:5,overflow:'hidden',height:26}}>
                 {[['all','All'],['annual','Annual'],['quarterly','Qtrly']].map(([val,lbl])=>(
                   <button key={val} onClick={()=>setPeriodFilter(val)}
@@ -2372,7 +2372,7 @@ export default function CommandCenter() {
 
             {/* Fiscal year column */}
             <div style={{marginBottom:10}}>
-              <div style={{fontSize:8,fontWeight:600,textTransform:'uppercase' as const,letterSpacing:'0.1em',color:T.textMuted,marginBottom:6}}>Fiscal Year Column</div>
+              <div style={{fontSize:8,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:6}}>Fiscal Year Column</div>
               <select value={fieldMap.fiscal||''} onChange={e=>setFieldMap(prev=>({...prev,fiscal:e.target.value}))}
                 style={{width:'100%',height:28,padding:'0 8px',borderRadius:5,border:`1px solid ${T.borderDefault}`,
                   background:T.bgPage,color:fieldMap.fiscal?T.textPrimary:T.textMuted,fontSize:10,outline:'none',cursor:'pointer'}}>
@@ -2385,7 +2385,7 @@ export default function CommandCenter() {
             <button onClick={()=>setShowOpt(v=>!v)}
               style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',
                 padding:'5px 0',background:'transparent',border:'none',cursor:'pointer'}}>
-              <span style={{fontSize:9,fontWeight:600,textTransform:'uppercase' as const,letterSpacing:'0.1em',color:T.textMuted}}>Advanced</span>
+              <span style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted}}>Advanced</span>
               {showOpt?<ChevronUp size={9} color={T.textMuted}/>:<ChevronDown size={9} color={T.textMuted}/>}
             </button>
             {showOpt&&(
