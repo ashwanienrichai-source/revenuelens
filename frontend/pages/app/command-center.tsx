@@ -2329,6 +2329,122 @@ export default function CommandCenter() {
 
         </div>
 
+        {/* Cohort config — only shown when cohort engine selected */}
+        {step2&&engine==='cohort'&&(
+          <div style={{padding:16,borderBottom:'1px solid '+T.borderDefault}}>
+
+            <div style={{fontSize:9,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:T.textMuted,marginBottom:10}}>Cohort Types</div>
+            {[{id:'SG',label:'Size Cohorts',sub:'Tier 1 / Tier 2 / Tier 3'},{id:'PC',label:'Percentile Cohorts',sub:'Top 5% / 10% / 20% / 50%'},{id:'RC',label:'Revenue Cohorts',sub:'Revenue Leaders / Growth / Tail'}].map(function(ct){
+              var on=cohortTypes.includes(ct.id)
+              return (
+                <div key={ct.id} onClick={function(){setCohortTypes(function(prev){return on?prev.filter(function(x){return x!==ct.id}):[...prev,ct.id]})}}
+                  style={{display:'flex',alignItems:'flex-start',gap:8,padding:'8px 10px',borderRadius:6,cursor:'pointer',marginBottom:4,border:'1px solid '+(on?T.borderStrong:T.borderDefault),background:on?T.bgRaised:T.bgPage}}>
+                  <div style={{width:13,height:13,borderRadius:2,flexShrink:0,marginTop:1,border:'2px solid '+(on?T.growth:T.textMuted),background:on?T.growth:'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    {on?<div style={{width:4,height:4,borderRadius:1,background:T.bgPage}}/>:null}
+                  </div>
+                  <div>
+                    <div style={{fontSize:10,fontWeight:600,color:on?T.textPrimary:T.textSecondary}}>{ct.label}</div>
+                    <div style={{fontSize:9,color:T.textMuted}}>{ct.sub}</div>
+                  </div>
+                </div>
+              )
+            })}
+
+            <div style={{fontSize:9,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:T.textMuted,marginTop:12,marginBottom:6}}>Period Filter</div>
+            <div style={{display:'flex',borderRadius:5,border:'1px solid '+T.borderDefault,overflow:'hidden',height:26}}>
+              {[['all','All Time'],['latest','Latest Period'],['fiscal','By Fiscal Year']].map(function(pair){
+                var val=pair[0],lbl=pair[1],on=periodFilter===val
+                return (
+                  <button key={val} onClick={function(){setPeriodFilter(val)}}
+                    style={{flex:1,height:26,fontSize:9,border:'none',cursor:'pointer',fontWeight:on?600:400,background:on?T.bgRaised:T.bgPage,color:on?T.accentPrimary:T.textMuted}}>
+                    {lbl}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div style={{fontSize:9,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:T.textMuted,marginTop:12,marginBottom:6}}>Dimension Mode</div>
+
+            <div style={{marginBottom:6,border:'1px solid '+(useSingle?T.borderStrong:T.borderDefault),borderRadius:6,background:useSingle?T.bgRaised:T.bgPage,overflow:'hidden'}}>
+              <div onClick={function(){setUseSingle(function(v){return !v})}} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
+                <div style={{width:13,height:13,borderRadius:2,flexShrink:0,border:'2px solid '+(useSingle?T.growth:T.textMuted),background:useSingle?T.growth:'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  {useSingle?<div style={{width:4,height:4,borderRadius:1,background:T.bgPage}}/>:null}
+                </div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:600,color:useSingle?T.textPrimary:T.textSecondary}}>Single Dimension</div>
+                  <div style={{fontSize:9,color:T.textMuted}}>Cohort by individual columns</div>
+                </div>
+              </div>
+              {useSingle&&(
+                <div style={{padding:'0 10px 10px 31px'}}>
+                  {individualCols.map(function(col,i){
+                    return (
+                      <div key={i} style={{display:'flex',gap:4,marginBottom:4,alignItems:'center'}}>
+                        <select value={col} onChange={function(e){var n=[...individualCols];n[i]=e.target.value;setIndividualCols(n)}}
+                          style={{flex:1,height:26,padding:'0 6px',borderRadius:4,border:'1px solid '+T.borderDefault,background:T.bgPage,color:T.textPrimary,fontSize:10,outline:'none'}}>
+                          <option value="">— Select column —</option>
+                          {columns.map(function(c2){return <option key={c2} value={c2}>{c2}</option>})}
+                        </select>
+                        {individualCols.length>1&&(
+                          <button onClick={function(){setIndividualCols(function(prev){return prev.filter(function(_,j){return j!==i})})}}
+                            style={{width:22,height:22,border:'1px solid '+T.borderDefault,borderRadius:3,background:'transparent',color:T.textMuted,cursor:'pointer',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <button onClick={function(){setIndividualCols(function(prev){return [...prev,'']})}}
+                    style={{fontSize:9,fontWeight:600,color:T.growth,background:'transparent',border:'none',cursor:'pointer'}}>+ Add column</button>
+                </div>
+              )}
+            </div>
+
+            <div style={{border:'1px solid '+(useMulti?T.borderStrong:T.borderDefault),borderRadius:6,background:useMulti?T.bgRaised:T.bgPage,overflow:'hidden'}}>
+              <div onClick={function(){setUseMulti(function(v){return !v})}} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
+                <div style={{width:13,height:13,borderRadius:2,flexShrink:0,border:'2px solid '+(useMulti?T.growth:T.textMuted),background:useMulti?T.growth:'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  {useMulti?<div style={{width:4,height:4,borderRadius:1,background:T.bgPage}}/>:null}
+                </div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:600,color:useMulti?T.textPrimary:T.textSecondary}}>Multi Dimension</div>
+                  <div style={{fontSize:9,color:T.textMuted}}>Cohort by column combinations (hierarchies)</div>
+                </div>
+              </div>
+              {useMulti&&(
+                <div style={{padding:'0 10px 10px 31px'}}>
+                  {hierarchies.map(function(hier,hi){
+                    return (
+                      <div key={hi} style={{marginBottom:8}}>
+                        <div style={{fontSize:8,color:T.textMuted,marginBottom:3}}>Level {hi+1}</div>
+                        <div style={{display:'flex',flexWrap:'wrap',gap:4,alignItems:'center'}}>
+                          {hier.map(function(col,ci){
+                            return (
+                              <div key={ci} style={{display:'flex',gap:2}}>
+                                <select value={col} onChange={function(e){var n=hierarchies.map(function(h){return [...h]});n[hi][ci]=e.target.value;setHierarchies(n)}}
+                                  style={{height:22,padding:'0 4px',borderRadius:3,border:'1px solid '+T.borderDefault,background:T.bgPage,color:T.textPrimary,fontSize:9,outline:'none'}}>
+                                  <option value="">—</option>
+                                  {columns.map(function(c2){return <option key={c2} value={c2}>{c2}</option>})}
+                                </select>
+                                {hier.length>1&&(
+                                  <button onClick={function(){var n=hierarchies.map(function(h){return [...h]});n[hi]=n[hi].filter(function(_,j){return j!==ci});setHierarchies(n)}}
+                                    style={{width:18,height:22,border:'1px solid '+T.borderDefault,borderRadius:2,background:'transparent',color:T.textMuted,cursor:'pointer',fontSize:10}}>×</button>
+                                )}
+                              </div>
+                            )
+                          })}
+                          <button onClick={function(){var n=hierarchies.map(function(h){return [...h]});n[hi]=[...n[hi],''];setHierarchies(n)}}
+                            style={{fontSize:9,color:T.growth,background:'transparent',border:'none',cursor:'pointer',fontWeight:600}}>+col</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  <button onClick={function(){setHierarchies(function(prev){return [...prev,['','']]})}}
+                    style={{fontSize:9,fontWeight:600,color:T.growth,background:'transparent',border:'none',cursor:'pointer'}}>+ Add level</button>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
         {/* Run button */}
         <div style={{padding:16,borderTop:`1px solid ${T.borderDefault}`,flexShrink:0}}>
           {runErr&&<div style={{marginBottom:10,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:`${T.decline}0F`,color:T.risk,fontSize:10,display:'flex',gap:6}}><AlertCircle size={10} style={{flexShrink:0}}/>{runErr}</div>}
