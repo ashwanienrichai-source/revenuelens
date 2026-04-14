@@ -15,8 +15,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
-  BarChart3, LayoutDashboard, Zap,
-  FileText, Settings, LogOut, Crown, Upload
+  BarChart3, LayoutDashboard, Zap, Users, TrendingUp,
+  DollarSign, FileText, Settings, LogOut, Crown,
+  Clock, ChevronRight, Search
 } from 'lucide-react'
 import { supabase, canDownload } from '../../lib/supabase'
 
@@ -24,14 +25,12 @@ const NAV_SECTIONS = [
   {
     label: 'Analytics',
     items: [
-      { href: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard',      live: true  },
-      { href: '/app/command-center', icon: Zap,             label: 'Command Center', live: true, badge: 'New' },
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', live: true },
     ]
   },
   {
     label: 'Workspace',
     items: [
-      { href: '/dashboard/upload',   icon: Upload,   label: 'Upload Dataset', live: true },
       { href: '/dashboard/reports',  icon: FileText, label: 'Reports',        live: true },
       { href: '/dashboard/settings', icon: Settings, label: 'Settings',       live: true },
     ]
