@@ -65,11 +65,7 @@ export default function UploadPage() {
   })
 
   function launchAnalytics() {
-    const engineUrl = process.env.NEXT_PUBLIC_ANALYTICS_ENGINE_URL || 'https://ashwani-analytics-engine.streamlit.app'
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('rl_mapping', JSON.stringify({ datasetType, mapping, fileName: file?.name }))
-    }
-    router.push(`/app/analytics`)
+    router.push('/app/command-center')
   }
 
   return (
