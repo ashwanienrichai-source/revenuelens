@@ -886,9 +886,9 @@ function CohortHeatmap({data,title,isPercent,theme=null}) {
     if(!v)return'transparent'
     if(!isPercent)return`rgba(79,219,200,${0.1+(v/maxVal)*0.7})`
     if(v>=90)return T.growth;if(v>=70)return T.success;if(v>=50)return T.chartNeutral
-    if(v>=30)returnT.textTertiary;returnT.risk
+    if(v>=30)return T.textTertiary;return T.risk
   }
-  const tc=v=>{if(!v)return'transparent';if(isPercent&&v>=50)returnT.textPrimary;returnT.textTertiary}
+  const tc=v=>{if(!v)return'transparent';if(isPercent&&v>=50)return T.textPrimary;return T.textTertiary}
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
