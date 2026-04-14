@@ -1,34 +1,9 @@
 // @ts-nocheck
-/**
- * frontend/pages/dashboard/index.tsx — REFACTORED
- *
- * CHANGES from old version:
- *   - REMOVE: bg-ink-50, card (white), raw hex bg colors (#EEF3FF etc.)
- *   - REMOVE: DashboardLayout → replaced with AppLayout
- *   - ADD: AppLayout + PageContainer
- *   - ADD: KPIBlock for metric cards (consulting-grade)
- *   - ADD: Card component for module cards
- *   - KEEP: all data fetching, routing, profile logic, module list
- */
-
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import Link from 'next/link'
-import { TrendingUp, Users, DollarSign, Upload, ArrowRight, BarChart3, Layers, Zap } from 'lucide-react'
-import AppLayout from '../../components/layout/AppLayout'
-import { PageContainer } from '../../components/ui/PageContainer'
-import { Card } from '../../components/ui/Card'
-import { KPIBlock, KPIStrip } from '../../components/ui/KPIBlock'
 import { supabase, canDownload } from '../../lib/supabase'
 
-const MODULES = [
-  { icon:Zap,        title:'Command Center',     desc:'MRR/ARR bridge, retention, NRR/GRR, top movers.',       href:'/app/command-center', color:'var(--color-accent)',    badge:'Live' },
-  { icon:Layers,     title:'Cohort Analytics',   desc:'SG, PC, RC segmentation. Retention heatmaps.',          href:'/app/cohort',         color:'var(--color-positive)', badge:'Live' },
-  { icon:Users,      title:'Customer Analytics', desc:'ARR bridge, vintage analysis, top customers.',           href:'/app/customer',       color:'var(--color-text-secondary)' },
-  { icon:TrendingUp, title:'Revenue Bridge',     desc:'New Logo, Upsell, Churn — 1M/3M/12M lookback.',        href:'/app/bridge',         color:'var(--color-text-secondary)' },
-]
-
-export default function DashboardPage() {
+export default function Dashboard() {
   const router = useRouter()
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -37,93 +12,164 @@ export default function DashboardPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.push('/auth/login'); return }
       supabase.from('profiles').select('*').eq('id', session.user.id).single()
-        .then(({ data }) => { if (data) setProfile(data); setLoading(false) })
+        .then(({ data }) => { if (data) setProfile(data) })
+      setLoading(false)
     })
-  }, [router])
+  }, [])
+
+  const isAdmin = canDownload(profile)
+
+  const greeting = () => {
+    const h = new Date().getHours()
+    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+  }
+
+  const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
   if (loading) return (
-    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--color-background)' }}>
-      <div style={{ fontSize:13, color:'var(--color-text-secondary)' }}>Loading…</div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f8f9fc', fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <div style={{ color: '#6b7280', fontSize: 13 }}>Loading…</div>
     </div>
   )
 
-  const isAdmin   = canDownload(profile)
-  const firstName = profile?.full_name?.split(' ')[0] || 'there'
-
   return (
-    <AppLayout profile={profile}>
-      <PageContainer>
+    <div style={{ display: 'flex', height: '100vh', fontFamily: "'Inter', system-ui, sans-serif", background: '#f8f9fc', color: '#111827' }}>
 
-        {/* Greeting */}
-        <div style={{ marginBottom:24 }}>
-          <h2 style={{ margin:0, fontSize:'1.375rem', fontWeight:600, color:'var(--color-text-primary)', letterSpacing:'-0.015em' }}>
-            Good morning, {firstName} 👋
-          </h2>
-          <p style={{ margin:'4px 0 0', fontSize:'13px', color:'var(--color-text-secondary)' }}>
-            {new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' })}
-          </p>
+      {/* ── Sidebar ── */}
+      <aside style={{ width: 176, flexShrink: 0, background: '#ffffff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Logo */}
+        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #e5e7eb' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 6, background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', letterSpacing: '-0.01em' }}>RevenueLens</div>
+              <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af', marginTop: 1 }}>Analytics</div>
+            </div>
+          </div>
         </div>
 
-        {/* Upgrade notice */}
-        {!isAdmin && (
-          <div style={{ marginBottom:24, padding:'14px 18px', background:'var(--color-accent-dim)', border:'1px solid var(--color-accent-border)', borderRadius:'var(--radius-card)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:'var(--color-text-primary)' }}>You are on the free plan</div>
-              <div style={{ fontSize:12, color:'var(--color-text-secondary)', marginTop:2 }}>Upgrade to download analytics output and export reports.</div>
+        {/* Nav */}
+        <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
+          <div style={{ padding: '4px 16px 6px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#9ca3af' }}>Analytics</div>
+
+          {/* Dashboard — active */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 16px', background: '#eff6ff', borderRight: '2px solid #2563eb', cursor: 'default' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#2563eb' }}>Dashboard</span>
+          </div>
+
+          {/* Command Center */}
+          <div onClick={() => router.push('/app/command-center')}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 16px', cursor: 'pointer' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span style={{ fontSize: 13, color: '#374151', flex: 1 }}>Command Center</span>
+            <span style={{ fontSize: 9, fontWeight: 700, background: '#2563eb', color: '#fff', padding: '1px 5px', borderRadius: 4, letterSpacing: '0.04em' }}>New</span>
+          </div>
+
+          {/* Workspace */}
+          <div style={{ padding: '14px 16px 6px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#9ca3af', marginTop: 4 }}>Workspace</div>
+
+          {[
+            { label: 'Upload Dataset', href: '/dashboard/upload', icon: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12' },
+            { label: 'Reports',        href: '/dashboard/reports', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6' },
+            { label: 'Settings',       href: '/dashboard/settings', icon: 'M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z' },
+          ].map(item => (
+            <div key={item.label} onClick={() => router.push(item.href)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 16px', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2"><path d={item.icon}/></svg>
+              <span style={{ fontSize: 13, color: '#374151' }}>{item.label}</span>
             </div>
-            <Link href="/dashboard/upgrade" className="btn-primary" style={{ fontSize:12, padding:'7px 14px', flexShrink:0, marginLeft:16 }}>
-              Upgrade <ArrowRight size={12}/>
-            </Link>
+          ))}
+        </div>
+
+        {/* User */}
+        <div style={{ padding: '12px 16px', borderTop: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#6b7280', flexShrink: 0 }}>U</div>
+          <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>User</span>
+        </div>
+      </aside>
+
+      {/* ── Main content ── */}
+      <main style={{ flex: 1, overflowY: 'auto', padding: '32px 40px' }}>
+
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Dashboard</h1>
+
+        {/* Greeting */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#111827', marginBottom: 2 }}>{greeting()}, {profile?.user_metadata?.name?.split(' ')[0] || 'there'} 👋</div>
+          <div style={{ fontSize: 13, color: '#6b7280' }}>{dateStr}</div>
+        </div>
+
+        {/* Upgrade banner */}
+        {!isAdmin && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10, marginBottom: 24 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 2 }}>You are on the free plan</div>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>Upgrade to download analytics output and export reports.</div>
+            </div>
+            <button onClick={() => router.push('/dashboard/upgrade')}
+              style={{ padding: '8px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              Upgrade →
+            </button>
           </div>
         )}
 
-        {/* KPI strip — consulting grade */}
-        <div style={{ marginBottom:28 }}>
-          <KPIStrip cols={4}>
-            <KPIBlock label="Total ARR"     value="—"  hint="Upload a dataset"/>
-            <KPIBlock label="Customers"     value="—"  hint="Run analytics"/>
-            <KPIBlock label="Net Retention" value="—"  hint="Run revenue bridge"/>
-            <KPIBlock label="Datasets"      value="0"  hint="Upload your first"/>
-          </KPIStrip>
+        {/* KPI cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
+          {[
+            { label: 'TOTAL ARR',     note: 'Upload a dataset' },
+            { label: 'CUSTOMERS',     note: 'Run analytics' },
+            { label: 'NET RETENTION', note: 'Run revenue bridge' },
+            { label: 'DATASETS',      note: 'Upload your first', value: '0' },
+          ].map(k => (
+            <div key={k.label} style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 18px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#9ca3af', marginBottom: 8 }}>{k.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#111827', marginBottom: 4 }}>{k.value || '—'}</div>
+              <div style={{ fontSize: 11, color: '#9ca3af' }}>{k.note}</div>
+            </div>
+          ))}
         </div>
 
-        {/* CTA banner */}
-        <div style={{ marginBottom:28, padding:'20px 24px', background:'var(--color-surface)', border:'1px solid var(--color-border)', borderRadius:'var(--radius-card)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        {/* Start analysis CTA */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10, marginBottom: 28 }}>
           <div>
-            <div style={{ fontSize:15, fontWeight:600, color:'var(--color-text-primary)', letterSpacing:'-0.01em', marginBottom:4 }}>Start your first analysis</div>
-            <p style={{ fontSize:13, color:'var(--color-text-secondary)', maxWidth:480, margin:0, lineHeight:1.6 }}>
-              Upload a CSV or Excel file. We will walk you through field mapping and run the full analytics suite.
-            </p>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Start your first analysis</div>
+            <div style={{ fontSize: 12, color: '#6b7280', maxWidth: 480, lineHeight: 1.6 }}>Upload a CSV or Excel file. We walk you through field mapping and run the full analytics suite in seconds.</div>
           </div>
-          <Link href="/dashboard/upload" className="btn-primary" style={{ flexShrink:0, marginLeft:24 }}>
-            <Upload size={13}/> Upload Dataset
-          </Link>
+          <button onClick={() => router.push('/app/command-center')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Open Command Center
+          </button>
         </div>
 
-        {/* Modules */}
+        {/* Analytics Modules — Command Center only */}
         <div>
-          <h3 style={{ margin:'0 0 14px', fontSize:'0.9375rem', fontWeight:600, color:'var(--color-text-primary)' }}>
-            Analytics Modules
-          </h3>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12 }}>
-            {MODULES.map(m => (
-              <Link key={m.href} href={m.href} style={{ textDecoration:'none' }}>
-                <Card onClick={() => {}} style={{ height:'100%' }}>
-                  <div style={{ marginBottom:12 }}>
-                    <m.icon size={16} color={m.color}/>
-                  </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:5 }}>
-                    <span style={{ fontSize:13, fontWeight:600, color:'var(--color-text-primary)' }}>{m.title}</span>
-                    {m.badge && <span className="badge badge-blue" style={{ fontSize:9 }}>{m.badge}</span>}
-                  </div>
-                  <p style={{ margin:0, fontSize:'0.8125rem', color:'var(--color-text-secondary)', lineHeight:1.55 }}>{m.desc}</p>
-                </Card>
-              </Link>
-            ))}
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#111827', marginBottom: 16 }}>Analytics Modules</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16, maxWidth: 640 }}>
+            <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '20px 22px', cursor: 'pointer', position: 'relative' }}
+              onClick={() => router.push('/app/command-center')}
+              onMouseEnter={e => e.currentTarget.style.borderColor = '#2563eb'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = '#e5e7eb'}>
+              <span style={{ position: 'absolute', top: 14, right: 14, fontSize: 9, fontWeight: 700, background: '#2563eb', color: '#fff', padding: '2px 7px', borderRadius: 20, letterSpacing: '0.06em' }}>LIVE</span>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 6 }}>Command Center</div>
+              <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5, marginBottom: 12 }}>MRR/ARR bridge, retention, NRR/GRR, top movers. Full analysis in one view.</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#2563eb' }}>Open →</div>
+            </div>
           </div>
         </div>
 
-      </PageContainer>
-    </AppLayout>
+      </main>
+    </div>
   )
 }
