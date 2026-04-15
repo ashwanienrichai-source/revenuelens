@@ -14,6 +14,7 @@ import {
   Zap, Activity, Shield, Sparkles, Info
 } from 'lucide-react'
 import { supabase, canDownload } from '../../lib/supabase'
+import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { uploadStore } from '../../lib/uploadStore'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
@@ -468,6 +469,7 @@ function UploadTimer({active,theme=null}) {
       </div>
       {s>6&&<p className="text-[9px] mt-1" style={{color:T.textSecondary}}>⚡ First run each session takes 30–90s</p>}
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -497,6 +499,7 @@ function KpiChip({label,value,sub,subGood,accent,theme=null}) {
         </div>
       )}
     </div>
+    </DashboardLayout>
   )
 }
 // ─── Mover Card — enriched PE-grade analytics view ─────────────────────────
@@ -578,6 +581,7 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
         </div>
       </div>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -629,6 +633,7 @@ function AiInsightCard({
         </div>
       )}
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -743,6 +748,7 @@ function WaterfallBridge({data, showBoundary=false, height=280, theme=null}) {
         </BarChart>
       </ResponsiveContainer>
     </div>
+    </DashboardLayout>
   )
 }
 // ─── Bridge Pivot Table ───────────────────────────────────────────────────────
@@ -795,6 +801,7 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct,theme=null}) {
         </tbody>
       </table>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -836,6 +843,7 @@ function CustomerCountPivot({pivot,theme=null}) {
         </tbody>
       </table>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -873,6 +881,7 @@ function KpiSummaryTable({rows}) {
         </tbody>
       </table>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -919,6 +928,7 @@ function CohortHeatmap({data,title,isPercent,theme=null}) {
         </table>
       </div>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -938,6 +948,7 @@ function FieldRow({label,required,value,columns,onChange,showError}) {
         {columns.map(c=><option key={c} value={c}>{c}</option>)}
       </select>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -1004,7 +1015,8 @@ export default function CommandCenter() {
   const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
   const [histChartWindow, setHistChartWindow] = useState(24)  // Historical perf chart window
   const [themeMode, setThemeMode] = useState<'dark'|'light'|'light-red'|'colorBlind'|'highContrast'>('dark')
-  const [showThemeMenu, setShowThemeMenu] = useState(false)
+  const [showThemeMenu, setShowThemeMenu]   = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
@@ -2068,7 +2080,8 @@ export default function CommandCenter() {
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <div data-theme={themeMode} style={{display:'flex',height:'100vh',overflow:'hidden',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:(themeMode==='light'||themeMode==='light-red')?'light':'dark'}}>
+    <DashboardLayout profile={profile} title="">
+    <div data-theme={themeMode} style={{display:'flex',height:'calc(100vh - 52px)',overflow:'hidden',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:(themeMode==='light'||themeMode==='light-red')?'light':'dark',position:'relative'}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&family=JetBrains+Mono:wght@400;500;600&display=swap');
         :root {
@@ -2235,7 +2248,48 @@ export default function CommandCenter() {
       `}</style>
 
       {/* ══ LEFT SIDEBAR ══════════════════════════════════════════════════ */}
-      <aside style={{width:256,display:'flex',flexDirection:'column',flexShrink:0,borderRight:`1px solid ${T.borderDefault}`,background:T.bgSurface,overflow:'hidden'}}>
+      {/* Collapse toggle — floats on top of the seam */}
+      <button
+        onClick={()=>setSidebarCollapsed(v=>!v)}
+        style={{
+          position:'absolute',
+          left: sidebarCollapsed ? 0 : 320,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          zIndex: 50,
+          width: 18,
+          height: 44,
+          background: T.bgSurface,
+          border: `1px solid ${T.borderDefault}`,
+          borderLeft: sidebarCollapsed ? `1px solid ${T.borderDefault}` : 'none',
+          borderRadius: sidebarCollapsed ? '0 6px 6px 0' : '0 6px 6px 0',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: T.textMuted,
+          transition: 'left 0.25s ease',
+          padding: 0,
+        }}
+        title={sidebarCollapsed ? 'Expand config panel' : 'Collapse config panel'}
+      >
+        <svg width="8" height="12" viewBox="0 0 8 12" fill="none">
+          {sidebarCollapsed
+            ? <path d="M2 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            : <path d="M6 2L2 6l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          }
+        </svg>
+      </button>
+
+      <aside style={{
+        width: sidebarCollapsed ? 0 : 320,
+        minWidth: sidebarCollapsed ? 0 : 320,
+        display:'flex',flexDirection:'column',flexShrink:0,
+        borderRight:`1px solid ${T.borderDefault}`,
+        background:T.bgSurface,
+        overflow:'hidden',
+        transition:'width 0.25s ease, min-width 0.25s ease',
+      }}>
 
         {/* Logo */}
         <div style={{height:56,display:'flex',alignItems:'center',gap:12,padding:'0 20px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
@@ -2452,129 +2506,8 @@ export default function CommandCenter() {
       {/* ══ RIGHT PANEL ═══════════════════════════════════════════════════ */}
       <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:T.bgPage}}>
 
-        {/* ── PAGE HEADER ───────────────────────────────────────────── */}
-        <header style={{flexShrink:0,borderBottom:`1px solid ${T.borderDefault}`,background:T.bgSurface}}>
 
-          {/* Row 1: Title + all controls in ONE line */}
-          <div style={{display:'flex',alignItems:'center',padding:'0 28px',height:52,gap:16}}>
 
-            {/* Title */}
-            <div style={{fontSize:15,fontWeight:700,color:T.textPrimary,letterSpacing:'-0.01em',flexShrink:0}}>
-              Customer Analytics
-            </div>
-
-            <div style={{flex:1}}/>
-
-            {/* ── GLOBAL FILTER BAR — always visible across all tabs ─── */}
-            {results&&(
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-
-                {/* Lookback pills: MoM 1M | QoQ 3M | YoY 12M — single unified control */}
-                {!isCohort&&(
-                  <div style={{display:'flex',alignItems:'center',background:T.bgPage,borderRadius:5,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:30}}>
-                    {[
-                      {lb:1,  label:'MoM 1M',  pt:'Month'},
-                      {lb:3,  label:'QoQ 3M',  pt:'Quarter'},
-                      {lb:12, label:'YoY 12M', pt:'Annual'},
-                    ].map(opt=>(
-                      <button key={opt.lb}
-                        onClick={()=>{setSelLb(opt.lb); if(opt.pt!==periodType) applyPeriodType(opt.pt)}}
-                        disabled={rerunning}
-                        style={{padding:'0 12px',height:30,fontSize:11,fontWeight:selLb===opt.lb?600:400,border:'none',borderBottom:`2px solid ${selLb===opt.lb?(T.brandPrimary||T.accentPrimary):'transparent'}`,cursor:rerunning?'not-allowed':'pointer',background:selLb===opt.lb?T.bgRaised:'transparent',color:selLb===opt.lb?(T.brandPrimary||T.accentPrimary):T.textMuted,transition:'all 0.12s',opacity:rerunning?0.6:1,whiteSpace:'nowrap'}}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {!isCohort&&<div style={{width:1,height:18,background:T.borderDefault}}/>}
-
-                {/* Period dropdown — all real data months, latest selected by default */}
-                {!isCohort&&(
-                  <div style={{display:'flex',alignItems:'center',gap:6,height:30}}>
-                    <span style={{fontSize:11,fontWeight:500,color:T.textMuted,whiteSpace:'nowrap'}}>Period</span>
-                    <select
-                      value={selPeriod}
-                      onChange={e=>setSelPeriod(e.target.value)}
-                      disabled={availablePeriods.length===0}
-                      style={{height:30,fontSize:11,fontWeight:500,border:`1px solid ${T.borderStrong}`,borderRadius:5,padding:'0 28px 0 10px',background:T.bgRaised,color:availablePeriods.length>0?T.accentPrimary:T.chartBaseline,outline:'none',cursor:availablePeriods.length>0?'pointer':'default',fontFamily:"'Inter',system-ui,sans-serif",appearance:'none',backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%234A5A6E' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center',minWidth:100}}>
-                      {availablePeriods.length===0
-                        ? <option value="">— run analysis —</option>
-                        : availablePeriods.map(p=><option key={p} value={p}>{p}</option>)
-                      }
-                    </select>
-                  </div>
-                )}
-
-                {!isCohort&&<div style={{width:1,height:18,background:T.borderDefault}}/>}
-
-                {/* Dimension — customer / product / region */}
-                {!isCohort&&(
-                  <div style={{display:'flex',alignItems:'center',background:T.bgPage,borderRadius:5,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:30}}>
-                    {[
-                      {key:'customer',label:'Customer'},
-                      {key:'product', label:'× Product',available:!!fieldMap.product},
-                      {key:'region',  label:'× Region', available:!!fieldMap.region},
-                    ].map(opt=>(
-                      <button key={opt.key}
-                        onClick={()=>opt.available!==false&&!rerunning&&applyDimFilter(opt.key)}
-                        disabled={opt.available===false||rerunning}
-                        style={{padding:'0 10px',height:30,fontSize:11,fontWeight:selDims===opt.key?500:400,border:'none',cursor:(opt.available===false||rerunning)?'not-allowed':'pointer',background:selDims===opt.key?T.bgRaised:'transparent',color:selDims===opt.key?T.accentPrimary:opt.available===false?T.bgMuted:T.textMuted,transition:'all 0.12s'}}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Rerunning indicator */}
-                {rerunning&&(
-                  <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:T.textMuted}}>
-                    <Loader2 size={11} style={{animation:'spin 1s linear infinite'}}/> Updating…
-                  </div>
-                )}
-
-                {/* Reset */}
-                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('');setCohortResults(null);setRawFileRows([])}}
-                  style={{height:30,width:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:`1px solid ${T.borderDefault}`,background:'transparent',cursor:'pointer',color:T.textMuted}}
-                  onMouseEnter={e=>{e.currentTarget.style.color=T.accentPrimary;e.currentTarget.style.borderColor=T.borderStrong}}
-                  onMouseLeave={e=>{e.currentTarget.style.color=T.textMuted;e.currentTarget.style.borderColor=T.borderDefault}}>
-                  <RefreshCw size={12}/>
-                </button>
-
-                {/* Export */}
-                {isAdmin?(
-                  <button onClick={downloadCSV} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,padding:'0 12px',borderRadius:5,border:'1px solid #2D5A3D',cursor:'pointer',background:T.selectionBg,color:T.growth}}>
-                    <Download size={11}/> Export
-                  </button>
-                ):(
-                  <button onClick={()=>router.push('/dashboard/upgrade')} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:500,color:T.textMuted,border:`1px solid ${T.borderDefault}`,padding:'0 12px',borderRadius:5,background:'transparent',cursor:'pointer'}}>
-                    <Lock size={11}/> Upgrade
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Row 2: Tab navigation — at top level */}
-          {results&&(
-            <div style={{display:'flex',borderTop:`1px solid ${T.borderDefault}`,paddingLeft:28,background:T.bgSurface,overflowX:'auto'}}>
-              {TABS.map(tab=>(
-                <button key={tab.id} onClick={()=>{
-                  setActiveTab(tab.id)
-                  if(tab.id==='cohort_heatmap'&&!cohortResults&&!cohortRunning&&file&&fieldMap.customer&&fieldMap.date&&fieldMap.revenue) {
-                    runInlineCohort()
-                  }
-                }} style={{
-                  padding:'0 16px',height:40,fontSize:12,fontWeight:activeTab===tab.id?500:400,
-                  border:'none',borderBottom:`2px solid ${activeTab===tab.id?(T.brandPrimary||T.accentPrimary):'transparent'}`,
-                  background:'transparent',cursor:'pointer',
-                  color:activeTab===tab.id?(T.brandPrimary||T.accentPrimary):T.textMuted,
-                  transition:'color 0.12s',whiteSpace:'nowrap',
-                }}>{tab.label}</button>
-              ))}
-            </div>
-          )}
-        </header>
 
         {/* ── EMPTY STATE ─────────────────────────────────────────────── */}
         {!results&&(
@@ -4210,5 +4143,6 @@ export default function CommandCenter() {
         )}
       </main>
     </div>
+    </DashboardLayout>
   )
 }
