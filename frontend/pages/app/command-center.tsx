@@ -14,7 +14,6 @@ import {
   Zap, Activity, Shield, Sparkles, Info
 } from 'lucide-react'
 import { supabase, canDownload } from '../../lib/supabase'
-import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { uploadStore } from '../../lib/uploadStore'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
@@ -469,7 +468,6 @@ function UploadTimer({active,theme=null}) {
       </div>
       {s>6&&<p className="text-[9px] mt-1" style={{color:T.textSecondary}}>⚡ First run each session takes 30–90s</p>}
     </div>
-    </DashboardLayout>
   )
 }
 
@@ -499,7 +497,6 @@ function KpiChip({label,value,sub,subGood,accent,theme=null}) {
         </div>
       )}
     </div>
-    </DashboardLayout>
   )
 }
 // ─── Mover Card — enriched PE-grade analytics view ─────────────────────────
@@ -581,7 +578,6 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
         </div>
       </div>
     </div>
-    </DashboardLayout>
   )
 }
 
@@ -633,7 +629,6 @@ function AiInsightCard({
         </div>
       )}
     </div>
-    </DashboardLayout>
   )
 }
 
@@ -748,7 +743,6 @@ function WaterfallBridge({data, showBoundary=false, height=280, theme=null}) {
         </BarChart>
       </ResponsiveContainer>
     </div>
-    </DashboardLayout>
   )
 }
 // ─── Bridge Pivot Table ───────────────────────────────────────────────────────
@@ -801,7 +795,6 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct,theme=null}) {
         </tbody>
       </table>
     </div>
-    </DashboardLayout>
   )
 }
 
@@ -843,7 +836,6 @@ function CustomerCountPivot({pivot,theme=null}) {
         </tbody>
       </table>
     </div>
-    </DashboardLayout>
   )
 }
 
@@ -881,7 +873,6 @@ function KpiSummaryTable({rows}) {
         </tbody>
       </table>
     </div>
-    </DashboardLayout>
   )
 }
 
@@ -928,7 +919,6 @@ function CohortHeatmap({data,title,isPercent,theme=null}) {
         </table>
       </div>
     </div>
-    </DashboardLayout>
   )
 }
 
@@ -948,7 +938,6 @@ function FieldRow({label,required,value,columns,onChange,showError}) {
         {columns.map(c=><option key={c} value={c}>{c}</option>)}
       </select>
     </div>
-    </DashboardLayout>
   )
 }
 
@@ -2080,8 +2069,7 @@ export default function CommandCenter() {
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <DashboardLayout profile={profile} title="">
-    <div data-theme={themeMode} style={{display:'flex',height:'calc(100vh - 52px)',overflow:'hidden',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:(themeMode==='light'||themeMode==='light-red')?'light':'dark',position:'relative'}}>
+    <div data-theme={themeMode} style={{display:'flex',height:'100vh',overflow:'hidden',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:(themeMode==='light'||themeMode==='light-red')?'light':'dark',position:'relative'}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&family=JetBrains+Mono:wght@400;500;600&display=swap');
         :root {
@@ -2273,12 +2261,7 @@ export default function CommandCenter() {
         }}
         title={sidebarCollapsed ? 'Expand config panel' : 'Collapse config panel'}
       >
-        <svg width="8" height="12" viewBox="0 0 8 12" fill="none">
-          {sidebarCollapsed
-            ? <path d="M2 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            : <path d="M6 2L2 6l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          }
-        </svg>
+        <span style={{fontSize:10,fontWeight:700,color:T.textMuted,lineHeight:1}}>{sidebarCollapsed?'›':'‹'}</span>
       </button>
 
       <aside style={{
@@ -4143,6 +4126,5 @@ export default function CommandCenter() {
         )}
       </main>
     </div>
-    </DashboardLayout>
   )
 }
