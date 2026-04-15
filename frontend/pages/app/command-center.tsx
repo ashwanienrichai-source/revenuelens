@@ -1017,7 +1017,7 @@ export default function CommandCenter() {
     return e
   }, [engine, fieldMap])
 
-  const step1  = columns.length > 0
+  const step1  = true  // file always comes pre-loaded from upload wizard
   const step2  = step1 && !!engine
   const step3  = step2 && Object.keys(errors).length === 0
   const canRun = step3 && !running
@@ -2266,40 +2266,24 @@ export default function CommandCenter() {
           </div>
         </div>
 
-        {/* Progress steps */}
-        <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
-          {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3]].map(([n,lbl,done,active])=>(
-            <div key={n} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 8px',borderRadius:10,background:active?T.bgRaised:'transparent',marginBottom:2}}>
-              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?(T.brandSoft||T.selectionBg):active?T.bgRaised:T.borderDefault,color:done?(T.brandPrimary||T.growth):active?T.accentPrimary:T.textMuted}}>{done?'✓':n}</div>
-              <span style={{fontSize:11,fontWeight:600,color:active?T.accentPrimary:T.textMuted}}>{lbl}</span>
-            </div>
-          ))}
-        </div>
-
         {/* Scrollable sidebar content */}
         <div style={{flex:1,overflowY:'auto'}}>
 
-          {/* STEP 1: Upload */}
-          <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
-            <div style={{...S.label}}>1. Upload Data</div>
-            {uploadErr&&<div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:`${T.decline}0F`,color:T.risk,fontSize:10,display:'flex',gap:8}}><AlertCircle size={11} style={{flexShrink:0,marginTop:1}}/>{uploadErr}</div>}
-            <div onClick={()=>!uploading&&fileRef.current?.click()} style={{
-              marginTop:10,borderRadius:12,border:`2px dashed ${file&&columns.length?`${T.growth}59`:uploading?`${T.growth}33`:T.borderStrong}`,
-              padding:16,textAlign:'center',cursor:'pointer',
-              background:file&&columns.length?`${T.growth}0A`:uploading?`${T.growth}08`:T.bgRaised,
-            }}>
-              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadFile(f)}}/>
-              {uploading?(<div><Loader2 size={18} color="#94A3B8" style={{margin:'0 auto 4px',animation:'spin 1s linear infinite'}}/><div style={{fontSize:11,color:T.textSecondary,fontWeight:500}}>Reading file…</div></div>)
-              :file&&columns.length?(<div><CheckCircle size={18} color="#4ADE80" style={{margin:'0 auto 4px'}}/><div style={{fontSize:11,fontWeight:700,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div><div style={{fontSize:10,color:T.textSecondary}}>{rowCount.toLocaleString()} rows · {columns.length} cols</div><button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{fontSize:9,color:T.growth,background:'none',border:'none',cursor:'pointer',fontWeight:500,marginTop:4}}>Change file</button></div>)
-              :(<div><Upload size={18} color="#5A7294" style={{margin:'0 auto 6px'}}/><div style={{fontSize:11,color:T.textSecondary,fontWeight:600}}>Click or drag file</div><div style={{fontSize:10,color:T.textTertiary,marginTop:2}}>CSV or Excel</div></div>)}
+          {/* Dataset info strip — shows file passed from upload wizard */}
+          {file&&columns.length>0&&(
+            <div style={{padding:'10px 16px',borderBottom:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',gap:8,background:T.bgRaised}}>
+              <CheckCircle size={11} color={T.growth}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:10,fontWeight:600,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div>
+                <div style={{fontSize:9,color:T.textSecondary}}>{rowCount>0?`${rowCount.toLocaleString()} rows · `:''}{columns.length} cols{uploadDatasetType?` · ${uploadDatasetType}`:''}</div>
+              </div>
             </div>
-            <UploadTimer active={uploading} theme={T}/>
-          </div>
+          )}
 
-          {/* STEP 2: Engine */}
-          {step1&&(
+          {/* STEP 1: Engine */}
+          {(
             <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
-              <div style={{...S.label}}>2. Select Engine</div>
+              <div style={{...S.label}}>1. Select Engine</div>
               <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:6}}>
                 {Object.entries(ENGINE_CONFIG).map(([id,ec])=>{
                   const Icon=ec.icon; const active=engine===id
@@ -2322,35 +2306,6 @@ export default function CommandCenter() {
                   )
                 })}
               </div>
-            </div>
-          )}
-
-          {/* STEP 3: Map Fields */}
-          {step2&&cfg&&(
-            <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                <div style={{...S.label}}>3. Map Fields</div>
-                <span style={{fontSize:9,fontWeight:700,color:Object.keys(errors).length===0?T.growth:T.textSecondary}}>
-                  {cfg.required.filter(f=>!!fieldMap[f.key]).length}/{cfg.required.length} mapped
-                </span>
-              </div>
-              <div style={{borderRadius:10,border:`1px solid ${T.borderDefault}`,overflow:'hidden',marginBottom:8,background:T.bgSurface}}>
-                <div style={{padding:'6px 12px',borderBottom:`1px solid ${T.borderDefault}`,fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>Required</div>
-                {cfg.required.map(f=><FieldRow key={f.key} label={f.label} required value={fieldMap[f.key]||''} columns={columns} onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))} showError={validated}/>)}
-              </div>
-              <div style={{borderRadius:10,border:`1px solid ${T.borderDefault}`,overflow:'hidden',background:T.bgSurface}}>
-                <button onClick={()=>setShowOpt(v=>!v)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',background:'transparent',border:'none',cursor:'pointer'}}>
-                  <span style={{fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>Optional Fields</span>
-                  {showOpt?<ChevronUp size={10} color="#4A5A7A"/>:<ChevronDown size={10} color="#4A5A7A"/>}
-                </button>
-                {showOpt&&cfg.optional.map(f=><FieldRow key={f.key} label={f.label} value={fieldMap[f.key]||''} columns={columns} onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))} showError={false}/>)}
-              </div>
-              {validated&&Object.keys(errors).length>0&&(
-                <div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid rgba(255,71,87,0.2)',background:'rgba(255,71,87,0.05)'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:T.risk,marginBottom:4}}>Map required fields:</div>
-                  {cfg.required.filter(f=>errors[f.key]).map(f=><div key={f.key} style={{fontSize:9,color:T.risk}}>· {f.label}</div>)}
-                </div>
-              )}
             </div>
           )}
 
