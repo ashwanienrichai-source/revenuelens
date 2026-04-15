@@ -14,6 +14,7 @@ import {
   Zap, Activity, Shield, Sparkles, Info
 } from 'lucide-react'
 import { supabase, canDownload } from '../../lib/supabase'
+import { uploadStore } from '../../lib/uploadStore'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
 
@@ -966,6 +967,7 @@ export default function CommandCenter() {
   const [validated, setValidated] = useState(false)
 
   // Cohort config
+  const [uploadDatasetType, setUploadDatasetType] = useState('')   // passed from upload wizard
   const [cohortTypes, setCohortTypes]       = useState(['SG','PC','RC'])
   const [periodFilter, setPeriodFilter]     = useState('all')
   const [selectedFY, setSelectedFY]         = useState('')
@@ -1787,6 +1789,31 @@ export default function CommandCenter() {
     fetch(`${API}/health`).catch(()=>{})
   }, [router])
 
+  // ── Pick up file + mapping passed from the upload wizard ─────────────────
+  useEffect(() => {
+    if (uploadStore.hasData()) {
+      const { file: f, columns: cols, mapping: map, datasetType: dt } = uploadStore.get()
+      uploadStore.clear()
+      setFile(f)
+      setColumns(cols)
+      setRowCount(0)
+      setIsBridgeOutput(false)
+      // Pre-fill field mappings from upload wizard
+      const fm = {}
+      if (map.customer) fm['customer'] = map.customer
+      if (map.date)     fm['date']     = map.date
+      if (map.revenue)  fm['revenue']  = map.revenue
+      if (map.product)  fm['product']  = map.product
+      if (map.channel)  fm['channel']  = map.channel
+      if (map.region)   fm['region']   = map.region
+      if (map.fiscal)   fm['fiscal']   = map.fiscal
+      if (map.quantity) fm['quantity'] = map.quantity
+      setFieldMap(fm)
+      // Store dataset type as a hint — engine selection is always explicit
+      if (dt) setUploadDatasetType(dt)
+    }
+  }, [])
+
   useEffect(() => {
     if (!engine||!columns.length) return
     setFieldMap(buildAutoMap(engine,columns))
@@ -2601,7 +2628,12 @@ export default function CommandCenter() {
               <div style={{width:80,height:80,borderRadius:24,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={28} color="#4A5A6E" style={{opacity:1}}/></div>
               <h2 style={{fontSize:24,fontWeight:900,color:T.textPrimary,margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
               <p style={{color:T.textSecondary,fontSize:14,marginBottom:32,lineHeight:1.6}}>
-                {engine==='cohort'?'Upload data, map fields, then run to see retention heatmaps.'
+                {uploadDatasetType&&(
+                <div style={{marginBottom:10,padding:'6px 10px',borderRadius:6,background:T.bgRaised,border:`1px solid ${T.borderDefault}`,fontSize:10,color:T.textSecondary}}>
+                  Dataset type: <span style={{fontWeight:600,color:T.textPrimary,textTransform:'capitalize'}}>{uploadDatasetType}</span> — select the analysis engine below
+                </div>
+              )}
+              {engine==='cohort'?'Upload data, map fields, then run to see retention heatmaps.'
                 :engine?'Upload data, map fields, and run the analysis.'
                 :'Upload subscription data, select an engine, and get instant insights.'}
               </p>
