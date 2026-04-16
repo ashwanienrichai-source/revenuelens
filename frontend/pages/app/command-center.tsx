@@ -364,7 +364,11 @@ function makeToARR(revenueType) {
 // ─── Engine config ────────────────────────────────────────────────────────────
 // ── Fuzzy match helpers ───────────────────────────────────────────────────────
 function normalizeCustomer(s) {
-  return s.toLowerCase().replace(/[.,\-_&()'"/\\]+/g,' ').replace(/\b(inc|ltd|llc|corp|co|the|and|plc|gmbh|sas|bv|ag|sa)\b/g,'').replace(/\s+/g,' ').trim()
+  let r = s.toLowerCase()
+  r = r.replace(/[.,_&()]+/g, ' ')
+  r = r.replace(/(inc|ltd|llc|corp|co|the|and|plc|gmbh|sas|bv|ag|sa)/g, '')
+  r = r.replace(/\s+/g, ' ').trim()
+  return r
 }
 function customerSimilarity(a,b) {
   const na=normalizeCustomer(a),nb=normalizeCustomer(b)
