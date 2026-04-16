@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { supabase, canDownload } from '../../lib/supabase'
 import { uploadStore } from '../../lib/uploadStore'
+import DashboardLayout from '../../components/dashboard/DashboardLayout'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
 
@@ -361,6 +362,34 @@ function makeToARR(revenueType) {
 }
 
 // ─── Engine config ────────────────────────────────────────────────────────────
+// ── Fuzzy match helpers ───────────────────────────────────────────────────────
+function normalizeCustomer(s) {
+  return s.toLowerCase().replace(/[.,\-_&()'"/\\]+/g,' ').replace(/\b(inc|ltd|llc|corp|co|the|and|plc|gmbh|sas|bv|ag|sa)\b/g,'').replace(/\s+/g,' ').trim()
+}
+function customerSimilarity(a,b) {
+  const na=normalizeCustomer(a),nb=normalizeCustomer(b)
+  if(na===nb)return 1
+  function bigrams(s){const bg=new Set();for(let i=0;i<s.length-1;i++)bg.add(s[i]+s[i+1]);return bg}
+  const ba=bigrams(na),bb=bigrams(nb)
+  let inter=0; ba.forEach(g=>{if(bb.has(g))inter++})
+  const union=ba.size+bb.size-inter
+  return union===0?0:inter/union
+}
+function findFuzzyGroups(names,threshold=0.72) {
+  const groups=[],assigned=new Set(),sorted=[...names].sort()
+  for(let i=0;i<sorted.length;i++){
+    if(assigned.has(sorted[i]))continue
+    const group=[sorted[i]];assigned.add(sorted[i])
+    for(let j=i+1;j<sorted.length;j++){
+      if(assigned.has(sorted[j]))continue
+      if(customerSimilarity(sorted[i],sorted[j])>=threshold){group.push(sorted[j]);assigned.add(sorted[j])}
+    }
+    if(group.length>1)groups.push(group)
+  }
+  return groups
+}
+
+
 const ENGINE_CONFIG = {
   mrr: {
     label:'MRR / ARR Analytics', desc:'Revenue bridge, retention, NRR/GRR, top movers', icon:TrendingUp,
@@ -468,6 +497,7 @@ function UploadTimer({active,theme=null}) {
       </div>
       {s>6&&<p className="text-[9px] mt-1" style={{color:T.textSecondary}}>⚡ First run each session takes 30–90s</p>}
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -497,6 +527,7 @@ function KpiChip({label,value,sub,subGood,accent,theme=null}) {
         </div>
       )}
     </div>
+    </DashboardLayout>
   )
 }
 // ─── Mover Card — enriched PE-grade analytics view ─────────────────────────
@@ -578,6 +609,7 @@ function MoverCard({customer,value,period,isRisk,rank,arr,health,segment,endingA
         </div>
       </div>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -629,6 +661,7 @@ function AiInsightCard({
         </div>
       )}
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -743,6 +776,7 @@ function WaterfallBridge({data, showBoundary=false, height=280, theme=null}) {
         </BarChart>
       </ResponsiveContainer>
     </div>
+    </DashboardLayout>
   )
 }
 // ─── Bridge Pivot Table ───────────────────────────────────────────────────────
@@ -795,6 +829,7 @@ function BridgePivotTable({pivot,title,lookbackLabel,showPct,theme=null}) {
         </tbody>
       </table>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -836,6 +871,7 @@ function CustomerCountPivot({pivot,theme=null}) {
         </tbody>
       </table>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -873,6 +909,7 @@ function KpiSummaryTable({rows}) {
         </tbody>
       </table>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -919,6 +956,7 @@ function CohortHeatmap({data,title,isPercent,theme=null}) {
         </table>
       </div>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -938,6 +976,7 @@ function FieldRow({label,required,value,columns,onChange,showError}) {
         {columns.map(c=><option key={c} value={c}>{c}</option>)}
       </select>
     </div>
+    </DashboardLayout>
   )
 }
 
@@ -967,8 +1006,25 @@ export default function CommandCenter() {
   const [validated, setValidated] = useState(false)
 
   // Cohort config
-  const [uploadDatasetType, setUploadDatasetType] = useState('')   // passed from upload wizard
-  const [cohortTypes, setCohortTypes]       = useState(['SG','PC','RC'])
+  const [uploadDatasetType, setUploadDatasetType] = useState('')
+  const [cohortTypes, setCohortTypes]             = useState(['SG','PC','RC'])
+
+  // ── Upload wizard states (Phase 1) ─────────────────────────────────────────
+  const [wizardStep, setWizardStep]       = useState('upload')  // 'upload'|'map'|'quality'|'review'|'engine'
+  const [wizardFile, setWizardFile]       = useState(null)
+  const [wizardRawRows, setWizardRawRows] = useState([])
+  const [wizardDatasetType, setWizardDatasetType] = useState('revenue')
+  const [wizardMapping, setWizardMapping] = useState({})
+  const [wizardError, setWizardError]     = useState('')
+  const [wizardDragging, setWizardDragging] = useState(false)
+  // Quality step
+  const [qualityDone, setQualityDone]     = useState(false)
+  const [qualityRunning, setQualityRunning] = useState(false)
+  const [fuzzyGroups, setFuzzyGroups]     = useState([])
+  const [totalCustomers, setTotalCustomers] = useState(0)
+  const [resolvedNames, setResolvedNames] = useState({})
+  const [appliedFuzzy, setAppliedFuzzy]   = useState(false)
+  const wizardFileRef                     = useRef(null)
   const [periodFilter, setPeriodFilter]     = useState('all')
   const [selectedFY, setSelectedFY]         = useState('')
   const [useSingle, setUseSingle]           = useState(true)
@@ -1004,7 +1060,7 @@ export default function CommandCenter() {
   const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
   const [histChartWindow, setHistChartWindow] = useState(24)  // Historical perf chart window
   const [themeMode, setThemeMode] = useState<'dark'|'light'|'light-red'|'colorBlind'|'highContrast'>('dark')
-  const [showThemeMenu, setShowThemeMenu]   = useState(false)
+  const [showThemeMenu, setShowThemeMenu]     = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const isAdmin  = canDownload(profile)
@@ -1018,7 +1074,7 @@ export default function CommandCenter() {
     return e
   }, [engine, fieldMap])
 
-  const step1  = true  // file always comes pre-loaded from upload wizard
+  const step1  = columns.length > 0
   const step2  = step1 && !!engine
   const step3  = step2 && Object.keys(errors).length === 0
   const canRun = step3 && !running
@@ -1790,16 +1846,73 @@ export default function CommandCenter() {
     fetch(`${API}/health`).catch(()=>{})
   }, [router])
 
-  // ── Pick up file + mapping passed from the upload wizard ─────────────────
+  // ── Wizard: parse uploaded file ───────────────────────────────────────────
+  function wizardParseFile(f) {
+    setWizardFile(f); setWizardRawRows([]); setQualityDone(false); setAppliedFuzzy(false)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result
+      const lines = text.split('\n').filter(l=>l.trim())
+      if(!lines.length)return
+      const cols = lines[0].split(',').map(col=>col.trim().replace(/^["']|["']$/g,''))
+      setColumns(cols)
+      const rows = lines.slice(1).map(line=>{
+        const vals=line.split(',').map(v=>v.trim().replace(/^["']|["']$/g,''))
+        const row={}; cols.forEach((col,i)=>{row[col]=vals[i]||''}); return row
+      })
+      setWizardRawRows(rows)
+      setRowCount(rows.length)
+    }
+    if(f.name.endsWith('.csv'))reader.readAsText(f)
+  }
+
+  // ── Wizard: run quality checks ──────────────────────────────────────────────
+  function runQualityChecks() {
+    setQualityRunning(true)
+    setTimeout(()=>{
+      const customerCol = wizardMapping.customer
+      if(customerCol && wizardRawRows.length){
+        const names=[...new Set(wizardRawRows.map(r=>r[customerCol]).filter(Boolean))]
+        setTotalCustomers(names.length)
+        const groups=findFuzzyGroups(names)
+        const groupObjs=groups.map(grp=>({names:grp,canonical:grp.reduce((a,b)=>a.length>=b.length?a:b)}))
+        setFuzzyGroups(groupObjs)
+        const res={}; groupObjs.forEach(g=>g.names.forEach(n=>{res[n]=g.canonical})); setResolvedNames(res)
+      }
+      setQualityRunning(false); setQualityDone(true)
+    },800)
+  }
+
+  // ── Wizard: apply fuzzy mapping ─────────────────────────────────────────────
+  function applyFuzzyMapping() {
+    const customerCol=wizardMapping.customer; if(!customerCol)return
+    setWizardRawRows(prev=>prev.map(row=>({...row,[customerCol]:resolvedNames[row[customerCol]]||row[customerCol]})))
+    setAppliedFuzzy(true)
+  }
+
+  // ── Wizard: launch → populate command-center ────────────────────────────────
+  function wizardLaunch() {
+    if(!wizardFile)return
+    let f=wizardFile
+    if(appliedFuzzy && wizardRawRows.length){
+      const csvLines=[columns.join(',')]
+      wizardRawRows.forEach(row=>{csvLines.push(columns.map(col=>`"${(row[col]||'').replace(/"/g,'""')}"`).join(','))})
+      const blob=new Blob([csvLines.join('\n')],{type:'text/csv'})
+      f=new File([blob],wizardFile.name,{type:'text/csv'})
+    }
+    setFile(f)
+    const fm={}
+    Object.entries(wizardMapping).forEach(([k,v])=>{if(v&&v!=='None')fm[k]=v})
+    setFieldMap(fm)
+    setUploadDatasetType(wizardDatasetType)
+    setWizardStep('engine')
+  }
+
   useEffect(() => {
     if (uploadStore.hasData()) {
       const { file: f, columns: cols, mapping: map, datasetType: dt } = uploadStore.get()
       uploadStore.clear()
-      setFile(f)
-      setColumns(cols)
-      setRowCount(0)
-      setIsBridgeOutput(false)
-      // Pre-fill field mappings from upload wizard
+      setFile(f); setColumns(cols); setRowCount(0); setIsBridgeOutput(false)
       const fm = {}
       if (map.customer) fm['customer'] = map.customer
       if (map.date)     fm['date']     = map.date
@@ -1810,7 +1923,6 @@ export default function CommandCenter() {
       if (map.fiscal)   fm['fiscal']   = map.fiscal
       if (map.quantity) fm['quantity'] = map.quantity
       setFieldMap(fm)
-      // Store dataset type as a hint — engine selection is always explicit
       if (dt) setUploadDatasetType(dt)
     }
   }, [])
@@ -2069,7 +2181,8 @@ export default function CommandCenter() {
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <div data-theme={themeMode} style={{display:'flex',height:'100vh',overflow:'hidden',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:(themeMode==='light'||themeMode==='light-red')?'light':'dark',position:'relative'}}>
+    <DashboardLayout profile={profile} title="">
+    <div data-theme={themeMode} style={{display:'flex',height:'calc(100vh - 52px)',overflow:'hidden',position:'relative',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:(themeMode==='light'||themeMode==='light-red')?'light':'dark'}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&family=JetBrains+Mono:wght@400;500;600&display=swap');
         :root {
@@ -2236,41 +2349,29 @@ export default function CommandCenter() {
       `}</style>
 
       {/* ══ LEFT SIDEBAR ══════════════════════════════════════════════════ */}
-      {/* Collapse toggle — floats on top of the seam */}
       <button
         onClick={()=>setSidebarCollapsed(v=>!v)}
+        title={sidebarCollapsed?'Expand panel':'Collapse panel'}
         style={{
-          position:'absolute',
-          left: sidebarCollapsed ? 0 : 320,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          zIndex: 50,
-          width: 18,
-          height: 44,
-          background: T.bgSurface,
-          border: `1px solid ${T.borderDefault}`,
+          position:'absolute', top:'50%', transform:'translateY(-50%)', zIndex:50,
+          left: sidebarCollapsed ? 0 : 256,
+          width:16, height:40,
+          background:T.bgSurface,
+          border:`1px solid ${T.borderDefault}`,
           borderLeft: sidebarCollapsed ? `1px solid ${T.borderDefault}` : 'none',
-          borderRadius: sidebarCollapsed ? '0 6px 6px 0' : '0 6px 6px 0',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: T.textMuted,
-          transition: 'left 0.25s ease',
-          padding: 0,
-        }}
-        title={sidebarCollapsed ? 'Expand config panel' : 'Collapse config panel'}
-      >
-        <span style={{fontSize:10,fontWeight:700,color:T.textMuted,lineHeight:1}}>{sidebarCollapsed?'›':'‹'}</span>
+          borderRadius:'0 6px 6px 0',
+          cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+          color:T.textMuted, padding:0, transition:'left 0.25s ease',
+        }}>
+        <span style={{fontSize:9,fontWeight:700}}>{sidebarCollapsed?'›':'‹'}</span>
       </button>
 
       <aside style={{
-        width: sidebarCollapsed ? 0 : 320,
-        minWidth: sidebarCollapsed ? 0 : 320,
-        display:'flex',flexDirection:'column',flexShrink:0,
+        width: sidebarCollapsed ? 0 : 256,
+        minWidth: sidebarCollapsed ? 0 : 256,
+        display:'flex', flexDirection:'column', flexShrink:0,
         borderRight:`1px solid ${T.borderDefault}`,
-        background:T.bgSurface,
-        overflow:'hidden',
+        background:T.bgSurface, overflow:'hidden',
         transition:'width 0.25s ease, min-width 0.25s ease',
       }}>
 
@@ -2303,55 +2404,224 @@ export default function CommandCenter() {
           </div>
         </div>
 
+        {/* Progress steps */}
+        <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
+          {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3]].map(([n,lbl,done,active])=>(
+            <div key={n} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 8px',borderRadius:10,background:active?T.bgRaised:'transparent',marginBottom:2}}>
+              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?(T.brandSoft||T.selectionBg):active?T.bgRaised:T.borderDefault,color:done?(T.brandPrimary||T.growth):active?T.accentPrimary:T.textMuted}}>{done?'✓':n}</div>
+              <span style={{fontSize:11,fontWeight:600,color:active?T.accentPrimary:T.textMuted}}>{lbl}</span>
+            </div>
+          ))}
+        </div>
+
         {/* Scrollable sidebar content */}
         <div style={{flex:1,overflowY:'auto'}}>
 
-          {/* Dataset info strip — shows file passed from upload wizard */}
-          {file&&columns.length>0&&(
-            <div style={{padding:'10px 16px',borderBottom:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',gap:8,background:T.bgRaised}}>
-              <CheckCircle size={11} color={T.growth}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:10,fontWeight:600,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div>
-                <div style={{fontSize:9,color:T.textSecondary}}>{rowCount>0?`${rowCount.toLocaleString()} rows · `:''}{columns.length} cols{uploadDatasetType?` · ${uploadDatasetType}`:''}</div>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 1: Engine */}
-          {(
-            <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
-              <div style={{...S.label}}>1. Select Engine</div>
-              <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:6}}>
-                {Object.entries(ENGINE_CONFIG).map(([id,ec])=>{
-                  const Icon=ec.icon; const active=engine===id
+          {/* ── WIZARD STEP INDICATOR ─────────────────────────────────── */}
+          {wizardStep!=='engine'&&(
+            <div style={{padding:'10px 16px',borderBottom:`1px solid ${T.borderDefault}`}}>
+              <div style={{display:'flex',alignItems:'center'}}>
+                {[['upload','Upload'],['map','Map'],['quality','Quality'],['review','Review']].map(([id,label],i,arr)=>{
+                  const steps=['upload','map','quality','review']
+                  const idx=steps.indexOf(wizardStep)
+                  const done=i<idx, active=i===idx
                   return (
-                    <button key={id} onClick={()=>setEngine(id)} style={{
-                      display:'flex',alignItems:'center',gap:12,padding:12,borderRadius:10,
-                      border:`1px solid ${active?'rgba(79,219,200,0.5)':T.borderStrong}`,
-                      background:active?'rgba(79,219,200,0.1)':T.bgRaised,
-                      cursor:'pointer',textAlign:'left',width:'100%',transition:'all 0.15s',
-                    }}>
-                      <div style={{width:28,height:28,borderRadius:8,background:active?'rgba(79,219,200,0.2)':T.borderDefault,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                        <Icon size={12} color={active?T.growth:T.textSecondary}/>
+                    <div key={id} style={{display:'flex',alignItems:'center',flex:i<arr.length-1?1:'auto'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:3}}>
+                        <div style={{width:16,height:16,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,fontWeight:700,flexShrink:0,
+                          background:done?T.growth:active?(T.brandSoft||T.selectionBg):T.borderDefault,
+                          color:done?T.bgPage:active?(T.brandPrimary||T.growth):T.textMuted}}>
+                          {done?'✓':i+1}
+                        </div>
+                        <span style={{fontSize:9,fontWeight:active?600:400,color:active?T.textPrimary:T.textMuted,whiteSpace:'nowrap'}}>{label}</span>
                       </div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:11,fontWeight:700,color:active?(T.brandPrimary||T.growth):T.textPrimary,lineHeight:1.2}}>{ec.label}</div>
-                        <div style={{fontSize:9,color:T.textTertiary,marginTop:2}}>{ec.desc}</div>
-                      </div>
-                      {active&&<CheckCircle size={12} color="#4ADE80"/>}
-                    </button>
+                      {i<arr.length-1&&<div style={{flex:1,height:1,background:done?T.growth:T.borderDefault,margin:'0 6px'}}/>}
+                    </div>
                   )
                 })}
               </div>
             </div>
           )}
 
+          {/* ── STEP 1: UPLOAD ────────────────────────────────────────── */}
+          {wizardStep==='upload'&&(
+            <div style={{padding:16}}>
+              <div style={{...S.label,marginBottom:10}}>Dataset Type</div>
+              <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:14}}>
+                {[{id:'revenue',label:'Revenue',desc:'ARR / MRR'},{id:'billing',label:'Billing',desc:'Invoices'},{id:'bookings',label:'Bookings',desc:'ACV / TCV'}].map(t=>(
+                  <button key={t.id} onClick={()=>setWizardDatasetType(t.id)} style={{
+                    display:'flex',alignItems:'center',gap:8,padding:'7px 10px',borderRadius:6,
+                    border:`1px solid ${wizardDatasetType===t.id?T.borderStrong:T.borderDefault}`,
+                    background:wizardDatasetType===t.id?T.bgRaised:T.bgPage,cursor:'pointer',textAlign:'left',width:'100%'}}>
+                    <div style={{width:10,height:10,borderRadius:'50%',flexShrink:0,
+                      border:`2px solid ${wizardDatasetType===t.id?T.growth:T.textMuted}`,
+                      background:wizardDatasetType===t.id?T.growth:'transparent'}}/>
+                    <div>
+                      <div style={{fontSize:10,fontWeight:600,color:wizardDatasetType===t.id?T.textPrimary:T.textSecondary}}>{t.label}</div>
+                      <div style={{fontSize:9,color:T.textMuted}}>{t.desc}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <input ref={wizardFileRef} type="file" accept=".csv,.xlsx,.xls" style={{display:'none'}}
+                onChange={e=>{const f=e.target.files?.[0];if(f)wizardParseFile(f)}}/>
+              <div
+                onClick={()=>wizardFileRef.current?.click()}
+                onDragOver={e=>{e.preventDefault();setWizardDragging(true)}}
+                onDragLeave={()=>setWizardDragging(false)}
+                onDrop={e=>{e.preventDefault();setWizardDragging(false);const f=e.dataTransfer.files[0];if(f)wizardParseFile(f)}}
+                style={{borderRadius:8,border:`2px dashed ${wizardDragging?T.growth:wizardFile?`${T.growth}70`:T.borderStrong}`,
+                  padding:'18px 12px',textAlign:'center',cursor:'pointer',
+                  background:wizardFile?`${T.growth}08`:wizardDragging?`${T.growth}05`:T.bgRaised,marginBottom:12}}>
+                {wizardFile
+                  ?(<><CheckCircle size={16} color={T.growth} style={{margin:'0 auto 4px'}}/><div style={{fontSize:10,fontWeight:700,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{wizardFile.name}</div><div style={{fontSize:9,color:T.textSecondary}}>{wizardRawRows.length.toLocaleString()} rows · {columns.length} cols</div></>)
+                  :(<><Upload size={16} color={T.textMuted} style={{margin:'0 auto 4px'}}/><div style={{fontSize:10,fontWeight:600,color:T.textSecondary}}>Drop file or click to browse</div><div style={{fontSize:9,color:T.textMuted}}>CSV or Excel</div></>)
+                }
+              </div>
+              <button onClick={()=>setWizardStep('map')} disabled={!wizardFile}
+                style={{width:'100%',padding:'9px',borderRadius:8,border:'none',fontSize:12,fontWeight:700,cursor:wizardFile?'pointer':'default',
+                  background:wizardFile?T.selectionBg:T.bgRaised,color:wizardFile?T.growth:T.textMuted}}>
+                Map Fields →
+              </button>
+            </div>
+          )}
+
+          {/* ── STEP 2: MAP FIELDS ────────────────────────────────────── */}
+          {wizardStep==='map'&&(
+            <div style={{padding:16}}>
+              <div style={{...S.label,marginBottom:10}}>Map Columns</div>
+              {[{key:'customer',label:'Customer',req:true},{key:'date',label:'Date',req:true},{key:'revenue',label:'Revenue',req:true},
+                {key:'product',label:'Product',req:false},{key:'channel',label:'Channel',req:false},
+                {key:'region',label:'Region',req:false},{key:'fiscal',label:'Fiscal Year',req:false},{key:'quantity',label:'Quantity',req:false}
+              ].map(f=>(
+                <div key={f.key} style={{marginBottom:8}}>
+                  <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:3}}>
+                    <span style={{fontSize:10,fontWeight:600,color:T.textSecondary}}>{f.label}</span>
+                    {f.req&&<span style={{fontSize:8,fontWeight:700,background:`${T.info}20`,color:T.info,padding:'1px 5px',borderRadius:10}}>Required</span>}
+                  </div>
+                  <select value={wizardMapping[f.key]||''} onChange={e=>setWizardMapping(m=>({...m,[f.key]:e.target.value}))}
+                    style={{width:'100%',height:26,padding:'0 6px',borderRadius:5,
+                      border:`1px solid ${wizardMapping[f.key]?T.borderStrong:T.borderDefault}`,
+                      background:T.bgPage,color:T.textPrimary,fontSize:10,outline:'none'}}>
+                    <option value="">— select —</option>
+                    {columns.map(col=><option key={col} value={col}>{col}</option>)}
+                  </select>
+                </div>
+              ))}
+              {wizardError&&<div style={{fontSize:9,color:T.decline,marginBottom:8,padding:'6px 8px',background:`${T.decline}12`,borderRadius:5}}>{wizardError}</div>}
+              <div style={{display:'flex',gap:6,marginTop:12}}>
+                <button onClick={()=>setWizardStep('upload')} style={{flex:1,padding:'8px',borderRadius:8,border:`1px solid ${T.borderDefault}`,background:'transparent',color:T.textSecondary,fontSize:11,fontWeight:600,cursor:'pointer'}}>← Back</button>
+                <button onClick={()=>{
+                  if(!wizardMapping.customer||!wizardMapping.date||!wizardMapping.revenue){setWizardError('Map Customer, Date, Revenue.');return}
+                  setWizardError('');setQualityDone(false);setAppliedFuzzy(false);setWizardStep('quality')
+                }} style={{flex:2,padding:'8px',borderRadius:8,border:'none',background:T.selectionBg,color:T.growth,fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                  Quality Checks →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 3: DATA QUALITY ──────────────────────────────────── */}
+          {wizardStep==='quality'&&(
+            <div style={{padding:16}}>
+              <div style={{...S.label,marginBottom:10}}>Data Quality</div>
+              <div style={{padding:12,border:`1px solid ${T.borderDefault}`,borderRadius:8,marginBottom:10,background:T.bgRaised}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:qualityDone&&(totalCustomers>0)?8:0}}>
+                  <div style={{fontSize:10,fontWeight:700,color:T.textPrimary}}>Customer Consolidation</div>
+                  {!qualityDone
+                    ?<button onClick={runQualityChecks} disabled={qualityRunning} style={{fontSize:9,fontWeight:700,padding:'4px 10px',borderRadius:5,border:'none',background:T.selectionBg,color:T.growth,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                      {qualityRunning?<><Loader2 size={9} style={{animation:'spin 1s linear infinite'}}/>Running…</>:<>Run Check</>}
+                    </button>
+                    :!appliedFuzzy&&fuzzyGroups.length>0
+                    ?<button onClick={applyFuzzyMapping} style={{fontSize:9,fontWeight:700,padding:'4px 10px',borderRadius:5,border:'none',background:`${T.growth}20`,color:T.growth,cursor:'pointer'}}>Apply</button>
+                    :<CheckCircle size={12} color={T.growth}/>
+                  }
+                </div>
+                {qualityDone&&(
+                  <div style={{display:'flex',gap:16}}>
+                    <div><div style={{fontSize:8,color:T.textMuted,textTransform:'uppercase',letterSpacing:'0.08em'}}>Customers</div><div style={{fontSize:18,fontWeight:700,color:T.textPrimary}}>{totalCustomers}</div></div>
+                    {fuzzyGroups.length>0&&!appliedFuzzy&&<div><div style={{fontSize:8,color:T.textMuted,textTransform:'uppercase',letterSpacing:'0.08em'}}>Issues</div><div style={{fontSize:18,fontWeight:700,color:T.warning}}>{fuzzyGroups.reduce((s,g)=>s+g.names.length,0)}</div></div>}
+                    {appliedFuzzy&&<div style={{fontSize:9,color:T.growth,fontWeight:600,display:'flex',alignItems:'center',gap:3,marginTop:4}}><CheckCircle size={10}/>Consolidated</div>}
+                  </div>
+                )}
+                {qualityDone&&fuzzyGroups.length>0&&!appliedFuzzy&&(
+                  <div style={{marginTop:8,maxHeight:100,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
+                    {fuzzyGroups.slice(0,3).map((g,gi)=>(
+                      <div key={gi} style={{padding:'4px 7px',background:`${T.warning}10`,border:`1px solid ${T.warning}40`,borderRadius:5,fontSize:9}}>
+                        <div style={{color:T.warning,fontWeight:600,marginBottom:2}}>{g.names.length} variants → merge as:</div>
+                        <input value={resolvedNames[g.names[0]]||g.canonical}
+                          onChange={e=>{const n={...resolvedNames};g.names.forEach(nm=>{n[nm]=e.target.value});setResolvedNames(n)}}
+                          style={{width:'100%',padding:'2px 5px',borderRadius:3,border:`1px solid ${T.borderDefault}`,background:T.bgPage,color:T.textPrimary,fontSize:9,outline:'none'}}/>
+                      </div>
+                    ))}
+                    {fuzzyGroups.length>3&&<div style={{fontSize:9,color:T.textMuted,textAlign:'center'}}>+{fuzzyGroups.length-3} more</div>}
+                  </div>
+                )}
+              </div>
+              {['Duplicate Detection','Date Gap Analysis','Negative Values'].map(label=>(
+                <div key={label} style={{padding:'7px 10px',border:`1px solid ${T.borderDefault}`,borderRadius:6,marginBottom:5,display:'flex',alignItems:'center',justifyContent:'space-between',opacity:0.5}}>
+                  <span style={{fontSize:10,color:T.textSecondary}}>{label}</span>
+                  <span style={{fontSize:8,fontWeight:700,color:T.textMuted,background:T.bgRaised,padding:'1px 5px',borderRadius:10,textTransform:'uppercase'}}>Soon</span>
+                </div>
+              ))}
+              <div style={{display:'flex',gap:6,marginTop:10}}>
+                <button onClick={()=>setWizardStep('map')} style={{flex:1,padding:'8px',borderRadius:8,border:`1px solid ${T.borderDefault}`,background:'transparent',color:T.textSecondary,fontSize:11,fontWeight:600,cursor:'pointer'}}>← Back</button>
+                <button onClick={()=>setWizardStep('review')} style={{flex:2,padding:'8px',borderRadius:8,border:'none',background:T.selectionBg,color:T.growth,fontSize:11,fontWeight:700,cursor:'pointer'}}>Review →</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 4: REVIEW ────────────────────────────────────────── */}
+          {wizardStep==='review'&&(
+            <div style={{padding:16}}>
+              <div style={{...S.label,marginBottom:10}}>Review</div>
+              <div style={{padding:12,border:`1px solid ${T.borderDefault}`,borderRadius:8,background:T.bgRaised,marginBottom:10}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  <div><div style={{fontSize:8,color:T.textMuted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>File</div><div style={{fontSize:10,fontWeight:600,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{wizardFile?.name}</div></div>
+                  <div><div style={{fontSize:8,color:T.textMuted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>Type</div><div style={{fontSize:10,fontWeight:600,color:T.textPrimary,textTransform:'capitalize'}}>{wizardDatasetType}</div></div>
+                  <div><div style={{fontSize:8,color:T.textMuted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>Rows</div><div style={{fontSize:10,fontWeight:600,color:T.textPrimary}}>{wizardRawRows.length.toLocaleString()}</div></div>
+                  <div><div style={{fontSize:8,color:T.textMuted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>Columns</div><div style={{fontSize:10,fontWeight:600,color:T.textPrimary}}>{columns.length}</div></div>
+                  {Object.entries(wizardMapping).filter(([,v])=>v&&v!=='None').map(([k,v])=>(
+                    <div key={k}><div style={{fontSize:8,color:T.textMuted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{k}</div><div style={{fontSize:10,fontWeight:600,color:T.textPrimary}}>{v}</div></div>
+                  ))}
+                </div>
+              </div>
+              <div style={{padding:'7px 10px',border:`1px solid ${qualityDone?`${T.growth}40`:T.borderDefault}`,borderRadius:6,background:qualityDone?`${T.growth}08`:T.bgRaised,marginBottom:12,fontSize:9,display:'flex',alignItems:'center',gap:6}}>
+                {qualityDone?<CheckCircle size={10} color={T.growth}/>:<AlertCircle size={10} color={T.textMuted}/>}
+                <span style={{color:qualityDone?T.growth:T.textMuted}}>{qualityDone?`Quality checked · ${totalCustomers} customers`:'Quality checks not run'}</span>
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={()=>setWizardStep('quality')} style={{flex:1,padding:'8px',borderRadius:8,border:`1px solid ${T.borderDefault}`,background:'transparent',color:T.textSecondary,fontSize:11,fontWeight:600,cursor:'pointer'}}>← Back</button>
+                <button onClick={wizardLaunch} style={{flex:2,padding:'9px',borderRadius:8,border:'none',background:T.selectionBg,color:T.growth,fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
+                  <Zap size={11}/> Select Analysis
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 5: SELECT ENGINE (after wizard complete) ─────────── */}
+          {wizardStep==='engine'&&(
+            <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
+              {/* Dataset summary strip */}
+              {wizardFile&&(
+                <div style={{display:'flex',alignItems:'center',gap:8,padding:'7px 10px',borderRadius:6,background:T.bgRaised,border:`1px solid ${T.borderDefault}`,marginBottom:12}}>
+                  <CheckCircle size={11} color={T.growth}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:10,fontWeight:600,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{wizardFile.name}</div>
+                    <div style={{fontSize:9,color:T.textSecondary}}>{wizardRawRows.length.toLocaleString()} rows · {columns.length} cols · <span style={{textTransform:'capitalize'}}>{wizardDatasetType}</span></div>
+                  </div>
+                  <button onClick={()=>{setWizardStep('upload');setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({})}}
+                    style={{fontSize:9,color:T.textMuted,background:'transparent',border:'none',cursor:'pointer'}}>↺</button>
+                </div>
+              )}
+              <div style={{...S.label,marginBottom:10}}>1. Select Engine</div>
+            </div>
+          )}
+
         </div>
-
         {/* Cohort config — only shown when cohort engine selected */}
-        {step2&&engine==='cohort'&&(
+        {engine==='cohort'&&wizardStep==='engine'&&(
           <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
-
             <div style={{fontSize:9,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:T.textMuted,marginBottom:10}}>Cohort Types</div>
             {[{id:'SG',label:'Size Cohorts',sub:'Tier 1 / Tier 2 / Tier 3'},{id:'PC',label:'Percentile Cohorts',sub:'Top 5% / 10% / 20% / 50%'},{id:'RC',label:'Revenue Cohorts',sub:'Revenue Leaders / Growth / Tail'}].map(ct=>{
               const sel=cohortTypes.includes(ct.id)
@@ -2368,7 +2638,6 @@ export default function CommandCenter() {
                 </div>
               )
             })}
-
             <div style={{fontSize:9,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:T.textMuted,marginTop:12,marginBottom:6}}>Period Filter</div>
             <div style={{display:'flex',borderRadius:5,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:26}}>
               {[['all','All Time'],['latest','Latest Period'],['fiscal','By Fiscal Year']].map(([val,lbl])=>(
@@ -2378,10 +2647,7 @@ export default function CommandCenter() {
                 </button>
               ))}
             </div>
-
             <div style={{fontSize:9,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:T.textMuted,marginTop:12,marginBottom:6}}>Dimension Mode</div>
-            <div style={{fontSize:8,color:T.textTertiary,marginBottom:8}}>Select one or both — results are combined</div>
-
             <div style={{marginBottom:6,border:`1px solid ${useSingle?T.borderStrong:T.borderDefault}`,borderRadius:6,background:useSingle?T.bgRaised:T.bgPage,overflow:'hidden'}}>
               <div onClick={()=>setUseSingle(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
                 <div style={{width:13,height:13,borderRadius:2,flexShrink:0,border:`2px solid ${useSingle?T.growth:T.textMuted}`,background:useSingle?T.growth:'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -2412,7 +2678,6 @@ export default function CommandCenter() {
                 </div>
               )}
             </div>
-
             <div style={{border:`1px solid ${useMulti?T.borderStrong:T.borderDefault}`,borderRadius:6,background:useMulti?T.bgRaised:T.bgPage,overflow:'hidden'}}>
               <div onClick={()=>setUseMulti(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
                 <div style={{width:13,height:13,borderRadius:2,flexShrink:0,border:`2px solid ${useMulti?T.growth:T.textMuted}`,background:useMulti?T.growth:'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -2420,7 +2685,7 @@ export default function CommandCenter() {
                 </div>
                 <div>
                   <div style={{fontSize:10,fontWeight:600,color:useMulti?T.textPrimary:T.textSecondary}}>Multi Dimension</div>
-                  <div style={{fontSize:9,color:T.textMuted}}>Cohort by column combinations (hierarchies)</div>
+                  <div style={{fontSize:9,color:T.textMuted}}>Cohort by column combinations</div>
                 </div>
               </div>
               {useMulti&&(
@@ -2452,7 +2717,6 @@ export default function CommandCenter() {
                 </div>
               )}
             </div>
-
           </div>
         )}
 
@@ -2489,6 +2753,129 @@ export default function CommandCenter() {
       {/* ══ RIGHT PANEL ═══════════════════════════════════════════════════ */}
       <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:T.bgPage}}>
 
+        {/* ── PAGE HEADER ───────────────────────────────────────────── */}
+        <header style={{flexShrink:0,borderBottom:`1px solid ${T.borderDefault}`,background:T.bgSurface}}>
+
+          {/* Row 1: Title + all controls in ONE line */}
+          <div style={{display:'flex',alignItems:'center',padding:'0 28px',height:52,gap:16}}>
+
+            {/* Title */}
+            <div style={{fontSize:15,fontWeight:700,color:T.textPrimary,letterSpacing:'-0.01em',flexShrink:0}}>
+              Customer Analytics
+            </div>
+
+            <div style={{flex:1}}/>
+
+            {/* ── GLOBAL FILTER BAR — always visible across all tabs ─── */}
+            {results&&(
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+
+                {/* Lookback pills: MoM 1M | QoQ 3M | YoY 12M — single unified control */}
+                {!isCohort&&(
+                  <div style={{display:'flex',alignItems:'center',background:T.bgPage,borderRadius:5,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:30}}>
+                    {[
+                      {lb:1,  label:'MoM 1M',  pt:'Month'},
+                      {lb:3,  label:'QoQ 3M',  pt:'Quarter'},
+                      {lb:12, label:'YoY 12M', pt:'Annual'},
+                    ].map(opt=>(
+                      <button key={opt.lb}
+                        onClick={()=>{setSelLb(opt.lb); if(opt.pt!==periodType) applyPeriodType(opt.pt)}}
+                        disabled={rerunning}
+                        style={{padding:'0 12px',height:30,fontSize:11,fontWeight:selLb===opt.lb?600:400,border:'none',borderBottom:`2px solid ${selLb===opt.lb?(T.brandPrimary||T.accentPrimary):'transparent'}`,cursor:rerunning?'not-allowed':'pointer',background:selLb===opt.lb?T.bgRaised:'transparent',color:selLb===opt.lb?(T.brandPrimary||T.accentPrimary):T.textMuted,transition:'all 0.12s',opacity:rerunning?0.6:1,whiteSpace:'nowrap'}}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {!isCohort&&<div style={{width:1,height:18,background:T.borderDefault}}/>}
+
+                {/* Period dropdown — all real data months, latest selected by default */}
+                {!isCohort&&(
+                  <div style={{display:'flex',alignItems:'center',gap:6,height:30}}>
+                    <span style={{fontSize:11,fontWeight:500,color:T.textMuted,whiteSpace:'nowrap'}}>Period</span>
+                    <select
+                      value={selPeriod}
+                      onChange={e=>setSelPeriod(e.target.value)}
+                      disabled={availablePeriods.length===0}
+                      style={{height:30,fontSize:11,fontWeight:500,border:`1px solid ${T.borderStrong}`,borderRadius:5,padding:'0 28px 0 10px',background:T.bgRaised,color:availablePeriods.length>0?T.accentPrimary:T.chartBaseline,outline:'none',cursor:availablePeriods.length>0?'pointer':'default',fontFamily:"'Inter',system-ui,sans-serif",appearance:'none',backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%234A5A6E' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center',minWidth:100}}>
+                      {availablePeriods.length===0
+                        ? <option value="">— run analysis —</option>
+                        : availablePeriods.map(p=><option key={p} value={p}>{p}</option>)
+                      }
+                    </select>
+                  </div>
+                )}
+
+                {!isCohort&&<div style={{width:1,height:18,background:T.borderDefault}}/>}
+
+                {/* Dimension — customer / product / region */}
+                {!isCohort&&(
+                  <div style={{display:'flex',alignItems:'center',background:T.bgPage,borderRadius:5,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:30}}>
+                    {[
+                      {key:'customer',label:'Customer'},
+                      {key:'product', label:'× Product',available:!!fieldMap.product},
+                      {key:'region',  label:'× Region', available:!!fieldMap.region},
+                    ].map(opt=>(
+                      <button key={opt.key}
+                        onClick={()=>opt.available!==false&&!rerunning&&applyDimFilter(opt.key)}
+                        disabled={opt.available===false||rerunning}
+                        style={{padding:'0 10px',height:30,fontSize:11,fontWeight:selDims===opt.key?500:400,border:'none',cursor:(opt.available===false||rerunning)?'not-allowed':'pointer',background:selDims===opt.key?T.bgRaised:'transparent',color:selDims===opt.key?T.accentPrimary:opt.available===false?T.bgMuted:T.textMuted,transition:'all 0.12s'}}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Rerunning indicator */}
+                {rerunning&&(
+                  <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:T.textMuted}}>
+                    <Loader2 size={11} style={{animation:'spin 1s linear infinite'}}/> Updating…
+                  </div>
+                )}
+
+                {/* Reset */}
+                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('');setCohortResults(null);setRawFileRows([])}}
+                  style={{height:30,width:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:`1px solid ${T.borderDefault}`,background:'transparent',cursor:'pointer',color:T.textMuted}}
+                  onMouseEnter={e=>{e.currentTarget.style.color=T.accentPrimary;e.currentTarget.style.borderColor=T.borderStrong}}
+                  onMouseLeave={e=>{e.currentTarget.style.color=T.textMuted;e.currentTarget.style.borderColor=T.borderDefault}}>
+                  <RefreshCw size={12}/>
+                </button>
+
+                {/* Export */}
+                {isAdmin?(
+                  <button onClick={downloadCSV} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,padding:'0 12px',borderRadius:5,border:'1px solid #2D5A3D',cursor:'pointer',background:T.selectionBg,color:T.growth}}>
+                    <Download size={11}/> Export
+                  </button>
+                ):(
+                  <button onClick={()=>router.push('/dashboard/upgrade')} style={{height:30,display:'flex',alignItems:'center',gap:5,fontSize:11,fontWeight:500,color:T.textMuted,border:`1px solid ${T.borderDefault}`,padding:'0 12px',borderRadius:5,background:'transparent',cursor:'pointer'}}>
+                    <Lock size={11}/> Upgrade
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Row 2: Tab navigation — at top level */}
+          {results&&(
+            <div style={{display:'flex',borderTop:`1px solid ${T.borderDefault}`,paddingLeft:28,background:T.bgSurface,overflowX:'auto'}}>
+              {TABS.map(tab=>(
+                <button key={tab.id} onClick={()=>{
+                  setActiveTab(tab.id)
+                  if(tab.id==='cohort_heatmap'&&!cohortResults&&!cohortRunning&&file&&fieldMap.customer&&fieldMap.date&&fieldMap.revenue) {
+                    runInlineCohort()
+                  }
+                }} style={{
+                  padding:'0 16px',height:40,fontSize:12,fontWeight:activeTab===tab.id?500:400,
+                  border:'none',borderBottom:`2px solid ${activeTab===tab.id?(T.brandPrimary||T.accentPrimary):'transparent'}`,
+                  background:'transparent',cursor:'pointer',
+                  color:activeTab===tab.id?(T.brandPrimary||T.accentPrimary):T.textMuted,
+                  transition:'color 0.12s',whiteSpace:'nowrap',
+                }}>{tab.label}</button>
+              ))}
+            </div>
+          )}
+        </header>
 
 
 
@@ -2501,7 +2888,7 @@ export default function CommandCenter() {
               <p style={{color:T.textSecondary,fontSize:14,marginBottom:32,lineHeight:1.6}}>
                 {uploadDatasetType&&(
                 <div style={{marginBottom:10,padding:'6px 10px',borderRadius:6,background:T.bgRaised,border:`1px solid ${T.borderDefault}`,fontSize:10,color:T.textSecondary}}>
-                  Dataset type: <span style={{fontWeight:600,color:T.textPrimary,textTransform:'capitalize'}}>{uploadDatasetType}</span> — select the analysis engine below
+                  Dataset: <span style={{fontWeight:600,color:T.textPrimary,textTransform:'capitalize'}}>{uploadDatasetType}</span>
                 </div>
               )}
               {engine==='cohort'?'Upload data, map fields, then run to see retention heatmaps.'
@@ -4126,5 +4513,6 @@ export default function CommandCenter() {
         )}
       </main>
     </div>
+    </DashboardLayout>
   )
 }
