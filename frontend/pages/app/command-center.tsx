@@ -361,38 +361,35 @@ function makeToARR(revenueType) {
   return (v) => revenueType === 'MRR' ? (v == null ? null : v * 12) : v
 }
 
-// ─── Engine config ────────────────────────────────────────────────────────────
-// ── Fuzzy match helpers ───────────────────────────────────────────────────────
-function normalizeCustomer(s) {
-  let r = s.toLowerCase()
-  r = r.replace(/[.,_&()]+/g, ' ')
-  r = r.replace(/(inc|ltd|llc|corp|co|the|and|plc|gmbh|sas|bv|ag|sa)/g, '')
-  r = r.replace(/\s+/g, ' ').trim()
-  return r
+// ─── Engine config ──────────────────────────────────────────────
+// Fuzzy customer matching helpers
+function normCust(s) {
+  return s.toLowerCase().replace(/[.,_&()]+/g,' ').replace(/\s+/g,' ').trim()
 }
-function customerSimilarity(a,b) {
-  const na=normalizeCustomer(a),nb=normalizeCustomer(b)
+function custSim(a,b) {
+  const na=normCust(a),nb=normCust(b)
   if(na===nb)return 1
-  function bigrams(s){const bg=new Set();for(let i=0;i<s.length-1;i++)bg.add(s[i]+s[i+1]);return bg}
-  const ba=bigrams(na),bb=bigrams(nb)
-  let inter=0; ba.forEach(g=>{if(bb.has(g))inter++})
+  function bg2(s){const r=new Set();for(let i=0;i<s.length-1;i++)r.add(s[i]+s[i+1]);return r}
+  const ba=bg2(na),bb=bg2(nb)
+  let inter=0;ba.forEach(g=>{if(bb.has(g))inter++})
   const union=ba.size+bb.size-inter
   return union===0?0:inter/union
 }
-function findFuzzyGroups(names,threshold=0.72) {
-  const groups=[],assigned=new Set(),sorted=[...names].sort()
+function fuzzyGroups(names,thr) {
+  thr=thr||0.72
+  const groups=[],done=new Set(),sorted=[...names].sort()
   for(let i=0;i<sorted.length;i++){
-    if(assigned.has(sorted[i]))continue
-    const group=[sorted[i]];assigned.add(sorted[i])
+    if(done.has(sorted[i]))continue
+    const grp=[sorted[i]];done.add(sorted[i])
     for(let j=i+1;j<sorted.length;j++){
-      if(assigned.has(sorted[j]))continue
-      if(customerSimilarity(sorted[i],sorted[j])>=threshold){group.push(sorted[j]);assigned.add(sorted[j])}
+      if(!done.has(sorted[j])&&custSim(sorted[i],sorted[j])>=thr){grp.push(sorted[j]);done.add(sorted[j])}
     }
-    if(group.length>1)groups.push(group)
+    if(grp.length>1)groups.push(grp)
   }
   return groups
 }
 
+──────────────
 
 const ENGINE_CONFIG = {
   mrr: {
@@ -1878,7 +1875,7 @@ export default function CommandCenter() {
       if(customerCol && wizardRawRows.length){
         const names=[...new Set(wizardRawRows.map(r=>r[customerCol]).filter(Boolean))]
         setTotalCustomers(names.length)
-        const groups=findFuzzyGroups(names)
+        const groups=fuzzyGroups(names)
         const groupObjs=groups.map(grp=>({names:grp,canonical:grp.reduce((a,b)=>a.length>=b.length?a:b)}))
         setFuzzyGroups(groupObjs)
         const res={}; groupObjs.forEach(g=>g.names.forEach(n=>{res[n]=g.canonical})); setResolvedNames(res)
