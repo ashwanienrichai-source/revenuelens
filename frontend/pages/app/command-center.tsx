@@ -2554,30 +2554,62 @@ export default function CommandCenter() {
         {!results&&(
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
             <div style={{textAlign:'center',maxWidth:480}}>
-              <div style={{width:80,height:80,borderRadius:24,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={28} color="#4A5A6E" style={{opacity:1}}/></div>
-              <h2 style={{fontSize:24,fontWeight:900,color:T.textPrimary,margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
-              <p style={{color:T.textSecondary,fontSize:14,marginBottom:32,lineHeight:1.6}}>
-                {engine==='cohort'?'Upload data, map fields, then run to see retention heatmaps.'
-                :engine?'Upload data, map fields, and run the analysis.'
-                :'Upload subscription data, select an engine, and get instant insights.'}
-              </p>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
-                {(engine==='cohort'?[
-                  {icon:Layers,     label:'Retention Heatmap',desc:'% retention by cohort'},
-                  {icon:DollarSign, label:'Revenue Heatmap',  desc:'Revenue by cohort period'},
-                  {icon:Users,      label:'Segmentation',     desc:'Size / Percentile / Revenue'},
-                ]:[
-                  {icon:TrendingUp, label:'Revenue Bridge',   desc:'Waterfall with all drivers'},
-                  {icon:Target,     label:'Top Movers',       desc:'Expansion & churn accounts'},
-                  {icon:Activity,   label:'Retention Trends', desc:'NRR, GRR over time'},
-                ]).map((m,i)=>(
-                  <div key={i} style={{padding:16,borderRadius:14,border:`1px solid ${T.borderDefault}`,background:T.bgSurface,textAlign:'left'}}>
-                    <m.icon size={15} color="#4A5A6E" style={{opacity:1,marginBottom:8}}/>
-                    <div style={{fontSize:12,fontWeight:700,color:T.textPrimary,marginBottom:3}}>{m.label}</div>
-                    <div style={{fontSize:10,color:T.textSecondary}}>{m.desc}</div>
+
+              {/* No file loaded — redirect to upload wizard */}
+              {!file&&(
+                <div style={{marginBottom:40}}>
+                  <div style={{width:80,height:80,borderRadius:24,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',background:T.bgRaised}}>
+                    <Upload size={28} color={T.textMuted}/>
                   </div>
-                ))}
-              </div>
+                  <h2 style={{fontSize:22,fontWeight:800,color:T.textPrimary,margin:'0 0 8px',letterSpacing:'-0.02em'}}>No data loaded</h2>
+                  <p style={{color:T.textSecondary,fontSize:14,marginBottom:28,lineHeight:1.6}}>
+                    Start by uploading your revenue file, mapping columns, and running quality checks — then launch the analytics engine from the upload wizard.
+                  </p>
+                  <button onClick={()=>router.push('/dashboard/upload')} style={{
+                    display:'inline-flex',alignItems:'center',gap:8,
+                    padding:'12px 28px',borderRadius:12,border:'none',cursor:'pointer',
+                    background:T.selectionBg,color:T.growth,fontSize:14,fontWeight:700,
+                    transition:'opacity 0.15s',
+                  }}>
+                    <Upload size={14}/>
+                    Go to Upload Wizard
+                  </button>
+                  <div style={{marginTop:12,fontSize:11,color:T.textMuted}}>
+                    Upload &#8594; Map Fields &#8594; Data Quality &#8594; Review &#8594; Launch
+                  </div>
+                </div>
+              )}
+
+              {/* File loaded — prompt to select engine and run */}
+              {file&&(
+                <>
+                  <div style={{width:80,height:80,borderRadius:24,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={28} color="#4A5A6E"/></div>
+                  <h2 style={{fontSize:24,fontWeight:900,color:T.textPrimary,margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
+                  <p style={{color:T.textSecondary,fontSize:14,marginBottom:32,lineHeight:1.6}}>
+                    {engine==='cohort'?'Configure cohort settings and run the analysis.'
+                    :engine?'Ready — click Run Analysis to generate insights.'
+                    :'Select an analysis engine from the left panel to get started.'}
+                  </p>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
+                    {(engine==='cohort'?[
+                      {icon:Layers,     label:'Retention Heatmap',desc:'% retention by cohort'},
+                      {icon:DollarSign, label:'Revenue Heatmap',  desc:'Revenue by cohort period'},
+                      {icon:Users,      label:'Segmentation',     desc:'Size / Percentile / Revenue'},
+                    ]:[
+                      {icon:TrendingUp, label:'Revenue Bridge',   desc:'Waterfall with all drivers'},
+                      {icon:Target,     label:'Top Movers',       desc:'Expansion & churn accounts'},
+                      {icon:Activity,   label:'Retention Trends', desc:'NRR, GRR over time'},
+                    ]).map((m,i)=>(
+                      <div key={i} style={{padding:16,borderRadius:14,border:`1px solid ${T.borderDefault}`,background:T.bgSurface,textAlign:'left'}}>
+                        <m.icon size={15} color="#4A5A6E" style={{marginBottom:8}}/>
+                        <div style={{fontSize:12,fontWeight:700,color:T.textPrimary,marginBottom:3}}>{m.label}</div>
+                        <div style={{fontSize:10,color:T.textSecondary}}>{m.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
             </div>
           </div>
         )}
