@@ -14,6 +14,7 @@ import {
   Zap, Activity, Shield, Sparkles, Info
 } from 'lucide-react'
 import { supabase, canDownload } from '../../lib/supabase'
+import { dataCubeStore } from '../../lib/dataCubeStore'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
 
@@ -1002,7 +1003,8 @@ export default function CommandCenter() {
   const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
   const [histChartWindow, setHistChartWindow] = useState(24)  // Historical perf chart window
   const [themeMode, setThemeMode] = useState<'dark'|'light'|'light-red'|'colorBlind'|'highContrast'>('dark')
-  const [showThemeMenu, setShowThemeMenu] = useState(false)
+  const [showThemeMenu, setShowThemeMenu]     = useState(false)
+  const [uploadDatasetType, setUploadDatasetType] = useState('')
 
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
@@ -1787,6 +1789,31 @@ export default function CommandCenter() {
     fetch(`${API}/health`).catch(()=>{})
   }, [router])
 
+  // Read data cube from sessionStorage (set by upload wizard)
+  useEffect(() => {
+    if (dataCubeStore.hasData()) {
+      const cube = dataCubeStore.load()
+      if (!cube) return
+      const f = dataCubeStore.toFile(cube)
+      setFile(f)
+      setColumns(cube.meta.columns)
+      setRowCount(cube.meta.rowCount)
+      setIsBridgeOutput(false)
+      const map = cube.meta.mapping
+      const fm = {}
+      if (map.customer) fm['customer'] = map.customer
+      if (map.date)     fm['date']     = map.date
+      if (map.revenue)  fm['revenue']  = map.revenue
+      if (map.product)  fm['product']  = map.product
+      if (map.channel)  fm['channel']  = map.channel
+      if (map.region)   fm['region']   = map.region
+      if (map.fiscal)   fm['fiscal']   = map.fiscal
+      if (map.quantity) fm['quantity'] = map.quantity
+      setFieldMap(fm)
+      if (cube.meta.datasetType) setUploadDatasetType(cube.meta.datasetType)
+    }
+  }, [])
+
   useEffect(() => {
     if (!engine||!columns.length) return
     setFieldMap(buildAutoMap(engine,columns))
@@ -2242,16 +2269,38 @@ export default function CommandCenter() {
         {/* Scrollable sidebar content */}
         <div style={{flex:1,overflowY:'auto'}}>
 
-          {/* Dataset strip — pre-loaded from upload wizard */}
-          {file&&columns.length>0&&(
-            <div style={{padding:'10px 16px',borderBottom:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',gap:8}}>
-              <CheckCircle size={11} color={T.growth}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:10,fontWeight:600,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div>
-                <div style={{fontSize:9,color:T.textSecondary}}>{rowCount>0?rowCount.toLocaleString()+' rows · ':''}{columns.length} cols</div>
+          {/* Data cube strip — shows cube metadata from upload wizard */}
+          {file&&columns.length>0&&(()=>{
+            const cube=dataCubeStore.load()
+            return (
+              <div style={{padding:'10px 16px',borderBottom:`1px solid ${T.borderDefault}`}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:cube&&cube.meta.transforms.length>0?6:0}}>
+                  <CheckCircle size={11} color={T.growth}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:10,fontWeight:600,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div>
+                    <div style={{fontSize:9,color:T.textSecondary}}>
+                      {(cube?.meta.rowCount||rowCount||0).toLocaleString()} rows · {columns.length} cols
+                      {cube?.meta.datasetType?' · '+cube.meta.datasetType:''}
+                    </div>
+                  </div>
+                  <button onClick={()=>router.push('/dashboard/upload')} title="Edit data cube"
+                    style={{fontSize:9,color:T.textMuted,background:'transparent',border:'none',cursor:'pointer',padding:'2px 4px'}}>
+                    Edit
+                  </button>
+                </div>
+                {cube&&cube.meta.transforms.length>0&&(
+                  <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+                    {cube.meta.transforms.map(t=>(
+                      <span key={t} style={{fontSize:8,fontWeight:600,padding:'2px 6px',borderRadius:10,
+                        background:T.growth+'18',color:T.growth,textTransform:'uppercase',letterSpacing:'0.06em'}}>
+                        {t.replace(/_/g,' ')}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Select Engine */}
           {(
