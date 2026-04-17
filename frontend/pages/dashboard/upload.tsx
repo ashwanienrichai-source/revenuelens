@@ -5,7 +5,7 @@ import { useDropzone } from 'react-dropzone'
 import { Upload, FileText, CheckCircle, ArrowRight, ChevronRight, AlertCircle, Users, Loader2, RefreshCw, AlertTriangle } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { supabase } from '../../lib/supabase'
-import { uploadStore } from '../../lib/uploadStore'
+import { dataCubeStore } from '../../lib/dataCubeStore'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type DatasetType = 'revenue' | 'billing' | 'bookings'
@@ -183,23 +183,31 @@ export default function UploadPage() {
 
   // ── Launch ──────────────────────────────────────────────────────────────────
   function launchAnalytics() {
-    if (!file) return
-    // Build a synthetic File from potentially-corrected rows if fuzzy was applied
-    if (appliedFuzzy && rawRows.length) {
-      const cols = columns
-      const csvLines = [cols.join(',')]
-      rawRows.forEach(row => { csvLines.push(cols.map(c => `"${(row[c]||'').replace(/"/g,'""')}"`).join(',')) })
-      const blob = new Blob([csvLines.join('\n')], { type: 'text/csv' })
-      const cleanFile = new File([blob], file.name, { type: 'text/csv' })
-      uploadStore.set(cleanFile, columns, mapping, datasetType)
-    } else {
-      uploadStore.set(file, columns, mapping, datasetType)
-    }
+    if (!file || !rawRows.length) return
+
+    // Build transforms list
+    const transforms: string[] = []
+    if (appliedFuzzy) transforms.push('customer_consolidation')
+
+    // Build full cleaned CSV from current rawRows (may have fuzzy corrections applied)
+    const csvText = dataCubeStore.buildCsv(columns, rawRows)
+
+    // Save data cube to sessionStorage
+    dataCubeStore.save({
+      meta: {
+        fileName:    file.name,
+        datasetType: datasetType,
+        rowCount:    rawRows.length,
+        columns:     columns,
+        mapping:     mapping,
+        transforms,
+        createdAt:   new Date().toISOString(),
+      },
+      csvText,
+    })
+
     router.push('/app/command-center')
   }
-
-  const stepIdx = STEPS.findIndex(s => s.id === step)
-
   // ── Styles ──────────────────────────────────────────────────────────────────
   const S = {
     card:    { background:'#fff', border:'1px solid #E5E7EB', borderRadius:10, padding:'20px 24px' },
@@ -509,7 +517,20 @@ export default function UploadPage() {
 
             <div style={{ display:'flex', gap:10 }}>
               <button onClick={() => setStep('quality')} style={S.btnSecondary}>← Back</button>
-              <button onClick={launchAnalytics} style={{ ...S.btnPrimary, padding:'11px 24px', fontSize:14 }}>
+              <button onClick={() => {
+                    if (!file || !rawRows.length) return
+                    const csvText = dataCubeStore.buildCsv(columns, rawRows)
+                    const blob = new Blob([csvText], { type: 'text/csv' })
+                    const url  = URL.createObjectURL(blob)
+                    const a    = document.createElement('a')
+                    a.href     = url
+                    a.download = file.name.replace('.csv','').replace('.xlsx','').replace('.xls','') + '_cleaned.csv'
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }} style={{ ...S.btnSecondary, padding:'11px 24px', fontSize:14, marginRight:8 }}>
+                  Download data cube
+                </button>
+                <button onClick={launchAnalytics} style={{ ...S.btnPrimary, padding:'11px 24px', fontSize:14 }}>
                 <CheckCircle size={14}/> Launch Analytics Engine
               </button>
             </div>
