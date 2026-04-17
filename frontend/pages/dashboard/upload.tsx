@@ -85,6 +85,7 @@ export default function UploadPage() {
   const router = useRouter()
   const [profile, setProfile]       = useState(null)
   const [step, setStep]             = useState('upload')
+  const stepIdx = STEPS.findIndex(s => s.id === step)
   const [file, setFile]             = useState(null)
   const [rawRows, setRawRows]       = useState([])    // parsed CSV rows
   const [columns, setColumns]       = useState([])
