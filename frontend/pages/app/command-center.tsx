@@ -1018,7 +1018,7 @@ export default function CommandCenter() {
   const step1  = true  // data always pre-loaded from upload wizard
   const step2  = step1 && !!engine
   const step3  = step2  // fields pre-mapped from upload wizard
-  const canRun = step3 && !running
+  const canRun = step3 && !running && columns.length > 0 && !!file
 
   // ── ARR converter — ×12 if MRR input ──────────────────────────────────────
   const toARR = makeToARR(revenueType)
@@ -1872,7 +1872,7 @@ export default function CommandCenter() {
         if(churnCat) setMoverCat(churnCat)
         else if(allCats.length) setMoverCat(allCats[0])
       }
-    } catch(e) { setRunErr(e?.response?.data?.detail||'Analysis failed. Please try again.') }
+    } catch(e) { const d=e?.response?.data?.detail; setRunErr(typeof d==='string'?d:d?JSON.stringify(d):'Analysis failed. Please try again.') }
     setRunning(false)
   }
 
@@ -2402,6 +2402,7 @@ export default function CommandCenter() {
             color:canRun?T.brandPrimary||T.growth:T.textMuted,transition:'opacity 0.15s',
           }}>
             {running?<Loader2 size={14} color={canRun?T.growth:T.textMuted} style={{animation:'spin 1s linear infinite'}}/>:<Zap size={14}/>}
+          {!file&&!running&&<div style={{fontSize:9,color:T.textMuted,marginTop:4}}>No data loaded — go through upload wizard first</div>}
             {running?'Analyzing…':'Run Analysis'}
           </button>
           {running&&<UploadTimer active={running}/>}
