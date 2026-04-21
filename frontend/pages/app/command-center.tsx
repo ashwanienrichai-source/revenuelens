@@ -2027,7 +2027,6 @@ export default function CommandCenter() {
     {id:'retention_trend',label:'Detailed Bridge'},
     {id:'historical_perf',label:'Historical Performance'},
     {id:'top_movers',label:'Top Movers'},
-    {id:'top_customers',label:'Customers'},
     {id:'kpi_matrix',label:'KPI Matrix'},
     {id:'output',label:'Output'},
   ]
