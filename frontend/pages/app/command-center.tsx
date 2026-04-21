@@ -1005,6 +1005,13 @@ export default function CommandCenter() {
   const [themeMode, setThemeMode] = useState<'dark'|'light'|'light-red'|'colorBlind'|'highContrast'>('dark')
   const [showThemeMenu, setShowThemeMenu]     = useState(false)
   const [uploadDatasetType, setUploadDatasetType] = useState('')
+  // ── AI layer states ──────────────────────────────────────────────────────────
+  const [aiNarrative, setAiNarrative]     = useState('')
+  const [aiLoading, setAiLoading]         = useState(false)
+  const [chatOpen, setChatOpen]           = useState(false)
+  const [chatMessages, setChatMessages]   = useState([])
+  const [chatInput, setChatInput]         = useState('')
+  const [chatLoading, setChatLoading]     = useState(false)
 
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
@@ -1835,6 +1842,105 @@ export default function CommandCenter() {
     setUploading(false)
   }
 
+  // ── AI: generate narrative from analysis results ───────────────────────────
+  async function fetchAiNarrative(analysisData) {
+    if (!analysisData) return
+    setAiLoading(true)
+    try {
+      const ret = analysisData
+      const summaryText = [
+        ret.beginning && `Beginning ARR: ${fmt(ret.beginning)}`,
+        ret.ending    && `Ending ARR: ${fmt(ret.ending)}`,
+        ret.nrr       && `Net Retention: ${fmtPct(ret.nrr)}`,
+        ret.grr       && `Gross Retention: ${fmtPct(ret.grr)}`,
+        ret.new_arr   && `New Logo ARR: ${fmt(ret.new_arr)}`,
+        ret.churn     && `Churn: ${fmt(ret.churn)}`,
+        ret.upsell    && `Upsell: ${fmt(ret.upsell)}`,
+        ret.downsell  && `Downsell: ${fmt(ret.downsell)}`,
+      ].filter(Boolean).join(', ')
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: `You are an expert revenue analyst and CFO advisor for B2B SaaS companies. 
+You analyze ARR/MRR bridge data and provide executive-grade insights.
+Always structure your response as JSON with these exact keys:
+{
+  "headline": "one bold sentence — the single most important insight",
+  "body": "2-3 sentences explaining what happened and why",
+  "implication": "key risk or opportunity this creates",
+  "action": "one specific recommended next step",
+  "severity": "info | warning | risk | success"
+}
+Be specific with numbers. Sound like a senior CFO advisor, not a dashboard tooltip.`,
+          messages: [{
+            role: 'user',
+            content: `Analyze this revenue performance data and give me an executive insight:
+${summaryText}`
+          }]
+        })
+      })
+      const data = await response.json()
+      const text = data.content?.[0]?.text || ''
+      const clean = text.replace(/```json|```/g, '').trim()
+      const parsed = JSON.parse(clean)
+      setAiNarrative(parsed)
+    } catch (e) {
+      console.error('AI narrative failed:', e)
+    }
+    setAiLoading(false)
+  }
+
+  // ── AI: chat with data ───────────────────────────────────────────────────────
+  async function sendChatMessage() {
+    if (!chatInput.trim() || chatLoading) return
+    const userMsg = { role: 'user', content: chatInput.trim() }
+    const newMessages = [...chatMessages, userMsg]
+    setChatMessages(newMessages)
+    setChatInput('')
+    setChatLoading(true)
+    try {
+      const ret = retForPeriod || ret
+      const dataContext = results ? `
+Current analysis data:
+- Period: ${selPeriod}
+- Beginning ARR: ${fmt(ret?.beginning || 0)}
+- Ending ARR: ${fmt(ret?.ending || 0)}
+- Net Retention: ${fmtPct(ret?.nrr || 0)}
+- Gross Retention: ${fmtPct(ret?.grr || 0)}
+- New Logo: ${fmt(ret?.new_arr || 0)}
+- Churn: ${fmt(ret?.churn || 0)}
+- Upsell: ${fmt(ret?.upsell || 0)}
+- Downsell: ${fmt(ret?.downsell || 0)}
+- Dataset: ${uploadDatasetType}
+` : 'No analysis has been run yet.'
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: `You are RevenueLens AI — an expert revenue intelligence advisor embedded in a CFO analytics platform.
+You have access to the company's current ARR/MRR bridge analysis data.
+Answer questions concisely and precisely. Use specific numbers from the data.
+Sound like a senior revenue advisor — direct, insightful, no fluff.
+${dataContext}`,
+          messages: newMessages.map(m => ({ role: m.role, content: m.content }))
+        })
+      })
+      const data = await response.json()
+      const reply = data.content?.[0]?.text || 'I could not generate a response.'
+      setChatMessages(prev => [...prev, { role: 'assistant', content: reply }])
+    } catch (e) {
+      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
+    }
+    setChatLoading(false)
+  }
+
   async function runAnalysis() {
     setValidated(true)
     if (!canRun) return
@@ -1891,7 +1997,7 @@ export default function CommandCenter() {
           if(fieldMap.quantity) fd.append('quantity_col', fieldMap.quantity)
         }
         const {data}=await axios.post(endpoint,fd,{timeout:120000})
-        setResults({...data,_engine:engine}); setActiveTab('summary')
+        setResults({...data,_engine:engine}); setActiveTab('summary'); fetchAiNarrative(data?.summary?.overall)
         if (lookbacks.length) setSelLb(lookbacks[lookbacks.length-1])
         const allCats=Object.keys(data.top_movers||{})
         // Set initial category to first churn cat for churn panel
@@ -2774,8 +2880,27 @@ export default function CommandCenter() {
               {!isCohort&&activeTab==='summary'&&(
                 <div style={{display:'flex',flexDirection:'column',gap:0}}>
 
-                  {/* ── AI narrative insight bar ─────────────────────── */}
-                  {narrative&&(
+                  {/* ── AI narrative insight ──────────────────────────── */}
+                  {aiLoading&&(
+                    <div style={{padding:'12px 16px',background:T.bgElevated,borderRadius:6,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+                      <Loader2 size={12} color={T.growth} style={{animation:'spin 1s linear infinite'}}/>
+                      <span style={{fontSize:12,color:T.textSecondary}}>Generating AI insight…</span>
+                    </div>
+                  )}
+                  {aiNarrative&&!aiLoading&&(
+                    <div style={{marginBottom:12}}>
+                      <AiInsightCard theme={T}
+                        title="RevenueLens AI"
+                        headline={aiNarrative.headline}
+                        body={aiNarrative.body}
+                        implication={aiNarrative.implication}
+                        action={aiNarrative.action}
+                        severity={aiNarrative.severity||'info'}
+                        expanded={true}
+                      />
+                    </div>
+                  )}
+                  {!aiNarrative&&!aiLoading&&narrative&&(
                     <div style={{padding:'12px 18px',background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderLeft:'3px solid #3D5068',borderRadius:6,display:'flex',alignItems:'center',gap:10,margin:'0 0 16px'}}>
                       <Info size={12} color="#64748B" style={{flexShrink:0}}/>
                       <p style={{margin:0,fontSize:13,color:T.textPrimary,lineHeight:1.55,fontWeight:400}}>{narrative}</p>
@@ -4259,5 +4384,59 @@ export default function CommandCenter() {
         )}
       </main>
     </div>
+
+    {/* ── Floating AI chat button + panel ──────────────────────────────────── */}
+    {results&&(
+      <div style={{position:'fixed',bottom:28,right:28,zIndex:999,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:12}}>
+        {chatOpen&&(
+          <div style={{width:360,height:480,background:T.bgSurface,border:`1px solid ${T.borderStrong}`,borderRadius:16,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,0.5)'}}>
+            <div style={{padding:'14px 16px',borderBottom:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <Sparkles size={14} color={T.growth}/>
+                <span style={{fontSize:13,fontWeight:700,color:T.textPrimary}}>Ask RevenueLens AI</span>
+              </div>
+              <button onClick={()=>setChatOpen(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:T.textMuted,fontSize:18,lineHeight:1}}>x</button>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
+              {chatMessages.length===0&&(
+                <div style={{textAlign:'center',padding:'20px 12px'}}>
+                  <Sparkles size={24} color={T.textMuted} style={{margin:'0 auto 8px'}}/>
+                  <div style={{fontSize:13,color:T.textSecondary,marginBottom:16}}>Ask anything about your revenue data</div>
+                  {['Why did NRR drop?','Who are top churned accounts?','What drove expansion?','How does this compare to last year?'].map(q=>(
+                    <button key={q} onClick={()=>setChatInput(q)} style={{display:'block',width:'100%',textAlign:'left',padding:'8px 10px',margin:'0 0 6px',borderRadius:8,border:`1px solid ${T.borderDefault}`,background:T.bgRaised,color:T.textSecondary,fontSize:12,cursor:'pointer'}}>{q}</button>
+                  ))}
+                </div>
+              )}
+              {chatMessages.map((msg,i)=>(
+                <div key={i} style={{display:'flex',justifyContent:msg.role==='user'?'flex-end':'flex-start'}}>
+                  <div style={{maxWidth:'85%',padding:'9px 12px',borderRadius:msg.role==='user'?'12px 12px 2px 12px':'12px 12px 12px 2px',background:msg.role==='user'?T.selectionBg:T.bgRaised,border:`1px solid ${T.borderDefault}`,fontSize:12,color:T.textPrimary,lineHeight:1.6,whiteSpace:'pre-wrap'}}>{msg.content}</div>
+                </div>
+              ))}
+              {chatLoading&&(
+                <div style={{display:'flex',justifyContent:'flex-start'}}>
+                  <div style={{padding:'9px 12px',borderRadius:'12px 12px 12px 2px',background:T.bgRaised,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',gap:6}}>
+                    <Loader2 size={12} color={T.growth} style={{animation:'spin 1s linear infinite'}}/>
+                    <span style={{fontSize:12,color:T.textSecondary}}>Thinking…</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{padding:10,borderTop:`1px solid ${T.borderDefault}`,display:'flex',gap:8,flexShrink:0}}>
+              <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
+                onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage()}}}
+                placeholder="Ask about your revenue data…"
+                style={{flex:1,padding:'8px 12px',borderRadius:8,border:`1px solid ${T.borderDefault}`,background:T.bgRaised,color:T.textPrimary,fontSize:12,outline:'none'}}/>
+              <button onClick={sendChatMessage} disabled={!chatInput.trim()||chatLoading}
+                style={{padding:'8px 14px',borderRadius:8,border:'none',background:chatInput.trim()?T.selectionBg:T.bgRaised,color:chatInput.trim()?T.growth:T.textMuted,cursor:chatInput.trim()?'pointer':'default',fontSize:12,fontWeight:700}}>
+                Send
+              </button>
+            </div>
+          </div>
+        )}
+        <button onClick={()=>setChatOpen(v=>!v)} style={{width:52,height:52,borderRadius:'50%',background:T.selectionBg,border:`2px solid ${T.growth}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 20px rgba(0,0,0,0.4)'}}>
+          {chatOpen?<span style={{fontSize:20,lineHeight:1,color:T.growth}}>x</span>:<Sparkles size={20} color={T.growth}/>}
+        </button>
+      </div>
+    )}
   )
 }
