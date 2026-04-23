@@ -4383,9 +4383,9 @@ ${dataContext}`,
           </div>
         )}
       </main>
-    </div>
-    {/* ── Floating AI chat button + panel ──────────────────────────────────── */}
-    {results&&(
+
+      {/* ── Floating AI chat button + panel ──────────────────────────────────── */}
+      {results&&(
       <div style={{position:'fixed',bottom:28,right:28,zIndex:999,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:12}}>
         {chatOpen&&(
           <div style={{width:360,height:480,background:T.bgSurface,border:`1px solid ${T.borderStrong}`,borderRadius:16,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,0.5)'}}>
@@ -4437,6 +4437,6 @@ ${dataContext}`,
         </button>
       </div>
     )}
-    </>
+    </div>
   )
 }
