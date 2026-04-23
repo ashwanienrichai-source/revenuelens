@@ -14,6 +14,7 @@ import {
   Zap, Activity, Shield, Sparkles, Info
 } from 'lucide-react'
 import { supabase, canDownload } from '../../lib/supabase'
+import { dataCubeStore } from '../../lib/dataCubeStore'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
 
@@ -1789,6 +1790,26 @@ export default function CommandCenter() {
   }, [router])
 
   useEffect(() => {
+    if (dataCubeStore.hasData()) {
+      const cube = dataCubeStore.load()
+      if (!cube) return
+      const f = dataCubeStore.toFile(cube)
+      setFile(f); setColumns(cube.meta.columns); setRowCount(cube.meta.rowCount)
+      setIsBridgeOutput(false)
+      const map = cube.meta.mapping; const fm = {}
+      if (map.customer) fm['customer'] = map.customer
+      if (map.date)     fm['date']     = map.date
+      if (map.revenue)  fm['revenue']  = map.revenue
+      if (map.product)  fm['product']  = map.product
+      if (map.channel)  fm['channel']  = map.channel
+      if (map.region)   fm['region']   = map.region
+      if (map.fiscal)   fm['fiscal']   = map.fiscal
+      if (map.quantity) fm['quantity'] = map.quantity
+      setFieldMap(fm)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!engine||!columns.length) return
     setFieldMap(buildAutoMap(engine,columns))
     setShowOpt(false); setValidated(false)
@@ -2119,8 +2140,8 @@ export default function CommandCenter() {
                       background:active?'#F3E8FF':'#F9FAFB',
                       cursor:'pointer',textAlign:'left',width:'100%',transition:'all 0.15s',
                     }}>
-                      <div style={{width:28,height:28,borderRadius:8,background:active?'rgba(79,219,200,0.2)':T.borderDefault,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                        <Icon size={12} color={active?T.growth:T.textSecondary}/>
+                      <div style={{width:28,height:28,borderRadius:8,background:active?'#EDE9FE':'#F3F4F6',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        <Icon size={12} color={active?'#7C3AED':'#9CA3AF'}/>
                       </div>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:12,fontWeight:600,color:active?'#7C3AED':'#111827',lineHeight:1.2}}>{ec.label}</div>
@@ -2134,22 +2155,129 @@ export default function CommandCenter() {
             </div>
           )}
 
-          {/* STEP 3: Map Fields */}
+          {/* Cohort config — only when cohort engine selected */}
+        {step2&&engine==='cohort'&&(
+          <div style={{padding:16,borderBottom:'1px solid #EEF2F7'}}>
+            <div style={{...S.label,marginBottom:10}}>Cohort Types</div>
+            {[{id:'SG',label:'Size Cohorts',sub:'Tier 1 / 2 / 3'},{id:'PC',label:'Percentile Cohorts',sub:'Top 5% / 10% / 20%'},{id:'RC',label:'Revenue Cohorts',sub:'Leaders / Growth / Tail'}].map(ct=>{
+              const sel=cohortTypes.includes(ct.id)
+              return (
+                <div key={ct.id} onClick={()=>setCohortTypes(prev=>sel?prev.filter(x=>x!==ct.id):[...prev,ct.id])}
+                  style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:8,cursor:'pointer',marginBottom:4,
+                    border:`1px solid ${sel?'#DDD6FE':'#F3F4F6'}`,background:sel?'#F3E8FF':'#FAFAFA'}}>
+                  <div style={{width:14,height:14,borderRadius:3,flexShrink:0,border:`2px solid ${sel?'#7C3AED':'#D1D5DB'}`,background:sel?'#7C3AED':'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    {sel&&<div style={{width:5,height:5,borderRadius:1,background:'#FFFFFF'}}/>}
+                  </div>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:600,color:sel?'#7C3AED':'#111827'}}>{ct.label}</div>
+                    <div style={{fontSize:10,color:'#9CA3AF'}}>{ct.sub}</div>
+                  </div>
+                </div>
+              )
+            })}
 
+            <div style={{...S.label,marginTop:12,marginBottom:8}}>Period Filter</div>
+            <div style={{display:'flex',borderRadius:8,border:'1px solid #E5E7EB',overflow:'hidden',height:28,marginBottom:12}}>
+              {[['all','All Time'],['latest','Latest'],['fiscal','By FY']].map(([val,lbl])=>(
+                <button key={val} onClick={()=>setPeriodFilter(val)}
+                  style={{flex:1,height:28,fontSize:10,border:'none',cursor:'pointer',fontWeight:periodFilter===val?600:400,
+                    background:periodFilter===val?'#F3E8FF':'transparent',color:periodFilter===val?'#7C3AED':'#6B7280'}}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+
+            <div style={{...S.label,marginBottom:6}}>Dimension Mode</div>
+
+            <div style={{marginBottom:6,border:`1px solid ${useSingle?'#DDD6FE':'#F3F4F6'}`,borderRadius:8,background:useSingle?'#F3E8FF':'#FAFAFA',overflow:'hidden'}}>
+              <div onClick={()=>setUseSingle(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
+                <div style={{width:14,height:14,borderRadius:3,flexShrink:0,border:`2px solid ${useSingle?'#7C3AED':'#D1D5DB'}`,background:useSingle?'#7C3AED':'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  {useSingle&&<div style={{width:5,height:5,borderRadius:1,background:'#FFFFFF'}}/>}
+                </div>
+                <div>
+                  <div style={{fontSize:11,fontWeight:600,color:useSingle?'#7C3AED':'#111827'}}>Individual columns</div>
+                  <div style={{fontSize:10,color:'#9CA3AF'}}>Single dimension cohort</div>
+                </div>
+              </div>
+              {useSingle&&(
+                <div style={{padding:'0 10px 10px 32px'}}>
+                  {individualCols.map((col,i)=>(
+                    <div key={i} style={{display:'flex',gap:4,marginBottom:4,alignItems:'center'}}>
+                      <select value={col} onChange={e=>{const n=[...individualCols];n[i]=e.target.value;setIndividualCols(n)}}
+                        style={{flex:1,height:26,padding:'0 6px',borderRadius:6,border:'1px solid #E5E7EB',background:'#FFFFFF',color:'#111827',fontSize:11,outline:'none'}}>
+                        <option value="">Select column</option>
+                        {columns.map(col2=><option key={col2} value={col2}>{col2}</option>)}
+                      </select>
+                      {individualCols.length>1&&(
+                        <button onClick={()=>setIndividualCols(prev=>prev.filter((_,j)=>j!==i))}
+                          style={{width:22,height:22,border:'1px solid #E5E7EB',borderRadius:4,background:'#FFFFFF',color:'#9CA3AF',cursor:'pointer',fontSize:12}}>×</button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={()=>setIndividualCols(prev=>[...prev,''])}
+                    style={{fontSize:10,fontWeight:600,color:'#7C3AED',background:'transparent',border:'none',cursor:'pointer'}}>+ Add column</button>
+                </div>
+              )}
+            </div>
+
+            <div style={{border:`1px solid ${useMulti?'#DDD6FE':'#F3F4F6'}`,borderRadius:8,background:useMulti?'#F3E8FF':'#FAFAFA',overflow:'hidden'}}>
+              <div onClick={()=>setUseMulti(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
+                <div style={{width:14,height:14,borderRadius:3,flexShrink:0,border:`2px solid ${useMulti?'#7C3AED':'#D1D5DB'}`,background:useMulti?'#7C3AED':'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  {useMulti&&<div style={{width:5,height:5,borderRadius:1,background:'#FFFFFF'}}/>}
+                </div>
+                <div>
+                  <div style={{fontSize:11,fontWeight:600,color:useMulti?'#7C3AED':'#111827'}}>Hierarchical columns</div>
+                  <div style={{fontSize:10,color:'#9CA3AF'}}>Multi-dimension cohort</div>
+                </div>
+              </div>
+              {useMulti&&(
+                <div style={{padding:'0 10px 10px 32px'}}>
+                  {hierarchies.map((hier,hi)=>(
+                    <div key={hi} style={{marginBottom:8}}>
+                      <div style={{fontSize:9,color:'#9CA3AF',marginBottom:3}}>Level {hi+1}</div>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                        {hier.map((col,ci)=>(
+                          <div key={ci} style={{display:'flex',gap:2}}>
+                            <select value={col} onChange={e=>{const n=hierarchies.map(h=>[...h]);n[hi][ci]=e.target.value;setHierarchies(n)}}
+                              style={{height:24,padding:'0 4px',borderRadius:4,border:'1px solid #E5E7EB',background:'#FFFFFF',color:'#111827',fontSize:10,outline:'none'}}>
+                              <option value="">--</option>
+                              {columns.map(col2=><option key={col2} value={col2}>{col2}</option>)}
+                            </select>
+                            {hier.length>1&&(
+                              <button onClick={()=>{const n=hierarchies.map(h=>[...h]);n[hi]=n[hi].filter((_,j)=>j!==ci);setHierarchies(n)}}
+                                style={{width:18,height:24,border:'1px solid #E5E7EB',borderRadius:3,background:'#FFFFFF',color:'#9CA3AF',cursor:'pointer',fontSize:10}}>×</button>
+                            )}
+                          </div>
+                        ))}
+                        <button onClick={()=>{const n=hierarchies.map(h=>[...h]);n[hi]=[...n[hi],''];setHierarchies(n)}}
+                          style={{fontSize:10,color:'#7C3AED',background:'transparent',border:'none',cursor:'pointer',fontWeight:600}}>+col</button>
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={()=>setHierarchies(prev=>[...prev,['','']])}
+                    style={{fontSize:10,fontWeight:600,color:'#7C3AED',background:'transparent',border:'none',cursor:'pointer'}}>+ Add level</button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         </div>
 
-        {/* Run button */}
+        {/* Run button */}        {/* Run button */}
         <div style={{padding:16,borderTop:`1px solid ${T.borderDefault}`,flexShrink:0}}>
           {runErr&&<div style={{marginBottom:10,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:`${T.decline}0F`,color:T.risk,fontSize:10,display:'flex',gap:6}}><AlertCircle size={10} style={{flexShrink:0}}/>{runErr}</div>}
-          <button onClick={runAnalysis} disabled={!columns.length||!step2||running} style={{
+          <button onClick={runAnalysis} disabled={!columns.length||!engine||running} style={{
             width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-            fontWeight:700,fontSize:13,padding:'12px 0',borderRadius:14,border:'none',cursor:canRun?'pointer':'not-allowed',
-            background:canRun?T.brandSoft||T.selectionBg:T.bgRaised,
-            color:canRun?T.brandPrimary||T.growth:T.textMuted,transition:'opacity 0.15s',
+            fontWeight:600,fontSize:13,padding:'12px 0',borderRadius:12,border:'none',
+            cursor:columns.length>0&&engine&&!running?'pointer':'not-allowed',
+            background:columns.length>0&&engine&&!running?'#7C3AED':'#F3F4F6',
+            color:columns.length>0&&engine&&!running?'#FFFFFF':'#9CA3AF',
+            transition:'all 0.18s',
+            boxShadow:columns.length>0&&engine&&!running?'0 4px 14px rgba(124,58,237,0.3)':'none',
           }}>
-            {running?<Loader2 size={14} color={canRun?T.growth:T.textMuted} style={{animation:'spin 1s linear infinite'}}/>:<Zap size={14}/>}
-            {running?'Analyzing…':'Run Analysis'}
+            {running?<Loader2 size={14} color="#FFFFFF" style={{animation:'spin 1s linear infinite'}}/>:<Zap size={14} color={columns.length>0&&engine&&!running?'#FFFFFF':'#9CA3AF'}/>}
+            {running?'Analyzing…':'⚡ Run Analysis'}
           </button>
           {running&&<UploadTimer active={running}/>}
           {results&&!running&&(
