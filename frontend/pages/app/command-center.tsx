@@ -4384,7 +4384,6 @@ ${dataContext}`,
         )}
       </main>
     </div>
-
     {/* ── Floating AI chat button + panel ──────────────────────────────────── */}
     {results&&(
       <div style={{position:'fixed',bottom:28,right:28,zIndex:999,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:12}}>
@@ -4438,5 +4437,6 @@ ${dataContext}`,
         </button>
       </div>
     )}
+    </>
   )
 }
