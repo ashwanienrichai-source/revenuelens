@@ -14,7 +14,6 @@ import {
   Zap, Activity, Shield, Sparkles, Info
 } from 'lucide-react'
 import { supabase, canDownload } from '../../lib/supabase'
-import { dataCubeStore } from '../../lib/dataCubeStore'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
 
@@ -27,44 +26,45 @@ const THEMES = {
 
   // ── 1. DARK (Teal — Premium Analytics) ─────────────────────────────────────
   dark: {
-    bgPage:        '#0b1326',
-    bgSurface:     '#131b2e',
-    bgRaised:      '#171f33',
-    bgElevated:    '#1c253a',
-    bgMuted:       '#0f1828',
-    textPrimary:   '#e6edf3',
-    textSecondary: '#94a3b8',
-    textTertiary:  '#64748b',
-    textMuted:     '#4a5568',
-    textInverse:   '#0b1326',
-    borderSubtle:  'rgba(230,237,243,0.06)',
-    borderDefault: '#1e2d45',
-    borderStrong:  '#253550',
-    // Semantic — teal brand, red negative
-    growth:        '#14b8a6',
-    decline:       '#f87171',
-    neutral:       '#64748b',
-    insight:       '#a78bfa',
-    warning:       '#f59e0b',
-    info:          '#60a5fa',
-    success:       '#34d399',
-    risk:          '#ef4444',
+    // ── Premium Light Purple Theme ───────────────────────────────────────────
+    bgPage:        '#F6F4FB',
+    bgSurface:     '#FFFFFF',
+    bgRaised:      '#F9F8FD',
+    bgElevated:    '#FFFFFF',
+    bgMuted:       '#F3F0F9',
+    textPrimary:   '#111827',
+    textSecondary: '#4B5563',
+    textTertiary:  '#6B7280',
+    textMuted:     '#9CA3AF',
+    textInverse:   '#FFFFFF',
+    borderSubtle:  '#EEF2F7',
+    borderDefault: '#E5E7EB',
+    borderStrong:  '#D1D5DB',
+    // Semantic
+    growth:        '#10B981',
+    decline:       '#EF4444',
+    neutral:       '#6B7280',
+    insight:       '#7C3AED',
+    warning:       '#F59E0B',
+    info:          '#3B82F6',
+    success:       '#10B981',
+    risk:          '#EF4444',
     // Bridge chart tokens
-    chartBaseline:    '#3d5068',
-    chartExpansion:   '#14b8a6',
-    chartContraction: '#f87171',
-    chartNeutral:     '#4a5568',
-    chartGrid:        '#1e2d45',
-    chartAxis:        '#4a5568',
-    // Brand (teal)
-    brandPrimary:   '#14b8a6',
-    brandSoft:      'rgba(20,184,166,0.10)',
-    brandBorder:    'rgba(20,184,166,0.28)',
+    chartBaseline:    '#9CA3AF',
+    chartExpansion:   '#10B981',
+    chartContraction: '#EF4444',
+    chartNeutral:     '#CBD5E1',
+    chartGrid:        '#F3F4F6',
+    chartAxis:        '#9CA3AF',
+    // Brand — purple
+    brandPrimary:   '#7C3AED',
+    brandSoft:      '#F3E8FF',
+    brandBorder:    '#DDD6FE',
     // Interactions
-    accentPrimary:      '#e6edf3',
-    accentPrimaryHover: '#ffffff',
-    focusRing:          'rgba(20,184,166,0.45)',
-    selectionBg:        'rgba(20,184,166,0.10)',
+    accentPrimary:      '#7C3AED',
+    accentPrimaryHover: '#6D28D9',
+    focusRing:          'rgba(124,58,237,0.20)',
+    selectionBg:        '#F3E8FF',
     mono: "'JetBrains Mono',monospace",
   },
 
@@ -156,19 +156,19 @@ const THEMES = {
 
   // ── 4. COLOR-BLIND (Deuteranopia-safe) ─────────────────────────────────────
   colorBlind: {
-    bgPage:        '#0b1326',
-    bgSurface:     '#131b2e',
+    bgPage:        '#FFFFFF',
+    bgSurface:     '#F9F8FD',
     bgRaised:      '#171f33',
-    bgElevated:    '#1c253a',
-    bgMuted:       '#0f1828',
-    textPrimary:   '#e6edf3',
+    bgElevated:    '#FFFFFF',
+    bgMuted:       '#F6F4FB',
+    textPrimary:   '#111827',
     textSecondary: '#94a3b8',
     textTertiary:  '#64748b',
-    textMuted:     '#4a5568',
-    textInverse:   '#0b1326',
+    textMuted:     '#9CA3AF',
+    textInverse:   '#FFFFFF',
     borderSubtle:  'rgba(230,237,243,0.06)',
-    borderDefault: '#1e2d45',
-    borderStrong:  '#253550',
+    borderDefault: '#E5E7EB',
+    borderStrong:  '#D1D5DB',
     growth:        '#60a5fa',
     decline:       '#fb923c',
     neutral:       '#64748b',
@@ -177,16 +177,16 @@ const THEMES = {
     info:          '#38bdf8',
     success:       '#34d399',
     risk:          '#fb923c',
-    chartBaseline:    '#3d5068',
+    chartBaseline:    '#7C3AED',
     chartExpansion:   '#60a5fa',
     chartContraction: '#fb923c',
-    chartNeutral:     '#4a5568',
-    chartGrid:        '#1e2d45',
-    chartAxis:        '#4a5568',
+    chartNeutral:     '#9CA3AF',
+    chartGrid:        '#E5E7EB',
+    chartAxis:        '#9CA3AF',
     brandPrimary:   '#60a5fa',
     brandSoft:      'rgba(96,165,250,0.10)',
     brandBorder:    'rgba(96,165,250,0.28)',
-    accentPrimary:      '#e6edf3',
+    accentPrimary:      '#111827',
     accentPrimaryHover: '#ffffff',
     focusRing:          'rgba(96,165,250,0.45)',
     selectionBg:        'rgba(96,165,250,0.10)',
@@ -485,7 +485,7 @@ function KpiChip({label,value,sub,subGood,accent,theme=null}) {
       borderRadius:6,
       padding:     '12px 14px',
     }}>
-      <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:7}}>
+      <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.06em',color:'#9CA3AF',marginBottom:7}}>
         {label}
       </div>
       <div style={{fontFamily:"'JetBrains Mono',monospace",fontFeatureSettings:"'tnum'",fontSize:19,fontWeight:700,lineHeight:1,color:valColor,letterSpacing:'-0.02em'}}>
@@ -597,12 +597,12 @@ function AiInsightCard({
 }) {
   const T = theme || THEMES.dark
   const [open, setOpen] = useState(expanded)
-  const sevColor = severity==='risk'?T.risk:severity==='warning'?T.warning:severity==='success'?T.success:T.insight
+  const sevColor = severity==='risk'?'#EF4444':severity==='warning'?'#F59E0B':severity==='success'?'#10B981':'#7C3AED'
   const sevBg    = `${sevColor}12`
   const sevBorder= `${sevColor}30`
 
   return (
-    <div style={{background:T.bgElevated,border:`1px solid ${sevBorder}`,borderLeft:`3px solid ${sevColor}`,borderRadius:6,overflow:'hidden'}}>
+    <div style={{background:'#FFFFFF',border:`1px solid ${sevBorder}`,borderLeft:`3px solid ${sevColor}`,borderRadius:6,overflow:'hidden'}}>
       <button onClick={()=>setOpen(v=>!v)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 14px',background:'transparent',border:'none',cursor:'pointer',gap:10}}>
         <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0}}>
           <Sparkles size={11} color={sevColor} style={{flexShrink:0}}/>
@@ -712,7 +712,7 @@ function WaterfallBridge({data, showBoundary=false, height=280, theme=null}) {
     const isBound = d.type==='start'||d.type==='end'
     const displayVal = isBound ? d.value : d.delta
     return (
-      <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,padding:'8px 12px',boxShadow:`0 4px 20px rgba(0,0,0,0.4)`}}>
+      <div style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',padding:'8px 12px',boxShadow:`0 4px 20px rgba(0,0,0,0.4)`}}>
         <div style={{fontSize:10,fontWeight:600,color:T.textSecondary,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{d.category}</div>
         <div style={{fontSize:15,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:isBound?T.textPrimary:displayVal>=0?T.growth:T.decline}}>
           {isBound?'':displayVal>=0?'+':''}{fmt(displayVal)}
@@ -1003,15 +1003,7 @@ export default function CommandCenter() {
   const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
   const [histChartWindow, setHistChartWindow] = useState(24)  // Historical perf chart window
   const [themeMode, setThemeMode] = useState<'dark'|'light'|'light-red'|'colorBlind'|'highContrast'>('dark')
-  const [showThemeMenu, setShowThemeMenu]     = useState(false)
-  const [uploadDatasetType, setUploadDatasetType] = useState('')
-  // ── AI layer states ──────────────────────────────────────────────────────────
-  const [aiNarrative, setAiNarrative]     = useState('')
-  const [aiLoading, setAiLoading]         = useState(false)
-  const [chatOpen, setChatOpen]           = useState(false)
-  const [chatMessages, setChatMessages]   = useState([])
-  const [chatInput, setChatInput]         = useState('')
-  const [chatLoading, setChatLoading]     = useState(false)
+  const [showThemeMenu, setShowThemeMenu] = useState(false)
 
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
@@ -1024,10 +1016,10 @@ export default function CommandCenter() {
     return e
   }, [engine, fieldMap])
 
-  const step1  = true  // data always pre-loaded from upload wizard
+  const step1  = columns.length > 0
   const step2  = step1 && !!engine
-  const step3  = step2  // fields pre-mapped from upload wizard
-  const canRun = step3 && !running && columns.length > 0 && !!file
+  const step3  = step2 && Object.keys(errors).length === 0
+  const canRun = step3 && !running
 
   // ── ARR converter — ×12 if MRR input ──────────────────────────────────────
   const toARR = makeToARR(revenueType)
@@ -1796,31 +1788,6 @@ export default function CommandCenter() {
     fetch(`${API}/health`).catch(()=>{})
   }, [router])
 
-  // Read data cube from sessionStorage (set by upload wizard)
-  useEffect(() => {
-    if (dataCubeStore.hasData()) {
-      const cube = dataCubeStore.load()
-      if (!cube) return
-      const f = dataCubeStore.toFile(cube)
-      setFile(f)
-      setColumns(cube.meta.columns)
-      setRowCount(cube.meta.rowCount)
-      setIsBridgeOutput(false)
-      const map = cube.meta.mapping
-      const fm = {}
-      if (map.customer) fm['customer'] = map.customer
-      if (map.date)     fm['date']     = map.date
-      if (map.revenue)  fm['revenue']  = map.revenue
-      if (map.product)  fm['product']  = map.product
-      if (map.channel)  fm['channel']  = map.channel
-      if (map.region)   fm['region']   = map.region
-      if (map.fiscal)   fm['fiscal']   = map.fiscal
-      if (map.quantity) fm['quantity'] = map.quantity
-      setFieldMap(fm)
-      if (cube.meta.datasetType) setUploadDatasetType(cube.meta.datasetType)
-    }
-  }, [])
-
   useEffect(() => {
     if (!engine||!columns.length) return
     setFieldMap(buildAutoMap(engine,columns))
@@ -1840,105 +1807,6 @@ export default function CommandCenter() {
       setUploadErr(e.code==='ECONNABORTED'?'Timed out — retry in 10s.':`Could not read file: ${e?.response?.data?.detail||e.message}`)
     }
     setUploading(false)
-  }
-
-  // ── AI: generate narrative from analysis results ───────────────────────────
-  async function fetchAiNarrative(analysisData) {
-    if (!analysisData) return
-    setAiLoading(true)
-    try {
-      const ret = analysisData
-      const summaryText = [
-        ret.beginning && `Beginning ARR: ${fmt(ret.beginning)}`,
-        ret.ending    && `Ending ARR: ${fmt(ret.ending)}`,
-        ret.nrr       && `Net Retention: ${fmtPct(ret.nrr)}`,
-        ret.grr       && `Gross Retention: ${fmtPct(ret.grr)}`,
-        ret.new_arr   && `New Logo ARR: ${fmt(ret.new_arr)}`,
-        ret.churn     && `Churn: ${fmt(ret.churn)}`,
-        ret.upsell    && `Upsell: ${fmt(ret.upsell)}`,
-        ret.downsell  && `Downsell: ${fmt(ret.downsell)}`,
-      ].filter(Boolean).join(', ')
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: `You are an expert revenue analyst and CFO advisor for B2B SaaS companies. 
-You analyze ARR/MRR bridge data and provide executive-grade insights.
-Always structure your response as JSON with these exact keys:
-{
-  "headline": "one bold sentence — the single most important insight",
-  "body": "2-3 sentences explaining what happened and why",
-  "implication": "key risk or opportunity this creates",
-  "action": "one specific recommended next step",
-  "severity": "info | warning | risk | success"
-}
-Be specific with numbers. Sound like a senior CFO advisor, not a dashboard tooltip.`,
-          messages: [{
-            role: 'user',
-            content: `Analyze this revenue performance data and give me an executive insight:
-${summaryText}`
-          }]
-        })
-      })
-      const data = await response.json()
-      const text = data.content?.[0]?.text || ''
-      const clean = text.replace(/```json|```/g, '').trim()
-      const parsed = JSON.parse(clean)
-      setAiNarrative(parsed)
-    } catch (e) {
-      console.error('AI narrative failed:', e)
-    }
-    setAiLoading(false)
-  }
-
-  // ── AI: chat with data ───────────────────────────────────────────────────────
-  async function sendChatMessage() {
-    if (!chatInput.trim() || chatLoading) return
-    const userMsg = { role: 'user', content: chatInput.trim() }
-    const newMessages = [...chatMessages, userMsg]
-    setChatMessages(newMessages)
-    setChatInput('')
-    setChatLoading(true)
-    try {
-      const ret = retForPeriod || ret
-      const dataContext = results ? `
-Current analysis data:
-- Period: ${selPeriod}
-- Beginning ARR: ${fmt(ret?.beginning || 0)}
-- Ending ARR: ${fmt(ret?.ending || 0)}
-- Net Retention: ${fmtPct(ret?.nrr || 0)}
-- Gross Retention: ${fmtPct(ret?.grr || 0)}
-- New Logo: ${fmt(ret?.new_arr || 0)}
-- Churn: ${fmt(ret?.churn || 0)}
-- Upsell: ${fmt(ret?.upsell || 0)}
-- Downsell: ${fmt(ret?.downsell || 0)}
-- Dataset: ${uploadDatasetType}
-` : 'No analysis has been run yet.'
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: `You are RevenueLens AI — an expert revenue intelligence advisor embedded in a CFO analytics platform.
-You have access to the company's current ARR/MRR bridge analysis data.
-Answer questions concisely and precisely. Use specific numbers from the data.
-Sound like a senior revenue advisor — direct, insightful, no fluff.
-${dataContext}`,
-          messages: newMessages.map(m => ({ role: m.role, content: m.content }))
-        })
-      })
-      const data = await response.json()
-      const reply = data.content?.[0]?.text || 'I could not generate a response.'
-      setChatMessages(prev => [...prev, { role: 'assistant', content: reply }])
-    } catch (e) {
-      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
-    }
-    setChatLoading(false)
   }
 
   async function runAnalysis() {
@@ -1997,7 +1865,7 @@ ${dataContext}`,
           if(fieldMap.quantity) fd.append('quantity_col', fieldMap.quantity)
         }
         const {data}=await axios.post(endpoint,fd,{timeout:120000})
-        setResults({...data,_engine:engine}); setActiveTab('summary'); fetchAiNarrative(data?.summary?.overall)
+        setResults({...data,_engine:engine}); setActiveTab('summary')
         if (lookbacks.length) setSelLb(lookbacks[lookbacks.length-1])
         const allCats=Object.keys(data.top_movers||{})
         // Set initial category to first churn cat for churn panel
@@ -2005,7 +1873,7 @@ ${dataContext}`,
         if(churnCat) setMoverCat(churnCat)
         else if(allCats.length) setMoverCat(allCats[0])
       }
-    } catch(e) { const d=e?.response?.data?.detail; setRunErr(typeof d==='string'?d:d?JSON.stringify(d):'Analysis failed. Please try again.') }
+    } catch(e) { setRunErr(e?.response?.data?.detail||'Analysis failed. Please try again.') }
     setRunning(false)
   }
 
@@ -2133,6 +2001,7 @@ ${dataContext}`,
     {id:'retention_trend',label:'Detailed Bridge'},
     {id:'historical_perf',label:'Historical Performance'},
     {id:'top_movers',label:'Top Movers'},
+    {id:'top_customers',label:'Customers'},
     {id:'kpi_matrix',label:'KPI Matrix'},
     {id:'output',label:'Output'},
   ]
@@ -2162,7 +2031,7 @@ ${dataContext}`,
 
   // Component style helpers — all consume tokens
   const S = {
-    card:  { background:T.bgSurface, border:`1px solid ${T.borderDefault}`, borderRadius:6, padding:20 },
+    card:  { background:'#FFFFFF', border:'1px solid #E5E7EB', borderRadius:14, padding:20, boxShadow:'0 1px 3px rgba(0,0,0,0.04)' },
     cardF: { background:T.bgSurface, border:`1px solid ${T.borderDefault}`, borderRadius:6, padding:0, overflow:'hidden' },
     label: { fontSize:9, fontWeight:600, textTransform:'uppercase' as const, letterSpacing:'0.1em', color:T.textMuted },
     th:    { fontSize:9, fontWeight:600, textTransform:'uppercase' as const, letterSpacing:'0.08em', color:T.textMuted, padding:'9px 14px', background:T.bgRaised, borderBottom:`1px solid ${T.borderDefault}`, textAlign:'left' as const, whiteSpace:'nowrap' as const },
@@ -2173,183 +2042,34 @@ ${dataContext}`,
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <div data-theme={themeMode} style={{display:'flex',height:'100vh',overflow:'hidden',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:(themeMode==='light'||themeMode==='light-red')?'light':'dark'}}>
+    <div data-theme={themeMode} style={{display:'flex',height:'100vh',overflow:'hidden',background:T.bgPage,fontFamily:"'Inter',system-ui,sans-serif",color:T.textPrimary,colorScheme:'light'}}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-        :root {
-          --bg:          #0B1220;
-          --surface:     #0F1A2E;
-          --raised:      #162035;
-          /* ── Semantic tokens (dark default) ── */
-          --bg-primary:    #0b1326;
-          --bg-secondary:  #0F1A2E;
-          --bg-card:       #131b2e;
-          --bg-raised:     #162035;
-          --bg-elevated:   #1A2840;
-          --bg-muted:      #0D1525;
-
-          --text-primary:   #E2E8F0;
-          --text-secondary: #94A3B8;
-          --text-tertiary:  #64748B;
-          --text-muted:     #4A5A6E;
-          --text-inverse:   #0F172A;
-
-          --border-subtle:  rgba(229,231,235,0.07);
-          --border-default: #1E2D45;
-          --border-strong:  #253550;
-
-          --color-growth:   #14b8a6;
-          --color-decline:  #F87171;
-          --color-neutral:  #64748B;
-          --color-insight:  #A78BFA;
-          --color-warning:  #F59E0B;
-          --color-info:     #60A5FA;
-          --color-success:  #34D399;
-          --color-risk:     #EF4444;
-
-          --chart-baseline:    #3D5068;
-          --chart-expansion:   #14b8a6;
-          --chart-contraction: #F87171;
-          --chart-neutral:     #4A5A6E;
-          --chart-grid:        #1E2D45;
-          --chart-axis:        #4A5A6E;
-
-          --accent-primary:       #CBD5E1;
-          --accent-primary-hover: #E2E8F0;
-          --focus-ring:           rgba(45,212,191,0.4);
-          --selection-bg:         rgba(45,212,191,0.08);
-
-          /* Legacy compat */
-          --border:      #1E2D45;
-          --border2:     #253550;
-          --text:        #E2E8F0;
-          --text-2:      #94A3B8;
-          --text-3:      #64748B;
-          --text-4:      #4A5A6E;
-          --pos:         #14b8a6;
-          --neg:         #F87171;
-          --warn:        #F59E0B;
-          --neutral:     #3D5068;
-          --accent:      #CBD5E1;
-          --font:        'Inter', system-ui, sans-serif;
-          --mono:        'JetBrains Mono', monospace;
-        }
-
-        /* ── Light mode ── */
-        [data-theme="light-red"] {
-          --bg-primary:    #f8f9ff; --bg-secondary: #f3f4f6; --bg-card: #ffffff;
-          --bg-raised:     #f3f4f6; --bg-elevated: #ffffff;  --bg-muted: #f1f5f9;
-          --text-primary:  #0b1c30; --text-secondary: #4a4455; --text-tertiary: #64748b;
-          --text-muted:    #94a3b8; --text-inverse: #ffffff;
-          --border-subtle: rgba(11,28,48,0.06); --border-default: rgba(11,28,48,0.10); --border-strong: rgba(153,27,27,0.25);
-          --color-growth:  #991b1b; --color-decline: #dc2626; --color-insight: #7c3aed;
-          --color-warning: #d97706; --color-info: #2563eb; --color-success: #059669; --color-risk: #dc2626;
-          --chart-expansion: #991b1b; --chart-contraction: #dc2626; --chart-baseline: #94a3b8;
-          --chart-neutral: #64748b; --chart-grid: rgba(11,28,48,0.07); --chart-axis: #94a3b8;
-          --accent-primary: #0b1c30; --accent-primary-hover: #1e293b;
-          --focus-ring: rgba(153,27,27,0.35); --selection-bg: rgba(153,27,27,0.08);
-          --border: rgba(11,28,48,0.10); --border2: rgba(153,27,27,0.25);
-          --text: #0b1c30; --text-2: #4a4455; --text-3: #94a3b8; --text-4: #64748b;
-          --pos: #991b1b; --neg: #dc2626; --warn: #d97706; --neutral: #64748b; --accent: #0b1c30;
-        }
-
-        [data-theme="light"] {
-          --bg-primary:    #F8FAFC; --bg-secondary: #F1F5F9; --bg-card: #FFFFFF;
-          --bg-raised:     #F1F5F9; --bg-elevated: #FFFFFF;  --bg-muted: #F8FAFC;
-          --text-primary:  #0F172A; --text-secondary: #475569; --text-tertiary: #64748B;
-          --text-muted:    #94A3B8; --text-inverse: #FFFFFF;
-          --border-subtle: rgba(15,23,42,0.06); --border-default: rgba(15,23,42,0.10); --border-strong: rgba(15,23,42,0.16);
-          --color-growth:  #630ed4; --color-decline: #ba1a1a; --color-insight: #7c3aed;
-          --color-warning: #d97706; --color-info: #2563eb; --color-success: #059669; --color-risk: #ba1a1a;
-          --chart-expansion: #630ed4; --chart-contraction: #ba1a1a; --chart-baseline: #94a3b8;
-          --chart-neutral: #64748b; --chart-grid: rgba(11,28,48,0.07); --chart-axis: #94a3b8;
-          --accent-primary: #0b1c30; --accent-primary-hover: #1e293b;
-          --focus-ring: rgba(99,14,212,0.35); --selection-bg: rgba(99,14,212,0.08);
-          --border: rgba(11,28,48,0.10); --border2: rgba(99,14,212,0.20);
-          --text: #0b1c30; --text-2: #4a4455; --text-3: #94a3b8; --text-4: #64748b;
-          --pos: #630ed4; --neg: #ba1a1a; --warn: #d97706; --neutral: #64748b; --accent: #0b1c30;
-        }
-
-        /* ── Color-blind mode (deuteranopia-safe) ── */
-        [data-theme="colorBlind"] {
-          --color-growth:  #60A5FA; --color-decline: #FB923C;
-          --chart-expansion: #60A5FA; --chart-contraction: #FB923C;
-          --pos: #60A5FA; --neg: #FB923C;
-        }
-
-        /* ── High contrast mode ── */
-        [data-theme="highContrast"] {
-          --bg-primary: #000000; --bg-secondary: #0A0A0A; --bg-card: #0A0A0A;
-          --bg-raised: #141414; --bg-elevated: #1A1A1A; --bg-muted: #050505;
-          --text-primary: #FFFFFF; --text-secondary: #E5E5E5; --text-tertiary: #CCCCCC; --text-muted: #AAAAAA;
-          --border-subtle: rgba(255,255,255,0.15); --border-default: rgba(255,255,255,0.25); --border-strong: rgba(255,255,255,0.40);
-          --border: rgba(255,255,255,0.25); --border2: rgba(255,255,255,0.40);
-          --color-growth: #00FF94; --color-decline: #FF4444;
-          --chart-expansion: #00FF94; --chart-contraction: #FF4444; --chart-baseline: #666666;
-          --pos: #00FF94; --neg: #FF4444;
-        }
-        *{box-sizing:border-box}
-        body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-primary);color:var(--text-primary);}
-        ::-webkit-scrollbar{width:5px;height:5px}
-        ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:#253550;border-radius:4px}
-        ::-webkit-scrollbar-thumb:hover{background:#3D5068}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        .animate-spin{animation:spin 1s linear infinite}
-
-        /* ── Enterprise transitions ── */
-        button{transition:background 0.15s ease,color 0.15s ease,border-color 0.15s ease,opacity 0.15s ease}
-        input,select,textarea{transition:border-color 0.15s ease,box-shadow 0.15s ease}
-
-        /* ── Focus states — WCAG AA ── */
-        button:focus-visible,input:focus-visible,select:focus-visible{
-          outline:2px solid var(--focus-ring,rgba(45,212,191,0.5));
-          outline-offset:2px;
-        }
-
-        /* ── Table readability ── */
-        table{border-collapse:collapse}
-        th{user-select:none}
-
-        /* ── Scrollbar styling ── */
-        ::-webkit-scrollbar{width:4px;height:4px}
-        ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
-        ::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
-
-        /* ── Selection ── */
-        ::selection{background:var(--selection-bg);color:var(--text-primary)}
-
-        /* ── Accessible motion ── */
-        @media(prefers-reduced-motion:reduce){
-          *{animation-duration:0.01ms!important;transition-duration:0.01ms!important}
-        }
-
-        /* ── Color-blind mode secondary encoding — growth/decline icons ── */
-        [data-theme="colorBlind"] .cb-growth::before{content:'↑ ';font-size:0.8em}
-        [data-theme="colorBlind"] .cb-decline::before{content:'↓ ';font-size:0.8em}
-
-        /* ── High contrast focus ── */
-        [data-theme="highContrast"] button:focus-visible{
-          outline:3px solid #FFFFFF;outline-offset:3px
-        }
-
-        /* ── Light mode overrides ── */
-        [data-theme="light"] ::-webkit-scrollbar-thumb{background:rgba(15,23,42,0.2)}
-        [data-theme="light"] ::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,0.35)}
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { box-sizing: border-box; }
+        body { background: #F6F4FB; }
+        html { font-family: 'Inter',ui-sans-serif,system-ui,sans-serif; font-size: 14px; color: #111827; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity:0;transform:translateY(4px); } to { opacity:1;transform:none; } }
+        input,select,textarea,button { font-family: inherit; }
+        table { border-collapse: collapse; }
+        ::-webkit-scrollbar { width:5px; height:5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #DDD6FE; border-radius: 99px; }
+        ::-webkit-scrollbar-thumb:hover { background: #C4B5FD; }
+        select option { background: #FFFFFF; color: #111827; }
       `}</style>
 
       {/* ══ LEFT SIDEBAR ══════════════════════════════════════════════════ */}
-      <aside style={{width:256,display:'flex',flexDirection:'column',flexShrink:0,borderRight:`1px solid ${T.borderDefault}`,background:T.bgSurface,overflow:'hidden'}}>
+      <aside style={{width:260,display:'flex',flexDirection:'column',flexShrink:0,borderRight:'1px solid #EEF2F7',background:'#FFFFFF',overflow:'hidden',boxShadow:'1px 0 0 #EEF2F7'}}>
 
         {/* Logo */}
-        <div style={{height:56,display:'flex',alignItems:'center',gap:12,padding:'0 20px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
-          <div style={{width:28,height:28,borderRadius:6,background:T.bgRaised,border:`1px solid ${T.borderStrong}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-            <BarChart3 size={13} color="#94A3B8"/>
+        <div style={{height:60,display:'flex',alignItems:'center',gap:10,padding:'0 20px',borderBottom:'1px solid #EEF2F7',flexShrink:0}}>
+          <div style={{width:32,height:32,borderRadius:10,background:'#7C3AED',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 2px 8px rgba(124,58,237,0.35)'}}>
+            <BarChart3 size={16} color="#FFFFFF"/>
           </div>
           <div style={{flex:1}}>
-            <div style={{fontSize:13,fontWeight:900,color:T.textPrimary,letterSpacing:'-0.01em',lineHeight:1}}>RevenueLens</div>
-            <div style={{fontSize:8,fontWeight:600,textTransform:'uppercase' as const,letterSpacing:'0.12em',color:T.textMuted,marginTop:2}}>Analytics</div>
+            <div style={{fontSize:14,fontWeight:700,color:'#111827',letterSpacing:'-0.02em',lineHeight:1}}>RevenueLens</div>
+            <div style={{fontSize:10,fontWeight:500,color:'#9CA3AF',marginTop:2,letterSpacing:'0.02em'}}>Revenue Intelligence</div>
           </div>
           <button onClick={()=>router.push('/dashboard')} style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary}}>
             <Home size={12}/>
@@ -2371,64 +2091,58 @@ ${dataContext}`,
           </div>
         </div>
 
+        {/* Progress steps */}
+        <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.borderDefault}`,flexShrink:0}}>
+          {[[1,'Upload Data',step1,!step1],[2,'Select Engine',step2,step1&&!step2],[3,'Map Fields',step3,step2&&!step3]].map(([n,lbl,done,active])=>(
+            <div key={n} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 8px',borderRadius:10,background:active?T.bgRaised:'transparent',marginBottom:2}}>
+              <div style={{width:20,height:20,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:900,flexShrink:0,background:done?(T.brandSoft||T.selectionBg):active?T.bgRaised:T.borderDefault,color:done?(T.brandPrimary||T.growth):active?T.accentPrimary:T.textMuted}}>{done?'✓':n}</div>
+              <span style={{fontSize:11,fontWeight:600,color:active?T.accentPrimary:T.textMuted}}>{lbl}</span>
+            </div>
+          ))}
+        </div>
+
         {/* Scrollable sidebar content */}
         <div style={{flex:1,overflowY:'auto'}}>
 
-          {/* Data cube strip — shows cube metadata from upload wizard */}
-          {file&&columns.length>0&&(()=>{
-            const cube=dataCubeStore.load()
-            return (
-              <div style={{padding:'10px 16px',borderBottom:`1px solid ${T.borderDefault}`}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:cube&&cube.meta.transforms.length>0?6:0}}>
-                  <CheckCircle size={11} color={T.growth}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:10,fontWeight:600,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div>
-                    <div style={{fontSize:9,color:T.textSecondary}}>
-                      {(cube?.meta.rowCount||rowCount||0).toLocaleString()} rows · {columns.length} cols
-                      {cube?.meta.datasetType?' · '+cube.meta.datasetType:''}
-                    </div>
-                  </div>
-                  <button onClick={()=>router.push('/dashboard/upload')} title="Edit data cube"
-                    style={{fontSize:9,color:T.textMuted,background:'transparent',border:'none',cursor:'pointer',padding:'2px 4px'}}>
-                    Edit
-                  </button>
-                </div>
-                {cube&&cube.meta.transforms.length>0&&(
-                  <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
-                    {cube.meta.transforms.map(t=>(
-                      <span key={t} style={{fontSize:8,fontWeight:600,padding:'2px 6px',borderRadius:10,
-                        background:T.growth+'18',color:T.growth,textTransform:'uppercase',letterSpacing:'0.06em'}}>
-                        {t.replace(/_/g,' ')}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })()}
+          {/* STEP 1: Upload */}
+          <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
+            <div style={{...S.label}}>1. Upload Data</div>
+            {uploadErr&&<div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:`${T.decline}0F`,color:T.risk,fontSize:10,display:'flex',gap:8}}><AlertCircle size={11} style={{flexShrink:0,marginTop:1}}/>{uploadErr}</div>}
+            <div onClick={()=>!uploading&&fileRef.current?.click()} style={{
+              marginTop:10,borderRadius:12,border:`2px dashed ${file&&columns.length?`${T.growth}59`:uploading?`${T.growth}33`:T.borderStrong}`,
+              padding:16,textAlign:'center',cursor:'pointer',
+              background:file&&columns.length?`${T.growth}0A`:uploading?`${T.growth}08`:T.bgRaised,
+            }}>
+              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadFile(f)}}/>
+              {uploading?(<div><Loader2 size={18} color="#94A3B8" style={{margin:'0 auto 4px',animation:'spin 1s linear infinite'}}/><div style={{fontSize:11,color:T.textSecondary,fontWeight:500}}>Reading file…</div></div>)
+              :file&&columns.length?(<div><CheckCircle size={18} color="#10B981" style={{margin:'0 auto 4px'}}/><div style={{fontSize:11,fontWeight:700,color:T.textPrimary,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div><div style={{fontSize:10,color:T.textSecondary}}>{rowCount.toLocaleString()} rows · {columns.length} cols</div><button onClick={e=>{e.stopPropagation();fileRef.current?.click()}} style={{fontSize:9,color:T.growth,background:'none',border:'none',cursor:'pointer',fontWeight:500,marginTop:4}}>Change file</button></div>)
+              :(<div><Upload size={18} color="#5A7294" style={{margin:'0 auto 6px'}}/><div style={{fontSize:11,color:T.textSecondary,fontWeight:600}}>Click or drag file</div><div style={{fontSize:10,color:T.textTertiary,marginTop:2}}>CSV or Excel</div></div>)}
+            </div>
+            <UploadTimer active={uploading} theme={T}/>
+          </div>
 
-          {/* Select Engine */}
-          {(
+          {/* STEP 2: Engine */}
+          {step1&&(
             <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
-              <div style={{...S.label}}>1. Select Engine</div>
+              <div style={{...S.label}}>2. Select Engine</div>
               <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:6}}>
                 {Object.entries(ENGINE_CONFIG).map(([id,ec])=>{
                   const Icon=ec.icon; const active=engine===id
                   return (
                     <button key={id} onClick={()=>setEngine(id)} style={{
                       display:'flex',alignItems:'center',gap:12,padding:12,borderRadius:10,
-                      border:`1px solid ${active?'rgba(79,219,200,0.5)':T.borderStrong}`,
-                      background:active?'rgba(79,219,200,0.1)':T.bgRaised,
+                      border:`1px solid ${active?'#DDD6FE':'#F3F4F6'}`,
+                      background:active?'#F3E8FF':'#F9FAFB',
                       cursor:'pointer',textAlign:'left',width:'100%',transition:'all 0.15s',
                     }}>
                       <div style={{width:28,height:28,borderRadius:8,background:active?'rgba(79,219,200,0.2)':T.borderDefault,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                         <Icon size={12} color={active?T.growth:T.textSecondary}/>
                       </div>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:11,fontWeight:700,color:active?(T.brandPrimary||T.growth):T.textPrimary,lineHeight:1.2}}>{ec.label}</div>
+                        <div style={{fontSize:12,fontWeight:600,color:active?'#7C3AED':'#111827',lineHeight:1.2}}>{ec.label}</div>
                         <div style={{fontSize:9,color:T.textTertiary,marginTop:2}}>{ec.desc}</div>
                       </div>
-                      {active&&<CheckCircle size={12} color="#4ADE80"/>}
+                      {active&&<CheckCircle size={12} color="#10B981"/>}
                     </button>
                   )
                 })}
@@ -2436,115 +2150,36 @@ ${dataContext}`,
             </div>
           )}
 
-
+          {/* STEP 3: Map Fields */}
+          {step2&&cfg&&(
+            <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                <div style={{...S.label}}>3. Map Fields</div>
+                <span style={{fontSize:9,fontWeight:700,color:Object.keys(errors).length===0?T.growth:T.textSecondary}}>
+                  {cfg.required.filter(f=>!!fieldMap[f.key]).length}/{cfg.required.length} mapped
+                </span>
+              </div>
+              <div style={{borderRadius:10,border:`1px solid ${T.borderDefault}`,overflow:'hidden',marginBottom:8,background:T.bgSurface}}>
+                <div style={{padding:'6px 12px',borderBottom:`1px solid ${T.borderDefault}`,fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>Required</div>
+                {cfg.required.map(f=><FieldRow key={f.key} label={f.label} required value={fieldMap[f.key]||''} columns={columns} onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))} showError={validated}/>)}
+              </div>
+              <div style={{borderRadius:10,border:`1px solid ${T.borderDefault}`,overflow:'hidden',background:T.bgSurface}}>
+                <button onClick={()=>setShowOpt(v=>!v)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',background:'transparent',border:'none',cursor:'pointer'}}>
+                  <span style={{fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>Optional Fields</span>
+                  {showOpt?<ChevronUp size={10} color="#9CA3AF"/>:<ChevronDown size={10} color="#9CA3AF"/>}
+                </button>
+                {showOpt&&cfg.optional.map(f=><FieldRow key={f.key} label={f.label} value={fieldMap[f.key]||''} columns={columns} onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))} showError={false}/>)}
+              </div>
+              {validated&&Object.keys(errors).length>0&&(
+                <div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid rgba(255,71,87,0.2)',background:'rgba(255,71,87,0.05)'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:T.risk,marginBottom:4}}>Map required fields:</div>
+                  {cfg.required.filter(f=>errors[f.key]).map(f=><div key={f.key} style={{fontSize:9,color:T.risk}}>· {f.label}</div>)}
+                </div>
+              )}
+            </div>
+          )}
 
         </div>
-
-        {/* Cohort config — shown when cohort engine selected */}
-        {step2&&engine==='cohort'&&(
-          <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
-            <div style={{...S.label,marginBottom:10}}>Cohort Types</div>
-            {[{id:'SG',label:'Size Cohorts',sub:'Tier 1 / Tier 2 / Tier 3'},{id:'PC',label:'Percentile Cohorts',sub:'Top 5% / 10% / 20% / 50%'},{id:'RC',label:'Revenue Cohorts',sub:'Revenue Leaders / Growth / Tail'}].map(ct=>{
-              const sel=cohortTypes.includes(ct.id)
-              return (
-                <div key={ct.id} onClick={()=>setCohortTypes(prev=>sel?prev.filter(x=>x!==ct.id):[...prev,ct.id])}
-                  style={{display:'flex',alignItems:'center',gap:8,padding:'7px 10px',borderRadius:6,cursor:'pointer',marginBottom:4,border:`1px solid ${sel?T.borderStrong:T.borderDefault}`,background:sel?T.bgRaised:T.bgPage}}>
-                  <div style={{width:12,height:12,borderRadius:2,flexShrink:0,border:`2px solid ${sel?T.growth:T.textMuted}`,background:sel?T.growth:'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    {sel&&<div style={{width:4,height:4,borderRadius:1,background:T.bgPage}}/>}
-                  </div>
-                  <div>
-                    <div style={{fontSize:10,fontWeight:600,color:sel?T.textPrimary:T.textSecondary}}>{ct.label}</div>
-                    <div style={{fontSize:9,color:T.textMuted}}>{ct.sub}</div>
-                  </div>
-                </div>
-              )
-            })}
-
-            <div style={{...S.label,marginTop:12,marginBottom:8}}>Period Filter</div>
-            <div style={{display:'flex',borderRadius:5,border:`1px solid ${T.borderDefault}`,overflow:'hidden',height:26,marginBottom:12}}>
-              {[['all','All Time'],['latest','Latest Period'],['fiscal','By Fiscal Year']].map(([val,lbl])=>(
-                <button key={val} onClick={()=>setPeriodFilter(val)}
-                  style={{flex:1,height:26,fontSize:9,border:'none',cursor:'pointer',fontWeight:periodFilter===val?600:400,background:periodFilter===val?T.bgRaised:T.bgPage,color:periodFilter===val?T.accentPrimary:T.textMuted}}>
-                  {lbl}
-                </button>
-              ))}
-            </div>
-
-            <div style={{...S.label,marginBottom:6}}>Dimension Mode</div>
-            <div style={{fontSize:8,color:T.textTertiary,marginBottom:8}}>Select one or both — results are combined</div>
-
-            <div style={{marginBottom:6,border:`1px solid ${useSingle?T.borderStrong:T.borderDefault}`,borderRadius:6,background:useSingle?T.bgRaised:T.bgPage,overflow:'hidden'}}>
-              <div onClick={()=>setUseSingle(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
-                <div style={{width:12,height:12,borderRadius:2,flexShrink:0,border:`2px solid ${useSingle?T.growth:T.textMuted}`,background:useSingle?T.growth:'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  {useSingle&&<div style={{width:4,height:4,borderRadius:1,background:T.bgPage}}/>}
-                </div>
-                <div>
-                  <div style={{fontSize:10,fontWeight:600,color:useSingle?T.textPrimary:T.textSecondary}}>Single Dimension</div>
-                  <div style={{fontSize:9,color:T.textMuted}}>Cohort by individual columns</div>
-                </div>
-              </div>
-              {useSingle&&(
-                <div style={{padding:'0 10px 10px 30px'}}>
-                  {individualCols.map((col,i)=>(
-                    <div key={i} style={{display:'flex',gap:4,marginBottom:4,alignItems:'center'}}>
-                      <select value={col} onChange={e=>{const n=[...individualCols];n[i]=e.target.value;setIndividualCols(n)}}
-                        style={{flex:1,height:24,padding:'0 6px',borderRadius:4,border:`1px solid ${T.borderDefault}`,background:T.bgPage,color:T.textPrimary,fontSize:10,outline:'none'}}>
-                        <option value="">Select column</option>
-                        {columns.map(col2=><option key={col2} value={col2}>{col2}</option>)}
-                      </select>
-                      {individualCols.length>1&&(
-                        <button onClick={()=>setIndividualCols(prev=>prev.filter((_,j)=>j!==i))}
-                          style={{width:20,height:20,border:`1px solid ${T.borderDefault}`,borderRadius:3,background:'transparent',color:T.textMuted,cursor:'pointer',fontSize:10,display:'flex',alignItems:'center',justifyContent:'center'}}>x</button>
-                      )}
-                    </div>
-                  ))}
-                  <button onClick={()=>setIndividualCols(prev=>[...prev,''])}
-                    style={{fontSize:9,fontWeight:600,color:T.growth,background:'transparent',border:'none',cursor:'pointer'}}>+ Add column</button>
-                </div>
-              )}
-            </div>
-
-            <div style={{border:`1px solid ${useMulti?T.borderStrong:T.borderDefault}`,borderRadius:6,background:useMulti?T.bgRaised:T.bgPage,overflow:'hidden'}}>
-              <div onClick={()=>setUseMulti(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
-                <div style={{width:12,height:12,borderRadius:2,flexShrink:0,border:`2px solid ${useMulti?T.growth:T.textMuted}`,background:useMulti?T.growth:'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  {useMulti&&<div style={{width:4,height:4,borderRadius:1,background:T.bgPage}}/>}
-                </div>
-                <div>
-                  <div style={{fontSize:10,fontWeight:600,color:useMulti?T.textPrimary:T.textSecondary}}>Multi Dimension</div>
-                  <div style={{fontSize:9,color:T.textMuted}}>Cohort by column combinations (hierarchies)</div>
-                </div>
-              </div>
-              {useMulti&&(
-                <div style={{padding:'0 10px 10px 30px'}}>
-                  {hierarchies.map((hier,hi)=>(
-                    <div key={hi} style={{marginBottom:8}}>
-                      <div style={{fontSize:8,color:T.textMuted,marginBottom:3}}>Level {hi+1}</div>
-                      <div style={{display:'flex',flexWrap:'wrap',gap:4,alignItems:'center'}}>
-                        {hier.map((col,ci)=>(
-                          <div key={ci} style={{display:'flex',gap:2}}>
-                            <select value={col} onChange={e=>{const n=hierarchies.map(h=>[...h]);n[hi][ci]=e.target.value;setHierarchies(n)}}
-                              style={{height:22,padding:'0 4px',borderRadius:3,border:`1px solid ${T.borderDefault}`,background:T.bgPage,color:T.textPrimary,fontSize:9,outline:'none'}}>
-                              <option value="">--</option>
-                              {columns.map(col2=><option key={col2} value={col2}>{col2}</option>)}
-                            </select>
-                            {hier.length>1&&(
-                              <button onClick={()=>{const n=hierarchies.map(h=>[...h]);n[hi]=n[hi].filter((_,j)=>j!==ci);setHierarchies(n)}}
-                                style={{width:18,height:22,border:`1px solid ${T.borderDefault}`,borderRadius:2,background:'transparent',color:T.textMuted,cursor:'pointer',fontSize:9}}>x</button>
-                            )}
-                          </div>
-                        ))}
-                        <button onClick={()=>{const n=hierarchies.map(h=>[...h]);n[hi]=[...n[hi],''];setHierarchies(n)}}
-                          style={{fontSize:9,color:T.growth,background:'transparent',border:'none',cursor:'pointer',fontWeight:600}}>+col</button>
-                      </div>
-                    </div>
-                  ))}
-                  <button onClick={()=>setHierarchies(prev=>[...prev,['','']])}
-                    style={{fontSize:9,fontWeight:600,color:T.growth,background:'transparent',border:'none',cursor:'pointer'}}>+ Add level</button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Run button */}
         <div style={{padding:16,borderTop:`1px solid ${T.borderDefault}`,flexShrink:0}}>
@@ -2556,7 +2191,6 @@ ${dataContext}`,
             color:canRun?T.brandPrimary||T.growth:T.textMuted,transition:'opacity 0.15s',
           }}>
             {running?<Loader2 size={14} color={canRun?T.growth:T.textMuted} style={{animation:'spin 1s linear infinite'}}/>:<Zap size={14}/>}
-          {!file&&!running&&<div style={{fontSize:9,color:T.textMuted,marginTop:4}}>No data loaded — go through upload wizard first</div>}
             {running?'Analyzing…':'Run Analysis'}
           </button>
           {running&&<UploadTimer active={running}/>}
@@ -2578,10 +2212,10 @@ ${dataContext}`,
       </aside>
 
       {/* ══ RIGHT PANEL ═══════════════════════════════════════════════════ */}
-      <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:T.bgPage}}>
+      <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:'#F6F4FB'}}>
 
         {/* ── PAGE HEADER ───────────────────────────────────────────── */}
-        <header style={{flexShrink:0,borderBottom:`1px solid ${T.borderDefault}`,background:T.bgSurface}}>
+        <header style={{flexShrink:0,borderBottom:'1px solid #EEF2F7',background:'#FFFFFF'}}>
 
           {/* Row 1: Title + all controls in ONE line */}
           <div style={{display:'flex',alignItems:'center',padding:'0 28px',height:52,gap:16}}>
@@ -2694,9 +2328,9 @@ ${dataContext}`,
                   }
                 }} style={{
                   padding:'0 16px',height:40,fontSize:12,fontWeight:activeTab===tab.id?500:400,
-                  border:'none',borderBottom:`2px solid ${activeTab===tab.id?(T.brandPrimary||T.accentPrimary):'transparent'}`,
+                  border:'none',borderBottom:`2px solid ${activeTab===tab.id?'#7C3AED':'transparent'}`,
                   background:'transparent',cursor:'pointer',
-                  color:activeTab===tab.id?(T.brandPrimary||T.accentPrimary):T.textMuted,
+                  color:activeTab===tab.id?'#7C3AED':'#9CA3AF',
                   transition:'color 0.12s',whiteSpace:'nowrap',
                 }}>{tab.label}</button>
               ))}
@@ -2708,62 +2342,30 @@ ${dataContext}`,
         {!results&&(
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
             <div style={{textAlign:'center',maxWidth:480}}>
-
-              {/* No file loaded — redirect to upload wizard */}
-              {!file&&(
-                <div style={{marginBottom:40}}>
-                  <div style={{width:80,height:80,borderRadius:24,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',background:T.bgRaised}}>
-                    <Upload size={28} color={T.textMuted}/>
+              <div style={{width:80,height:80,borderRadius:24,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={28} color="#9CA3AF" style={{opacity:1}}/></div>
+              <h2 style={{fontSize:24,fontWeight:900,color:T.textPrimary,margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
+              <p style={{color:T.textSecondary,fontSize:14,marginBottom:32,lineHeight:1.6}}>
+                {engine==='cohort'?'Upload data, map fields, then run to see retention heatmaps.'
+                :engine?'Upload data, map fields, and run the analysis.'
+                :'Upload subscription data, select an engine, and get instant insights.'}
+              </p>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
+                {(engine==='cohort'?[
+                  {icon:Layers,     label:'Retention Heatmap',desc:'% retention by cohort'},
+                  {icon:DollarSign, label:'Revenue Heatmap',  desc:'Revenue by cohort period'},
+                  {icon:Users,      label:'Segmentation',     desc:'Size / Percentile / Revenue'},
+                ]:[
+                  {icon:TrendingUp, label:'Revenue Bridge',   desc:'Waterfall with all drivers'},
+                  {icon:Target,     label:'Top Movers',       desc:'Expansion & churn accounts'},
+                  {icon:Activity,   label:'Retention Trends', desc:'NRR, GRR over time'},
+                ]).map((m,i)=>(
+                  <div key={i} style={{padding:16,borderRadius:14,border:`1px solid ${T.borderDefault}`,background:T.bgSurface,textAlign:'left'}}>
+                    <m.icon size={15} color="#9CA3AF" style={{opacity:1,marginBottom:8}}/>
+                    <div style={{fontSize:12,fontWeight:700,color:T.textPrimary,marginBottom:3}}>{m.label}</div>
+                    <div style={{fontSize:10,color:T.textSecondary}}>{m.desc}</div>
                   </div>
-                  <h2 style={{fontSize:22,fontWeight:800,color:T.textPrimary,margin:'0 0 8px',letterSpacing:'-0.02em'}}>No data loaded</h2>
-                  <p style={{color:T.textSecondary,fontSize:14,marginBottom:28,lineHeight:1.6}}>
-                    Start by uploading your revenue file, mapping columns, and running quality checks — then launch the analytics engine from the upload wizard.
-                  </p>
-                  <button onClick={()=>router.push('/dashboard/upload')} style={{
-                    display:'inline-flex',alignItems:'center',gap:8,
-                    padding:'12px 28px',borderRadius:12,border:'none',cursor:'pointer',
-                    background:T.selectionBg,color:T.growth,fontSize:14,fontWeight:700,
-                    transition:'opacity 0.15s',
-                  }}>
-                    <Upload size={14}/>
-                    Go to Upload Wizard
-                  </button>
-                  <div style={{marginTop:12,fontSize:11,color:T.textMuted}}>
-                    Upload &#8594; Map Fields &#8594; Data Quality &#8594; Review &#8594; Launch
-                  </div>
-                </div>
-              )}
-
-              {/* File loaded — prompt to select engine and run */}
-              {file&&(
-                <>
-                  <div style={{width:80,height:80,borderRadius:24,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={28} color="#4A5A6E"/></div>
-                  <h2 style={{fontSize:24,fontWeight:900,color:T.textPrimary,margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
-                  <p style={{color:T.textSecondary,fontSize:14,marginBottom:32,lineHeight:1.6}}>
-                    {engine==='cohort'?'Configure cohort settings and run the analysis.'
-                    :engine?'Ready — click Run Analysis to generate insights.'
-                    :'Select an analysis engine from the left panel to get started.'}
-                  </p>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
-                    {(engine==='cohort'?[
-                      {icon:Layers,     label:'Retention Heatmap',desc:'% retention by cohort'},
-                      {icon:DollarSign, label:'Revenue Heatmap',  desc:'Revenue by cohort period'},
-                      {icon:Users,      label:'Segmentation',     desc:'Size / Percentile / Revenue'},
-                    ]:[
-                      {icon:TrendingUp, label:'Revenue Bridge',   desc:'Waterfall with all drivers'},
-                      {icon:Target,     label:'Top Movers',       desc:'Expansion & churn accounts'},
-                      {icon:Activity,   label:'Retention Trends', desc:'NRR, GRR over time'},
-                    ]).map((m,i)=>(
-                      <div key={i} style={{padding:16,borderRadius:14,border:`1px solid ${T.borderDefault}`,background:T.bgSurface,textAlign:'left'}}>
-                        <m.icon size={15} color="#4A5A6E" style={{marginBottom:8}}/>
-                        <div style={{fontSize:12,fontWeight:700,color:T.textPrimary,marginBottom:3}}>{m.label}</div>
-                        <div style={{fontSize:10,color:T.textSecondary}}>{m.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -2880,27 +2482,8 @@ ${dataContext}`,
               {!isCohort&&activeTab==='summary'&&(
                 <div style={{display:'flex',flexDirection:'column',gap:0}}>
 
-                  {/* ── AI narrative insight ──────────────────────────── */}
-                  {aiLoading&&(
-                    <div style={{padding:'12px 16px',background:T.bgElevated,borderRadius:6,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-                      <Loader2 size={12} color={T.growth} style={{animation:'spin 1s linear infinite'}}/>
-                      <span style={{fontSize:12,color:T.textSecondary}}>Generating AI insight…</span>
-                    </div>
-                  )}
-                  {aiNarrative&&!aiLoading&&(
-                    <div style={{marginBottom:12}}>
-                      <AiInsightCard theme={T}
-                        title="RevenueLens AI"
-                        headline={aiNarrative.headline}
-                        body={aiNarrative.body}
-                        implication={aiNarrative.implication}
-                        action={aiNarrative.action}
-                        severity={aiNarrative.severity||'info'}
-                        expanded={true}
-                      />
-                    </div>
-                  )}
-                  {!aiNarrative&&!aiLoading&&narrative&&(
+                  {/* ── AI narrative insight bar ─────────────────────── */}
+                  {narrative&&(
                     <div style={{padding:'12px 18px',background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderLeft:'3px solid #3D5068',borderRadius:6,display:'flex',alignItems:'center',gap:10,margin:'0 0 16px'}}>
                       <Info size={12} color="#64748B" style={{flexShrink:0}}/>
                       <p style={{margin:0,fontSize:13,color:T.textPrimary,lineHeight:1.55,fontWeight:400}}>{narrative}</p>
@@ -2909,7 +2492,7 @@ ${dataContext}`,
 
                   {/* ── Metadata chip ────────────────────────────────── */}
                   {results?.metadata&&(
-                    <div style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${T.borderStrong}`,background:T.bgRaised,display:'inline-flex',alignItems:'center',gap:8,alignSelf:'flex-start',marginBottom:16}}>
+                    <div style={{padding:'7px 14px',borderRadius:8,border:'1px solid #E5E7EB',background:'#F9F8FD',display:'inline-flex',alignItems:'center',gap:8,alignSelf:'flex-start',marginBottom:16}}>
                       <span style={{fontSize:11,color:T.textPrimary,fontWeight:600}}>{results.metadata.dimensions?.length>0?`Customer × ${results.metadata.dimensions.join(' × ')}`:'Customer level'}</span>
                       <span style={{color:T.borderDefault}}>·</span>
                       <span style={{fontSize:11,color:T.textSecondary}}>{results.metadata.row_count?.toLocaleString()} rows</span>
@@ -3159,7 +2742,7 @@ ${dataContext}`,
                                   <div style={{overflowX:'auto'}}>
                                     <table style={{borderCollapse:'collapse',width:'100%',fontSize:12,minWidth:Math.max(monthCols.length*110+200,480)}}>
                                       <thead>
-                                        <tr style={{background:T.bgRaised,borderBottom:`1px solid ${T.borderDefault}`}}>
+                                        <tr style={{background:'#F9F8FD',borderBottom:'1px solid #E5E7EB'}}>
                                           <th style={{textAlign:'left',padding:'9px 16px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textMuted,position:'sticky',left:0,background:T.bgRaised,minWidth:160}}>Bridge</th>
                                           {monthCols.map(p=>(
                                             <th key={p} style={{textAlign:'right',padding:'9px 14px',fontSize:10,fontWeight:p===selPeriod?700:500,color:p===selPeriod?T.accentPrimary:T.textMuted,whiteSpace:'nowrap',background:p===selPeriod?T.bgElevated:T.bgRaised}}>
@@ -3170,7 +2753,7 @@ ${dataContext}`,
                                       </thead>
                                       <tbody>
                                         {/* Beginning ARR */}
-                                        <tr style={{background:T.bgRaised,borderBottom:`1px solid ${T.borderDefault}`}}>
+                                        <tr style={{background:'#F9F8FD',borderBottom:'1px solid #E5E7EB'}}>
                                           <td style={{padding:'9px 16px',fontWeight:700,color:T.textPrimary,position:'sticky',left:0,background:T.bgRaised,fontSize:12}}>Beginning ARR</td>
                                           {monthCols.map(p=>{
                                             const v = lookup[p]?.['Beginning ARR']||0
@@ -3257,8 +2840,8 @@ ${dataContext}`,
                                 {label:'Downsell net',       val:downsellNet},
                                 {label:'Net Expansion',      val:upsellNet+downsellNet},
                               ].map(c=>(
-                                <div key={c.label} style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,padding:'12px 14px'}}>
-                                  <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:6}}>{c.label}</div>
+                                <div key={c.label} style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',padding:'12px 14px'}}>
+                                  <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.06em',color:'#9CA3AF',marginBottom:6}}>{c.label}</div>
                                   <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:17,fontWeight:700,color:fc(c.val)}}>{fs(c.val)}</div>
                                 </div>
                               ))}
@@ -3308,7 +2891,7 @@ ${dataContext}`,
                               </table>
                               {/* Footer note */}
                               <div style={{padding:'12px 20px',background:T.bgMuted,borderTop:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'flex-start',gap:8}}>
-                                <Info size={11} color="#4A5A6E" style={{flexShrink:0,marginTop:2}}/>
+                                <Info size={11} color="#9CA3AF" style={{flexShrink:0,marginTop:2}}/>
                                 <span style={{fontSize:11,color:T.textMuted,lineHeight:1.6}}>
                                   <strong style={{color:T.textTertiary}}>Note on reconciliation:</strong> Price Impact, Volume Impact, and Price-on-Volume rows are sub-decompositions of Upsell/Downsell — they share the same units. Including them in the core bridge sum double-counts the Upsell/Downsell movement. Only the 8 core categories (New Logo, Cross-sell, Returning, Upsell, Downsell, Churn, Churn-Partial, Lapsed) are summed in the bridge reconciliation above.
                                 </span>
@@ -3530,7 +3113,7 @@ ${dataContext}`,
                         {label:'LTV Proxy',  value:beg>0?(nrr/(100-grr+0.01)).toFixed(1)+'x':'—', sub:'NRR / Churn Rate', subGood:true, accent:T.accentPrimary},
                       ].map(k=>(
                         <div key={k.label} style={{background:T.bgSurface,border:`1px solid #1E2D45`,borderTop:`2px solid ${k.accent}`,borderRadius:6,padding:'14px 16px'}}>
-                          <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:8}}>{k.label}</div>
+                          <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.06em',color:'#9CA3AF',marginBottom:8}}>{k.label}</div>
                           <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:22,fontWeight:700,color:k.accent,letterSpacing:'-0.02em'}}>{k.value}</div>
                           {k.sub&&<div style={{marginTop:4,fontSize:10,color:k.subGood?T.growth:T.decline}}>{k.sub}</div>}
                         </div>
@@ -3541,7 +3124,7 @@ ${dataContext}`,
                     <div style={{display:'grid',gridTemplateColumns:'1fr 280px',gap:16}}>
 
                       {/* Retention Dynamics chart */}
-                      <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,padding:'18px 20px'}}>
+                      <div style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',padding:'18px 20px'}}>
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
                           <div>
                             <div style={{fontSize:14,fontWeight:700,color:T.textPrimary}}>Retention Dynamics</div>
@@ -3567,7 +3150,7 @@ ${dataContext}`,
                                 labelStyle={{color:T.textTertiary,fontSize:10,marginBottom:4}}
                                 formatter={(v,n)=>[v!=null?`${v.toFixed(1)}%`:'—',n]}/>
                               <Legend iconType="circle" iconSize={6} wrapperStyle={{fontSize:10,color:T.textSecondary,paddingTop:8}}/>
-                              <Line yAxisId="pct" type="monotone" dataKey="nrr" stroke="#4ADE80" strokeWidth={2} dot={false} activeDot={{r:3}} name="NRR" connectNulls/>
+                              <Line yAxisId="pct" type="monotone" dataKey="nrr" stroke="#10B981" strokeWidth={2} dot={false} activeDot={{r:3}} name="NRR" connectNulls/>
                               <Line yAxisId="pct" type="monotone" dataKey="grr" stroke="#94A3B8" strokeWidth={1.5} dot={false} activeDot={{r:3}} name="GRR" connectNulls strokeDasharray="4 2"/>
                               <Line yAxisId="pct" type="monotone" dataKey="churnPct" stroke="#F87171" strokeWidth={1.5} dot={false} activeDot={{r:3}} name="Churn %" connectNulls/>
                               <Line yAxisId="pct" type="monotone" dataKey="expansionPct" stroke="#22C55E" strokeWidth={1.5} dot={false} activeDot={{r:3}} name="Expansion %" connectNulls strokeDasharray="2 2"/>
@@ -3610,7 +3193,7 @@ ${dataContext}`,
                         </div>
 
                         {/* Seasonality */}
-                        <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,padding:'14px 16px'}}>
+                        <div style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',padding:'14px 16px'}}>
                           <div style={{fontSize:11,fontWeight:600,color:T.accentPrimary,marginBottom:12}}>Seasonality Impact</div>
                           {bestMon&&(
                             <div style={{marginBottom:10}}>
@@ -3642,7 +3225,7 @@ ${dataContext}`,
                     </div>
 
                     {/* ── Monthly Growth Audit ────────────────────────────── */}
-                    <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,overflow:'hidden'}}>
+                    <div style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',overflow:'hidden'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:`1px solid ${T.borderDefault}`}}>
                         <div>
                           <div style={{fontSize:14,fontWeight:700,color:T.textPrimary}}>Monthly Growth Audit</div>
@@ -3653,7 +3236,7 @@ ${dataContext}`,
                       <div style={{overflowX:'auto'}}>
                         <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
                           <thead>
-                            <tr style={{background:T.bgRaised,borderBottom:`1px solid ${T.borderDefault}`}}>
+                            <tr style={{background:'#F9F8FD',borderBottom:'1px solid #E5E7EB'}}>
                               {['Fiscal Month','Net Retention','Gross Retention','Expansion MRR','Contraction MRR','Momentum'].map((h,i)=>(
                                 <th key={h} style={{padding:'10px 16px',textAlign:i===0?'left':'right',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:T.textMuted,whiteSpace:'nowrap'}}>{h}</th>
                               ))}
@@ -3823,8 +3406,8 @@ ${dataContext}`,
                           <AreaChart data={kpiRowsWindowed} margin={{left:8,right:16,bottom:4}}>
                             <defs>
                               <linearGradient id="arrGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#4ADE80" stopOpacity={0.08}/>
-                                <stop offset="95%" stopColor="#4ADE80" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.08}/>
+                                <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
                               </linearGradient>
                             </defs>
                             <XAxis dataKey="period" tick={{fontSize:9,fill:T.textTertiary}}
@@ -3835,7 +3418,7 @@ ${dataContext}`,
                               formatter={(v,n)=>[fmt(v), n==='ending'?'Ending ARR':'Beginning ARR']}
                               contentStyle={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:4,fontSize:11,color:T.textPrimary,boxShadow:`0 4px 20px rgba(0,0,0,0.4)`}}
                               labelStyle={{color:T.textTertiary,marginBottom:3,fontSize:10}}/>
-                            <Area type="monotone" dataKey="ending" stroke="#4ADE80" strokeWidth={1.5}
+                            <Area type="monotone" dataKey="ending" stroke="#10B981" strokeWidth={1.5}
                               fill="url(#arrGrad)" dot={false} activeDot={{r:3,fill:T.growth,strokeWidth:0}} name="ending"/>
                           </AreaChart>
                         </ResponsiveContainer>
@@ -3870,8 +3453,8 @@ ${dataContext}`,
                               formatter={(v,n)=>[`${Number(v).toFixed(1)}%`, n]}
                               contentStyle={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:4,fontSize:11,color:T.textPrimary,boxShadow:`0 4px 20px rgba(0,0,0,0.4)`}}
                               labelStyle={{color:T.textTertiary,marginBottom:3,fontSize:10}}/>
-                            <Line type="monotone" dataKey="nrr" stroke="#4ADE80" strokeWidth={1.5}
-                              dot={false} activeDot={{r:3,fill:"#4ADE80"}} name="NRR" connectNulls/>
+                            <Line type="monotone" dataKey="nrr" stroke="#10B981" strokeWidth={1.5}
+                              dot={false} activeDot={{r:3,fill:"#10B981"}} name="NRR" connectNulls/>
                             <Line type="monotone" dataKey="grr" stroke="#94A3B8" strokeWidth={1.5}
                               dot={false} activeDot={{r:3,fill:"#94A3B8"}} name="GRR" connectNulls strokeDasharray="4 2"/>
                           </LineChart>
@@ -3925,7 +3508,7 @@ ${dataContext}`,
               {!isCohort&&activeTab==='cohort_heatmap'&&(
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
                   {/* Context explanation */}
-                  <div style={{padding:'12px 16px',background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6,display:'flex',alignItems:'flex-start',gap:10}}>
+                  <div style={{padding:'12px 16px',background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',display:'flex',alignItems:'flex-start',gap:10}}>
                     <Info size={13} color="#64748B" style={{flexShrink:0,marginTop:1}}/>
                     <div>
                       <div style={{fontSize:12,fontWeight:600,color:T.accentPrimary,marginBottom:3}}>Cohort Retention Heatmap</div>
@@ -4070,7 +3653,7 @@ ${dataContext}`,
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
 
                   {/* ── Movers context bar ──────────────────────────────── */}
-                  <div style={{display:'flex',alignItems:'center',gap:20,padding:'10px 16px',background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:6}}>
+                  <div style={{display:'flex',alignItems:'center',gap:20,padding:'10px 16px',background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                     <div>
                       <span style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textMuted}}>Expansion</span>
                       <span style={{fontSize:14,fontWeight:700,color:T.growth,fontFamily:"'JetBrains Mono',monospace",marginLeft:8}}>
@@ -4109,7 +3692,7 @@ ${dataContext}`,
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
 
                     {/* Expansion Opportunities */}
-                    <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
+                    <div style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
                       {/* Panel header */}
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:`1px solid ${T.borderDefault}`,background:T.bgRaised}}>
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -4162,7 +3745,7 @@ ${dataContext}`,
                     </div>
 
                     {/* Churn Risk */}
-                    <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
+                    <div style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
                       {/* Panel header */}
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:`1px solid ${T.borderDefault}`,background:T.bgRaised}}>
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -4217,7 +3800,7 @@ ${dataContext}`,
 
                   {/* ── All movers by category ────────────────────────── */}
                   {Object.keys(movers).length>0&&(
-                    <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
+                    <div style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',boxShadow:'0 1px 3px rgba(0,0,0,0.07)',overflow:'hidden'}}>
                       {/* Category tabs */}
                       <div style={{display:'flex',alignItems:'center',gap:4,padding:'12px 16px',borderBottom:`1px solid ${T.borderDefault}`,flexWrap:'wrap',background:T.bgMuted}}>
                         <span style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textSecondary,marginRight:8}}>Filter:</span>
@@ -4272,7 +3855,7 @@ ${dataContext}`,
 
                             {/* MRR: TOP CUSTOMERS */}
               {!isCohort&&activeTab==='top_customers'&&(
-                <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,padding:0,overflow:'hidden'}}>
+                <div style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',padding:0,overflow:'hidden'}}>
                   <div style={{padding:'14px 20px',borderBottom:`1px solid ${T.borderDefault}`}}><div style={{...S.label}}>Top Customers by Ending ARR</div></div>
                   {topCusts.length>0?(
                     <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
@@ -4312,7 +3895,7 @@ ${dataContext}`,
                     )
                   })}
                   {!results?.pivot&&kpiRows.length>0&&(
-                    <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,padding:0,overflow:'hidden'}}>
+                    <div style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',padding:0,overflow:'hidden'}}>
                       <div style={{padding:'14px 20px',borderBottom:`1px solid ${T.borderDefault}`}}><div style={{...S.label}}>KPI Matrix — {periodType}</div></div>
                       <div style={{overflowX:'auto'}}>
                         <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
@@ -4343,7 +3926,7 @@ ${dataContext}`,
 
               {/* OUTPUT TABLE */}
               {activeTab==='output'&&(
-                <div style={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:8,padding:0,overflow:'hidden'}}>
+                <div style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',padding:0,overflow:'hidden'}}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:`1px solid ${T.borderDefault}`}}>
                     <div style={{...S.label}}>Output — {results.output?.length?.toLocaleString()} rows</div>
                     {isAdmin?(
@@ -4383,60 +3966,6 @@ ${dataContext}`,
           </div>
         )}
       </main>
-
-      {/* ── Floating AI chat button + panel ──────────────────────────────────── */}
-      {results&&(
-      <div style={{position:'fixed',bottom:28,right:28,zIndex:999,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:12}}>
-        {chatOpen&&(
-          <div style={{width:360,height:480,background:T.bgSurface,border:`1px solid ${T.borderStrong}`,borderRadius:16,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,0.5)'}}>
-            <div style={{padding:'14px 16px',borderBottom:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <Sparkles size={14} color={T.growth}/>
-                <span style={{fontSize:13,fontWeight:700,color:T.textPrimary}}>Ask RevenueLens AI</span>
-              </div>
-              <button onClick={()=>setChatOpen(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:T.textMuted,fontSize:18,lineHeight:1}}>x</button>
-            </div>
-            <div style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
-              {chatMessages.length===0&&(
-                <div style={{textAlign:'center',padding:'20px 12px'}}>
-                  <Sparkles size={24} color={T.textMuted} style={{margin:'0 auto 8px'}}/>
-                  <div style={{fontSize:13,color:T.textSecondary,marginBottom:16}}>Ask anything about your revenue data</div>
-                  {['Why did NRR drop?','Who are top churned accounts?','What drove expansion?','How does this compare to last year?'].map(q=>(
-                    <button key={q} onClick={()=>setChatInput(q)} style={{display:'block',width:'100%',textAlign:'left',padding:'8px 10px',margin:'0 0 6px',borderRadius:8,border:`1px solid ${T.borderDefault}`,background:T.bgRaised,color:T.textSecondary,fontSize:12,cursor:'pointer'}}>{q}</button>
-                  ))}
-                </div>
-              )}
-              {chatMessages.map((msg,i)=>(
-                <div key={i} style={{display:'flex',justifyContent:msg.role==='user'?'flex-end':'flex-start'}}>
-                  <div style={{maxWidth:'85%',padding:'9px 12px',borderRadius:msg.role==='user'?'12px 12px 2px 12px':'12px 12px 12px 2px',background:msg.role==='user'?T.selectionBg:T.bgRaised,border:`1px solid ${T.borderDefault}`,fontSize:12,color:T.textPrimary,lineHeight:1.6,whiteSpace:'pre-wrap'}}>{msg.content}</div>
-                </div>
-              ))}
-              {chatLoading&&(
-                <div style={{display:'flex',justifyContent:'flex-start'}}>
-                  <div style={{padding:'9px 12px',borderRadius:'12px 12px 12px 2px',background:T.bgRaised,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',gap:6}}>
-                    <Loader2 size={12} color={T.growth} style={{animation:'spin 1s linear infinite'}}/>
-                    <span style={{fontSize:12,color:T.textSecondary}}>Thinking…</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div style={{padding:10,borderTop:`1px solid ${T.borderDefault}`,display:'flex',gap:8,flexShrink:0}}>
-              <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
-                onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage()}}}
-                placeholder="Ask about your revenue data…"
-                style={{flex:1,padding:'8px 12px',borderRadius:8,border:`1px solid ${T.borderDefault}`,background:T.bgRaised,color:T.textPrimary,fontSize:12,outline:'none'}}/>
-              <button onClick={sendChatMessage} disabled={!chatInput.trim()||chatLoading}
-                style={{padding:'8px 14px',borderRadius:8,border:'none',background:chatInput.trim()?T.selectionBg:T.bgRaised,color:chatInput.trim()?T.growth:T.textMuted,cursor:chatInput.trim()?'pointer':'default',fontSize:12,fontWeight:700}}>
-                Send
-              </button>
-            </div>
-          </div>
-        )}
-        <button onClick={()=>setChatOpen(v=>!v)} style={{width:52,height:52,borderRadius:'50%',background:T.selectionBg,border:`2px solid ${T.growth}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 20px rgba(0,0,0,0.4)'}}>
-          {chatOpen?<span style={{fontSize:20,lineHeight:1,color:T.growth}}>x</span>:<Sparkles size={20} color={T.growth}/>}
-        </button>
-      </div>
-    )}
     </div>
   )
 }
