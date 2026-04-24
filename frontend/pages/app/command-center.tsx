@@ -21,11 +21,9 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender
 // ─── Colors ──────────────────────────────────────────────────────────────────
 // ─── Semantic Design Token System ────────────────────────────────────────────
 // Single source of truth for all colors. Never use raw hex inside components.
-// Tokens are theme-aware: dark (default), light, colorBlind, highContrast modes.
+// Single premium purple theme.
 
 const THEMES = {
-
-  // ── 1. DARK (Teal — Premium Analytics) ─────────────────────────────────────
   dark: {
     // ── Premium Light Purple Theme ───────────────────────────────────────────
     bgPage:        '#F6F4FB',
@@ -69,299 +67,8 @@ const THEMES = {
     mono: "'JetBrains Mono',monospace",
   },
 
-  // ── 2. LIGHT-PURPLE (Default — Executive / Clean) ──────────────────────────
-  light: {
-    bgPage:        '#f8f9ff',
-    bgSurface:     '#ffffff',
-    bgRaised:      '#eff4ff',
-    bgElevated:    '#ffffff',
-    bgMuted:       '#f1f5f9',
-    textPrimary:   '#0b1c30',
-    textSecondary: '#4a4455',
-    textTertiary:  '#64748b',
-    textMuted:     '#94a3b8',
-    textInverse:   '#ffffff',
-    borderSubtle:  'rgba(11,28,48,0.06)',
-    borderDefault: 'rgba(11,28,48,0.10)',
-    borderStrong:  'rgba(99,14,212,0.20)',
-    // Semantic — purple brand, red negative
-    growth:        '#630ed4',
-    decline:       '#ba1a1a',
-    neutral:       '#64748b',
-    insight:       '#7c3aed',
-    warning:       '#d97706',
-    info:          '#2563eb',
-    success:       '#059669',
-    risk:          '#ba1a1a',
-    // Bridge chart tokens
-    chartBaseline:    '#94a3b8',
-    chartExpansion:   '#630ed4',
-    chartContraction: '#ba1a1a',
-    chartNeutral:     '#64748b',
-    chartGrid:        'rgba(11,28,48,0.07)',
-    chartAxis:        '#94a3b8',
-    // Brand (purple)
-    brandPrimary:   '#630ed4',
-    brandSoft:      'rgba(99,14,212,0.10)',
-    brandBorder:    'rgba(99,14,212,0.28)',
-    // Interactions
-    accentPrimary:      '#0b1c30',
-    accentPrimaryHover: '#1e293b',
-    focusRing:          'rgba(99,14,212,0.35)',
-    selectionBg:        'rgba(99,14,212,0.08)',
-    mono: "'JetBrains Mono',monospace",
-  },
-
-  // ── 3. LIGHT-RED (Alert / Risk-Focused) ────────────────────────────────────
-  'light-red': {
-    bgPage:        '#f8f9ff',
-    bgSurface:     '#ffffff',
-    bgRaised:      '#f3f4f6',
-    bgElevated:    '#ffffff',
-    bgMuted:       '#f1f5f9',
-    textPrimary:   '#0b1c30',
-    textSecondary: '#4a4455',
-    textTertiary:  '#64748b',
-    textMuted:     '#94a3b8',
-    textInverse:   '#ffffff',
-    borderSubtle:  'rgba(11,28,48,0.06)',
-    borderDefault: 'rgba(11,28,48,0.10)',
-    borderStrong:  'rgba(153,27,27,0.25)',
-    // Semantic — red brand, dark-red negative
-    growth:        '#991b1b',
-    decline:       '#dc2626',
-    neutral:       '#64748b',
-    insight:       '#7c3aed',
-    warning:       '#d97706',
-    info:          '#2563eb',
-    success:       '#059669',
-    risk:          '#dc2626',
-    // Bridge chart tokens
-    chartBaseline:    '#94a3b8',
-    chartExpansion:   '#991b1b',
-    chartContraction: '#dc2626',
-    chartNeutral:     '#64748b',
-    chartGrid:        'rgba(11,28,48,0.07)',
-    chartAxis:        '#94a3b8',
-    // Brand (red)
-    brandPrimary:   '#991b1b',
-    brandSoft:      'rgba(153,27,27,0.10)',
-    brandBorder:    'rgba(153,27,27,0.28)',
-    // Interactions
-    accentPrimary:      '#0b1c30',
-    accentPrimaryHover: '#1e293b',
-    focusRing:          'rgba(153,27,27,0.35)',
-    selectionBg:        'rgba(153,27,27,0.08)',
-    mono: "'JetBrains Mono',monospace",
-  },
-
-  // ── 4. COLOR-BLIND (Deuteranopia-safe) ─────────────────────────────────────
-  colorBlind: {
-    bgPage:        '#FFFFFF',
-    bgSurface:     '#F9F8FD',
-    bgRaised:      '#171f33',
-    bgElevated:    '#FFFFFF',
-    bgMuted:       '#F6F4FB',
-    textPrimary:   '#111827',
-    textSecondary: '#94a3b8',
-    textTertiary:  '#64748b',
-    textMuted:     '#9CA3AF',
-    textInverse:   '#FFFFFF',
-    borderSubtle:  'rgba(230,237,243,0.06)',
-    borderDefault: '#E5E7EB',
-    borderStrong:  '#D1D5DB',
-    growth:        '#60a5fa',
-    decline:       '#fb923c',
-    neutral:       '#64748b',
-    insight:       '#a78bfa',
-    warning:       '#fcd34d',
-    info:          '#38bdf8',
-    success:       '#34d399',
-    risk:          '#fb923c',
-    chartBaseline:    '#7C3AED',
-    chartExpansion:   '#60a5fa',
-    chartContraction: '#fb923c',
-    chartNeutral:     '#9CA3AF',
-    chartGrid:        '#E5E7EB',
-    chartAxis:        '#9CA3AF',
-    brandPrimary:   '#60a5fa',
-    brandSoft:      'rgba(96,165,250,0.10)',
-    brandBorder:    'rgba(96,165,250,0.28)',
-    accentPrimary:      '#111827',
-    accentPrimaryHover: '#ffffff',
-    focusRing:          'rgba(96,165,250,0.45)',
-    selectionBg:        'rgba(96,165,250,0.10)',
-    mono: "'JetBrains Mono',monospace",
-  },
-
-  // ── 5. HIGH CONTRAST (WCAG AAA) ────────────────────────────────────────────
-  highContrast: {
-    bgPage:        '#000000',
-    bgSurface:     '#0a0a0a',
-    bgRaised:      '#141414',
-    bgElevated:    '#1a1a1a',
-    bgMuted:       '#050505',
-    textPrimary:   '#ffffff',
-    textSecondary: '#e5e5e5',
-    textTertiary:  '#cccccc',
-    textMuted:     '#aaaaaa',
-    textInverse:   '#000000',
-    borderSubtle:  'rgba(255,255,255,0.15)',
-    borderDefault: 'rgba(255,255,255,0.25)',
-    borderStrong:  'rgba(255,255,255,0.40)',
-    growth:        '#00ff94',
-    decline:       '#ff4444',
-    neutral:       '#aaaaaa',
-    insight:       '#cc99ff',
-    warning:       '#ffb800',
-    info:          '#66aaff',
-    success:       '#00ff94',
-    risk:          '#ff4444',
-    chartBaseline:    '#666666',
-    chartExpansion:   '#00ff94',
-    chartContraction: '#ff4444',
-    chartNeutral:     '#888888',
-    chartGrid:        'rgba(255,255,255,0.12)',
-    chartAxis:        '#888888',
-    brandPrimary:   '#00ff94',
-    brandSoft:      'rgba(0,255,148,0.12)',
-    brandBorder:    'rgba(0,255,148,0.40)',
-    accentPrimary:      '#ffffff',
-    accentPrimaryHover: '#e5e5e5',
-    focusRing:          'rgba(255,255,255,0.6)',
-    selectionBg:        'rgba(255,255,255,0.12)',
-    mono: "'JetBrains Mono',monospace",
-  },
-}
-// Active theme — resolved inside component via: const T = THEMES[themeMode]
-// — will be driven by state in component, defaulting to dark
-// Usage: T.growth, T.bgSurface, T.textPrimary etc.
-
-// ─── Bridge color semantics ───────────────────────────────────────────────────
-// These are FUNCTIONS so they always read from the active T object
-const getBridgeColor = (T) => ({
-  // Baseline — neutral anchors
-  'Beginning ARR':     T.chartBaseline,
-  'Ending ARR':        T.chartBaseline,
-  'Beginning MRR':     T.chartBaseline,
-  'Ending MRR':        T.chartBaseline,
-  'Prior ACV':         T.chartBaseline,
-  'Ending ACV':        T.chartBaseline,
-  'Beginning MRR or ARR': T.chartBaseline,
-  'Ending MRR or ARR': T.chartBaseline,
-  // Expansion — all positive movements
-  'New Logo':          T.chartExpansion,
-  'Upsell':            T.chartExpansion,
-  'Cross-sell':        T.chartExpansion,
-  'Cross_sell':        T.chartExpansion,
-  'Returning':         T.chartExpansion,
-  'Add on':            T.chartExpansion,
-  'Add-on':            T.chartExpansion,
-  'Other In':          T.chartNeutral,
-  // Contraction — all negative movements
-  'Downsell':          T.chartContraction,
-  'Churn Partial':     T.chartContraction,
-  'Churn-Partial':     T.chartContraction,
-  'Churn_Partial':     T.chartContraction,
-  'Churn':             T.chartContraction,
-  'Lapsed':            T.chartContraction,
-  'Other Out':         T.chartNeutral,
-  // Misc
-  'RoB':               T.chartNeutral,
-  'Expiry Pool':       T.chartNeutral,
-})
-
-// Legacy BC for backward compat — resolved from dark theme by default
-const BC = getBridgeColor(THEMES.dark)
-
-// ─── Formatters ───────────────────────────────────────────────────────────────
-const fmt = v => {
-  if (v == null) return '—'
-  const a = Math.abs(v)
-  if (a >= 1e9) return `$${(v/1e9).toFixed(1)}B`
-  if (a >= 1e6) return `$${(v/1e6).toFixed(1)}M`
-  if (a >= 1e3) return `$${(v/1e3).toFixed(0)}K`
-  return `$${v.toFixed(0)}`
-}
-const fmtPct = v => v != null ? `${v.toFixed(1)}%` : '—'
-
-// toARR: convert raw value to ARR based on revenue type
-// Used for all monetary display — if MRR, ×12; if ARR, passthrough
-// Called with the revenueType state variable via closure in component
-// ─── Period normalizer — handles every real-world date format ────────────────
-// Input: any date string. Output: always Mon-YYYY (e.g. Dec-2025) or '' if unparseable.
-// Handles: Mon-YY, Mon-YYYY, Month YYYY, YYYY-MM-DD, YYYY/MM/DD,
-//          MM/DD/YYYY, MM/DD/YY, DD/MM/YYYY, DD-MM-YYYY,
-//          MM-YYYY, MM/YYYY, YYYYMM, Q4 2025, 2025Q4
-function normalizePeriod(s) {
-  if (!s || typeof s !== 'string' || !s.trim()) return ''
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const MFULL  = ['january','february','march','april','may','june','july','august','september','october','november','december']
-  const str = s.trim()
-  let m
-
-  // 1. Mon-YY or Mon-YYYY  →  Dec-25, Dec-2025
-  m = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
-  if (m) { let y=parseInt(m[2]); if(y<100) y=y<50?2000+y:1900+y; return m[1]+'-'+y }
-
-  // 2. Month YYYY or Mon YYYY  →  December 2025, Dec 2025
-  m = str.match(/^([A-Za-z]+)\s+(\d{4})$/)
-  if (m) {
-    const name=m[1].toLowerCase(), yr=parseInt(m[2])
-    const fi=MFULL.indexOf(name)
-    if (fi>=0) return MONTHS[fi]+'-'+yr
-    const si=MONTHS.map(x=>x.toLowerCase()).indexOf(name)
-    if (si>=0) return MONTHS[si]+'-'+yr
-  }
-
-  // 3. YYYY-MM-DD  →  2025-12-31
-  m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (m) { const mi=parseInt(m[2])-1; if(mi>=0&&mi<12) return MONTHS[mi]+'-'+m[1] }
-
-  // 4. YYYY/MM/DD  →  2025/12/31
-  m = str.match(/^(\d{4})\/(\d{2})\/(\d{2})$/)
-  if (m) { const mi=parseInt(m[2])-1; if(mi>=0&&mi<12) return MONTHS[mi]+'-'+m[1] }
-
-  // 5. MM/DD/YYYY or M/D/YYYY  →  12/31/2025
-  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (m) { const mi=parseInt(m[1])-1,yr=parseInt(m[3]); if(mi>=0&&mi<12) return MONTHS[mi]+'-'+yr }
-
-  // 6. MM/DD/YY  →  12/31/25
-  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/)
-  if (m) { const mi=parseInt(m[1])-1; let yr=parseInt(m[3]); if(yr<100)yr=yr<50?2000+yr:1900+yr; if(mi>=0&&mi<12)return MONTHS[mi]+'-'+yr }
-
-  // 7. DD-MM-YYYY or DD/MM/YYYY — first number > 12 means it's a day
-  m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)
-  if (m) {
-    const a=parseInt(m[1]),b=parseInt(m[2]),yr=parseInt(m[3])
-    if (a>12&&b>=1&&b<=12) return MONTHS[b-1]+'-'+yr  // DD/MM/YYYY
-    if (b>12&&a>=1&&a<=12) return MONTHS[a-1]+'-'+yr  // MM/DD/YYYY
-    if (a>=1&&a<=12)       return MONTHS[a-1]+'-'+yr  // assume MM first
-  }
-
-  // 8. MM-YYYY or MM/YYYY  →  12-2025, 12/2025
-  m = str.match(/^(\d{1,2})[\/\-](\d{4})$/)
-  if (m) { const mi=parseInt(m[1])-1; if(mi>=0&&mi<12) return MONTHS[mi]+'-'+m[2] }
-
-  // 9. YYYYMM  →  202512
-  m = str.match(/^(\d{4})(\d{2})$/)
-  if (m) { const mi=parseInt(m[2])-1,yr=parseInt(m[1]); if(mi>=0&&mi<12) return MONTHS[mi]+'-'+yr }
-
-  // 10. Quarter: Q4 2025 or 2025Q4  →  quarter-end month
-  const QM = {'1':2,'2':5,'3':8,'4':11}
-  m = str.match(/^[Qq]([1-4])\s*(\d{4})$/)
-  if (m) return MONTHS[QM[m[1]]]+'-'+m[2]
-  m = str.match(/^(\d{4})\s*[Qq]([1-4])$/)
-  if (m) return MONTHS[QM[m[2]]]+'-'+m[1]
-
-  return str  // return as-is — caller decides what to do
 }
 
-function makeToARR(revenueType) {
-  return (v) => revenueType === 'MRR' ? (v == null ? null : v * 12) : v
-}
-
-// ─── Engine config ────────────────────────────────────────────────────────────
 const ENGINE_CONFIG = {
   mrr: {
     label:'MRR / ARR Analytics', desc:'Revenue bridge, retention, NRR/GRR, top movers', icon:TrendingUp,
@@ -1003,8 +710,14 @@ export default function CommandCenter() {
   const [rerunning, setRerunning]   = useState(false)
   const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
   const [histChartWindow, setHistChartWindow] = useState(24)  // Historical perf chart window
-  const [themeMode, setThemeMode] = useState<'dark'|'light'|'light-red'|'colorBlind'|'highContrast'>('dark')
-  const [showThemeMenu, setShowThemeMenu] = useState(false)
+  const themeMode = 'dark'
+  // ── AI layer states ──────────────────────────────────────────────────────
+  const [aiNarrative, setAiNarrative]   = useState(null)
+  const [aiLoading,   setAiLoading]     = useState(false)
+  const [chatOpen,    setChatOpen]       = useState(false)
+  const [chatMessages,setChatMessages]   = useState([])
+  const [chatInput,   setChatInput]      = useState('')
+  const [chatLoading, setChatLoading]    = useState(false)
 
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
@@ -1830,6 +1543,84 @@ export default function CommandCenter() {
     setUploading(false)
   }
 
+  // ── AI: narrative from results ──────────────────────────────────────────────
+  async function fetchAiNarrative(data) {
+    if (!data) return
+    setAiLoading(true)
+    try {
+      const summary = [
+        data.beginning != null && `Beginning ARR: $${(data.beginning/1000).toFixed(0)}K`,
+        data.ending    != null && `Ending ARR: $${(data.ending/1000).toFixed(0)}K`,
+        data.nrr       != null && `Net Retention: ${(data.nrr*100).toFixed(1)}%`,
+        data.grr       != null && `Gross Retention: ${(data.grr*100).toFixed(1)}%`,
+        data.new_arr   != null && `New Logo: $${(data.new_arr/1000).toFixed(0)}K`,
+        data.churn     != null && `Churn: $${(data.churn/1000).toFixed(0)}K`,
+        data.upsell    != null && `Upsell: $${(data.upsell/1000).toFixed(0)}K`,
+        data.downsell  != null && `Downsell: $${(data.downsell/1000).toFixed(0)}K`,
+      ].filter(Boolean).join(' | ')
+
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 800,
+          system: `You are a senior revenue intelligence advisor and CFO consultant embedded in RevenueLens AI.
+Analyze ARR/MRR bridge data and return ONLY a JSON object (no markdown, no backticks):
+{
+  "headline": "One bold sentence — the single most important insight",
+  "body": "2-3 sentences explaining what happened and why, using exact numbers",
+  "implication": "The key risk or strategic opportunity this creates",
+  "action": "One specific, concrete recommended next step",
+  "severity": "info | warning | risk | success"
+}
+Be precise. Sound like a senior CFO advisor. Use exact numbers from the data.`,
+          messages: [{ role: 'user', content: `Analyze this revenue data: ${summary}` }]
+        })
+      })
+      const json = await resp.json()
+      const text = json.content?.[0]?.text || ''
+      const parsed = JSON.parse(text.replace(/```json|```/g, '').trim())
+      setAiNarrative(parsed)
+    } catch(e) {
+      console.error('AI narrative failed:', e)
+    }
+    setAiLoading(false)
+  }
+
+  // ── AI: chat consultant ───────────────────────────────────────────────────
+  async function sendChatMessage() {
+    if (!chatInput.trim() || chatLoading) return
+    const userMsg = { role: 'user', content: chatInput.trim() }
+    const history = [...chatMessages, userMsg]
+    setChatMessages(history)
+    setChatInput('')
+    setChatLoading(true)
+    try {
+      const r = retForPeriod || ret
+      const ctx = results ? `Current analysis — Period: ${selPeriod} | Beginning ARR: $${((r?.beginning||0)/1000).toFixed(0)}K | Ending ARR: $${((r?.ending||0)/1000).toFixed(0)}K | NRR: ${((r?.nrr||0)*100).toFixed(1)}% | GRR: ${((r?.grr||0)*100).toFixed(1)}% | New Logo: $${((r?.new_arr||0)/1000).toFixed(0)}K | Churn: $${((r?.churn||0)/1000).toFixed(0)}K | Upsell: $${((r?.upsell||0)/1000).toFixed(0)}K` : 'No analysis run yet.'
+
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 800,
+          system: `You are RevenueLens AI — an expert revenue intelligence advisor and CFO consultant built into RevenueLens.
+You have access to the company's current revenue analysis. Answer concisely and precisely using the actual numbers.
+Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
+          messages: history.map(m => ({ role: m.role, content: m.content }))
+        })
+      })
+      const json = await resp.json()
+      const reply = json.content?.[0]?.text || 'Could not generate a response.'
+      setChatMessages(prev => [...prev, { role: 'assistant', content: reply }])
+    } catch(e) {
+      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
+    }
+    setChatLoading(false)
+  }
+
   async function runAnalysis() {
     setValidated(true)
     if (!canRun) return
@@ -1886,7 +1677,7 @@ export default function CommandCenter() {
           if(fieldMap.quantity) fd.append('quantity_col', fieldMap.quantity)
         }
         const {data}=await axios.post(endpoint,fd,{timeout:120000})
-        setResults({...data,_engine:engine}); setActiveTab('summary')
+        setResults({...data,_engine:engine}); setActiveTab('summary'); fetchAiNarrative(data?.summary?.overall)
         if (lookbacks.length) setSelLb(lookbacks[lookbacks.length-1])
         const allCats=Object.keys(data.top_movers||{})
         // Set initial category to first churn cat for churn panel
@@ -2095,21 +1886,7 @@ export default function CommandCenter() {
           <button onClick={()=>router.push('/dashboard')} style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary}}>
             <Home size={12}/>
           </button>
-          <div style={{position:'relative'}}>
-            <button onClick={()=>setShowThemeMenu(v=>!v)} title="Theme" style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary,fontSize:10}}>
-              {themeMode==='dark'?'🌙':themeMode==='light'?'🟣':themeMode==='light-red'?'🔴':themeMode==='colorBlind'?'👁️':'⬤'}
-            </button>
-            {showThemeMenu&&(
-              <div style={{position:'absolute',right:0,top:'110%',background:T.bgElevated,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:8,zIndex:999,minWidth:140,boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}}>
-                {[['dark','🌙  Dark (Analytics)'],['light','🟣  Light (Purple)'],['light-red','🔴  Light (Alert)'],['colorBlind','👁️  Color-Safe'],['highContrast','⬤  High Contrast']].map(([mode,label])=>(
-                  <button key={mode} onClick={()=>{setThemeMode(mode as any);setShowThemeMenu(false)}}
-                    style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,fontWeight:themeMode===mode?700:400,background:themeMode===mode?T.selectionBg:'transparent',color:themeMode===mode?T.growth:T.textSecondary}}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+
         </div>
 
         {/* Scrollable sidebar content */}
@@ -2569,10 +2346,22 @@ export default function CommandCenter() {
                 <div style={{display:'flex',flexDirection:'column',gap:0}}>
 
                   {/* ── AI narrative insight bar ─────────────────────── */}
-                  {narrative&&(
-                    <div style={{padding:'12px 18px',background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderLeft:'3px solid #3D5068',borderRadius:6,display:'flex',alignItems:'center',gap:10,margin:'0 0 16px'}}>
-                      <Info size={12} color="#64748B" style={{flexShrink:0}}/>
-                      <p style={{margin:0,fontSize:13,color:T.textPrimary,lineHeight:1.55,fontWeight:400}}>{narrative}</p>
+                  {/* ── AI Insight Card ─────────────────────────────── */}
+                  {aiLoading&&(
+                    <div style={{padding:'14px 16px',background:'#FFFFFF',borderRadius:12,border:'1px solid #DDD6FE',display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+                      <Loader2 size={13} color="#7C3AED" style={{animation:'spin 1s linear infinite',flexShrink:0}}/>
+                      <span style={{fontSize:12,color:'#7C3AED',fontWeight:500}}>RevenueLens AI is analyzing your data…</span>
+                    </div>
+                  )}
+                  {aiNarrative&&!aiLoading&&(
+                    <div style={{marginBottom:12}}>
+                      <AiInsightCard theme={T} title="RevenueLens AI" headline={aiNarrative.headline} body={aiNarrative.body} implication={aiNarrative.implication} action={aiNarrative.action} severity={aiNarrative.severity||'info'} expanded={true}/>
+                    </div>
+                  )}
+                  {!aiNarrative&&!aiLoading&&narrative&&(
+                    <div style={{padding:'12px 18px',background:'#FFFFFF',border:'1px solid #E5E7EB',borderLeft:'3px solid #7C3AED',borderRadius:12,display:'flex',alignItems:'center',gap:10,margin:'0 0 16px'}}>
+                      <Info size={12} color="#7C3AED" style={{flexShrink:0}}/>
+                      <p style={{margin:0,fontSize:13,color:'#111827',lineHeight:1.55,fontWeight:400}}>{narrative}</p>
                     </div>
                   )}
 
@@ -4052,6 +3841,93 @@ export default function CommandCenter() {
           </div>
         )}
       </main>
+
+      {/* ── Floating AI chat ─────────────────────────────────────────────── */}
+      {results&&(
+        <div style={{position:'fixed',bottom:28,right:28,zIndex:9999,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:12}}>
+
+          {chatOpen&&(
+            <div style={{width:360,height:500,background:'#FFFFFF',border:'1px solid #DDD6FE',borderRadius:20,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 20px 60px rgba(124,58,237,0.18)'}}>
+
+              {/* Header */}
+              <div style={{padding:'14px 16px',borderBottom:'1px solid #EEF2F7',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,background:'#F9F8FD'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{width:28,height:28,borderRadius:8,background:'#7C3AED',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <Sparkles size={13} color="#FFFFFF"/>
+                  </div>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:'#111827'}}>RevenueLens AI</div>
+                    <div style={{fontSize:10,color:'#9CA3AF'}}>Your revenue intelligence advisor</div>
+                  </div>
+                </div>
+                <button onClick={()=>setChatOpen(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:'#9CA3AF',fontSize:18,lineHeight:1,padding:'0 4px'}}>x</button>
+              </div>
+
+              {/* Messages */}
+              <div style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
+                {chatMessages.length===0&&(
+                  <div style={{textAlign:'center',padding:'24px 12px'}}>
+                    <div style={{width:44,height:44,borderRadius:12,background:'#F3E8FF',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px'}}>
+                      <Sparkles size={20} color="#7C3AED"/>
+                    </div>
+                    <div style={{fontSize:13,fontWeight:600,color:'#111827',marginBottom:4}}>Ask anything about your revenue</div>
+                    <div style={{fontSize:11,color:'#9CA3AF',marginBottom:16}}>Powered by Claude AI</div>
+                    {['Why did NRR change?','Who are our top churned accounts?','What drove expansion this period?','How does churn compare to last year?'].map(q=>(
+                      <button key={q} onClick={()=>setChatInput(q)} style={{display:'block',width:'100%',textAlign:'left',padding:'8px 12px',margin:'0 0 6px',borderRadius:10,border:'1px solid #E5E7EB',background:'#F9F8FD',color:'#4B5563',fontSize:11,cursor:'pointer',fontWeight:500,transition:'all 0.15s'}}>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {chatMessages.map((msg,i)=>(
+                  <div key={i} style={{display:'flex',justifyContent:msg.role==='user'?'flex-end':'flex-start'}}>
+                    <div style={{maxWidth:'85%',padding:'10px 13px',borderRadius:msg.role==='user'?'14px 14px 3px 14px':'14px 14px 14px 3px',background:msg.role==='user'?'#7C3AED':'#F9F8FD',border:msg.role==='user'?'none':'1px solid #E5E7EB',fontSize:12,color:msg.role==='user'?'#FFFFFF':'#111827',lineHeight:1.6,whiteSpace:'pre-wrap'}}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+                {chatLoading&&(
+                  <div style={{display:'flex',justifyContent:'flex-start'}}>
+                    <div style={{padding:'10px 13px',borderRadius:'14px 14px 14px 3px',background:'#F9F8FD',border:'1px solid #E5E7EB',display:'flex',alignItems:'center',gap:6}}>
+                      <Loader2 size={11} color="#7C3AED" style={{animation:'spin 1s linear infinite'}}/>
+                      <span style={{fontSize:11,color:'#9CA3AF'}}>Thinking…</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input */}
+              <div style={{padding:10,borderTop:'1px solid #EEF2F7',display:'flex',gap:8,flexShrink:0,background:'#FFFFFF'}}>
+                <input
+                  value={chatInput}
+                  onChange={e=>setChatInput(e.target.value)}
+                  onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage()}}}
+                  placeholder="Ask about your revenue…"
+                  style={{flex:1,padding:'8px 12px',borderRadius:10,border:'1px solid #E5E7EB',background:'#F9F8FD',color:'#111827',fontSize:12,outline:'none',fontFamily:'inherit'}}
+                />
+                <button
+                  onClick={sendChatMessage}
+                  disabled={!chatInput.trim()||chatLoading}
+                  style={{padding:'8px 14px',borderRadius:10,border:'none',background:chatInput.trim()?'#7C3AED':'#F3F4F6',color:chatInput.trim()?'#FFFFFF':'#9CA3AF',cursor:chatInput.trim()?'pointer':'default',fontSize:12,fontWeight:600,transition:'all 0.15s'}}
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Toggle button */}
+          <button
+            onClick={()=>setChatOpen(v=>!v)}
+            style={{width:52,height:52,borderRadius:'50%',background:'#7C3AED',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 20px rgba(124,58,237,0.4)',transition:'all 0.18s'}}
+          >
+            {chatOpen
+              ? <span style={{fontSize:20,color:'#FFFFFF',lineHeight:1}}>x</span>
+              : <Sparkles size={20} color="#FFFFFF"/>
+            }
+          </button>
+        </div>
+      )}
     </div>
   )
 }
