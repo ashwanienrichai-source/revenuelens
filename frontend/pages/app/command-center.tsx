@@ -69,6 +69,10 @@ const THEMES = {
 
 }
 
+function makeToARR(revenueType) {
+  return (v) => revenueType === 'MRR' ? (v == null ? null : v * 12) : v
+}
+
 const ENGINE_CONFIG = {
   mrr: {
     label:'MRR / ARR Analytics', desc:'Revenue bridge, retention, NRR/GRR, top movers', icon:TrendingUp,
