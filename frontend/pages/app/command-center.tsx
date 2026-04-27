@@ -999,7 +999,15 @@ export default function CommandCenter() {
   const [rerunning, setRerunning]   = useState(false)
   const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
   const [histChartWindow, setHistChartWindow] = useState(24)  // Historical perf chart window
-  const [themeMode, setThemeMode] = useState<'dark'|'light'|'light-red'|'colorBlind'|'highContrast'>('dark')
+  const [themeMode, setThemeMode] = useState('dark')
+
+  // ── AI layer states ──────────────────────────────────────────────────────────
+  const [aiNarrative, setAiNarrative]   = useState<any>(null)
+  const [aiLoading, setAiLoading]       = useState(false)
+  const [chatOpen, setChatOpen]         = useState(false)
+  const [chatMessages, setChatMessages] = useState<any[]>([])
+  const [chatInput, setChatInput]       = useState('')
+  const [chatLoading, setChatLoading]   = useState(false)
 
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
