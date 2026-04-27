@@ -1843,7 +1843,7 @@ export default function CommandCenter() {
           messages:[{role:'user',content:'Analyze: '+summary}]})})
       const data = await res.json()
       const text = data.content?.[0]?.text||''
-      setAiNarrative(JSON.parse(text.replace(/```json|```/g,'').trim()))
+      setAiNarrative(JSON.parse(text.replace(/```json/g,'').replace(/```/g,'').trim()))
     } catch(e){ console.error('AI:',e) }
     setAiLoading(false)
   }
@@ -2060,9 +2060,7 @@ export default function CommandCenter() {
     {id:'summary',label:'Summary'},
     {id:'retention_trend',label:'Detailed Bridge'},
     {id:'historical_perf',label:'Historical Performance'},
-    {id:'cohort_heatmap',label:'Cohorts'},
     {id:'top_movers',label:'Top Movers'},
-    {id:'top_customers',label:'Customers'},
     {id:'kpi_matrix',label:'KPI Matrix'},
     {id:'output',label:'Output'},
   ]
