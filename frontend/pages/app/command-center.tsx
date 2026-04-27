@@ -21,9 +21,11 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender
 // ─── Colors ──────────────────────────────────────────────────────────────────
 // ─── Semantic Design Token System ────────────────────────────────────────────
 // Single source of truth for all colors. Never use raw hex inside components.
-// Single premium purple theme.
+// Tokens are theme-aware: dark (default), light, colorBlind, highContrast modes.
 
 const THEMES = {
+
+  // ── 1. DARK (Teal — Premium Analytics) ─────────────────────────────────────
   dark: {
     // ── Premium Light Purple Theme ───────────────────────────────────────────
     bgPage:        '#F6F4FB',
@@ -39,7 +41,6 @@ const THEMES = {
     borderSubtle:  '#EEF2F7',
     borderDefault: '#E5E7EB',
     borderStrong:  '#D1D5DB',
-    // Semantic
     growth:        '#10B981',
     decline:       '#EF4444',
     neutral:       '#6B7280',
@@ -48,18 +49,15 @@ const THEMES = {
     info:          '#3B82F6',
     success:       '#10B981',
     risk:          '#EF4444',
-    // Bridge chart tokens
-    chartBaseline:    '#9CA3AF',
+    chartBaseline:    '#7C3AED',
     chartExpansion:   '#10B981',
     chartContraction: '#EF4444',
-    chartNeutral:     '#CBD5E1',
+    chartNeutral:     '#94A3B8',
     chartGrid:        '#F3F4F6',
     chartAxis:        '#9CA3AF',
-    // Brand — purple
     brandPrimary:   '#7C3AED',
     brandSoft:      '#F3E8FF',
     brandBorder:    '#DDD6FE',
-    // Interactions
     accentPrimary:      '#7C3AED',
     accentPrimaryHover: '#6D28D9',
     focusRing:          'rgba(124,58,237,0.20)',
@@ -67,12 +65,299 @@ const THEMES = {
     mono: "'JetBrains Mono',monospace",
   },
 
+  // ── 2. LIGHT-PURPLE (Default — Executive / Clean) ──────────────────────────
+  light: {
+    bgPage:        '#f8f9ff',
+    bgSurface:     '#ffffff',
+    bgRaised:      '#eff4ff',
+    bgElevated:    '#ffffff',
+    bgMuted:       '#f1f5f9',
+    textPrimary:   '#0b1c30',
+    textSecondary: '#4a4455',
+    textTertiary:  '#64748b',
+    textMuted:     '#94a3b8',
+    textInverse:   '#ffffff',
+    borderSubtle:  'rgba(11,28,48,0.06)',
+    borderDefault: 'rgba(11,28,48,0.10)',
+    borderStrong:  'rgba(99,14,212,0.20)',
+    // Semantic — purple brand, red negative
+    growth:        '#630ed4',
+    decline:       '#ba1a1a',
+    neutral:       '#64748b',
+    insight:       '#7c3aed',
+    warning:       '#d97706',
+    info:          '#2563eb',
+    success:       '#059669',
+    risk:          '#ba1a1a',
+    // Bridge chart tokens
+    chartBaseline:    '#94a3b8',
+    chartExpansion:   '#630ed4',
+    chartContraction: '#ba1a1a',
+    chartNeutral:     '#64748b',
+    chartGrid:        'rgba(11,28,48,0.07)',
+    chartAxis:        '#94a3b8',
+    // Brand (purple)
+    brandPrimary:   '#630ed4',
+    brandSoft:      'rgba(99,14,212,0.10)',
+    brandBorder:    'rgba(99,14,212,0.28)',
+    // Interactions
+    accentPrimary:      '#0b1c30',
+    accentPrimaryHover: '#1e293b',
+    focusRing:          'rgba(99,14,212,0.35)',
+    selectionBg:        'rgba(99,14,212,0.08)',
+    mono: "'JetBrains Mono',monospace",
+  },
+
+  // ── 3. LIGHT-RED (Alert / Risk-Focused) ────────────────────────────────────
+  'light-red': {
+    bgPage:        '#f8f9ff',
+    bgSurface:     '#ffffff',
+    bgRaised:      '#f3f4f6',
+    bgElevated:    '#ffffff',
+    bgMuted:       '#f1f5f9',
+    textPrimary:   '#0b1c30',
+    textSecondary: '#4a4455',
+    textTertiary:  '#64748b',
+    textMuted:     '#94a3b8',
+    textInverse:   '#ffffff',
+    borderSubtle:  'rgba(11,28,48,0.06)',
+    borderDefault: 'rgba(11,28,48,0.10)',
+    borderStrong:  'rgba(153,27,27,0.25)',
+    // Semantic — red brand, dark-red negative
+    growth:        '#991b1b',
+    decline:       '#dc2626',
+    neutral:       '#64748b',
+    insight:       '#7c3aed',
+    warning:       '#d97706',
+    info:          '#2563eb',
+    success:       '#059669',
+    risk:          '#dc2626',
+    // Bridge chart tokens
+    chartBaseline:    '#94a3b8',
+    chartExpansion:   '#991b1b',
+    chartContraction: '#dc2626',
+    chartNeutral:     '#64748b',
+    chartGrid:        'rgba(11,28,48,0.07)',
+    chartAxis:        '#94a3b8',
+    // Brand (red)
+    brandPrimary:   '#991b1b',
+    brandSoft:      'rgba(153,27,27,0.10)',
+    brandBorder:    'rgba(153,27,27,0.28)',
+    // Interactions
+    accentPrimary:      '#0b1c30',
+    accentPrimaryHover: '#1e293b',
+    focusRing:          'rgba(153,27,27,0.35)',
+    selectionBg:        'rgba(153,27,27,0.08)',
+    mono: "'JetBrains Mono',monospace",
+  },
+
+  // ── 4. COLOR-BLIND (Deuteranopia-safe) ─────────────────────────────────────
+  colorBlind: {
+    bgPage:        '#0b1326',
+    bgSurface:     '#131b2e',
+    bgRaised:      '#171f33',
+    bgElevated:    '#1c253a',
+    bgMuted:       '#0f1828',
+    textPrimary:   '#e6edf3',
+    textSecondary: '#94a3b8',
+    textTertiary:  '#64748b',
+    textMuted:     '#4a5568',
+    textInverse:   '#0b1326',
+    borderSubtle:  'rgba(230,237,243,0.06)',
+    borderDefault: '#1e2d45',
+    borderStrong:  '#253550',
+    growth:        '#60a5fa',
+    decline:       '#fb923c',
+    neutral:       '#64748b',
+    insight:       '#a78bfa',
+    warning:       '#fcd34d',
+    info:          '#38bdf8',
+    success:       '#34d399',
+    risk:          '#fb923c',
+    chartBaseline:    '#3d5068',
+    chartExpansion:   '#60a5fa',
+    chartContraction: '#fb923c',
+    chartNeutral:     '#4a5568',
+    chartGrid:        '#1e2d45',
+    chartAxis:        '#4a5568',
+    brandPrimary:   '#60a5fa',
+    brandSoft:      'rgba(96,165,250,0.10)',
+    brandBorder:    'rgba(96,165,250,0.28)',
+    accentPrimary:      '#e6edf3',
+    accentPrimaryHover: '#ffffff',
+    focusRing:          'rgba(96,165,250,0.45)',
+    selectionBg:        'rgba(96,165,250,0.10)',
+    mono: "'JetBrains Mono',monospace",
+  },
+
+  // ── 5. HIGH CONTRAST (WCAG AAA) ────────────────────────────────────────────
+  highContrast: {
+    bgPage:        '#000000',
+    bgSurface:     '#0a0a0a',
+    bgRaised:      '#141414',
+    bgElevated:    '#1a1a1a',
+    bgMuted:       '#050505',
+    textPrimary:   '#ffffff',
+    textSecondary: '#e5e5e5',
+    textTertiary:  '#cccccc',
+    textMuted:     '#aaaaaa',
+    textInverse:   '#000000',
+    borderSubtle:  'rgba(255,255,255,0.15)',
+    borderDefault: 'rgba(255,255,255,0.25)',
+    borderStrong:  'rgba(255,255,255,0.40)',
+    growth:        '#00ff94',
+    decline:       '#ff4444',
+    neutral:       '#aaaaaa',
+    insight:       '#cc99ff',
+    warning:       '#ffb800',
+    info:          '#66aaff',
+    success:       '#00ff94',
+    risk:          '#ff4444',
+    chartBaseline:    '#666666',
+    chartExpansion:   '#00ff94',
+    chartContraction: '#ff4444',
+    chartNeutral:     '#888888',
+    chartGrid:        'rgba(255,255,255,0.12)',
+    chartAxis:        '#888888',
+    brandPrimary:   '#00ff94',
+    brandSoft:      'rgba(0,255,148,0.12)',
+    brandBorder:    'rgba(0,255,148,0.40)',
+    accentPrimary:      '#ffffff',
+    accentPrimaryHover: '#e5e5e5',
+    focusRing:          'rgba(255,255,255,0.6)',
+    selectionBg:        'rgba(255,255,255,0.12)',
+    mono: "'JetBrains Mono',monospace",
+  },
+}
+// Active theme — resolved inside component via: const T = THEMES[themeMode]
+// — will be driven by state in component, defaulting to dark
+// Usage: T.growth, T.bgSurface, T.textPrimary etc.
+
+// ─── Bridge color semantics ───────────────────────────────────────────────────
+// These are FUNCTIONS so they always read from the active T object
+const getBridgeColor = (T) => ({
+  // Baseline — neutral anchors
+  'Beginning ARR':     T.chartBaseline,
+  'Ending ARR':        T.chartBaseline,
+  'Beginning MRR':     T.chartBaseline,
+  'Ending MRR':        T.chartBaseline,
+  'Prior ACV':         T.chartBaseline,
+  'Ending ACV':        T.chartBaseline,
+  'Beginning MRR or ARR': T.chartBaseline,
+  'Ending MRR or ARR': T.chartBaseline,
+  // Expansion — all positive movements
+  'New Logo':          T.chartExpansion,
+  'Upsell':            T.chartExpansion,
+  'Cross-sell':        T.chartExpansion,
+  'Cross_sell':        T.chartExpansion,
+  'Returning':         T.chartExpansion,
+  'Add on':            T.chartExpansion,
+  'Add-on':            T.chartExpansion,
+  'Other In':          T.chartNeutral,
+  // Contraction — all negative movements
+  'Downsell':          T.chartContraction,
+  'Churn Partial':     T.chartContraction,
+  'Churn-Partial':     T.chartContraction,
+  'Churn_Partial':     T.chartContraction,
+  'Churn':             T.chartContraction,
+  'Lapsed':            T.chartContraction,
+  'Other Out':         T.chartNeutral,
+  // Misc
+  'RoB':               T.chartNeutral,
+  'Expiry Pool':       T.chartNeutral,
+})
+
+// Legacy BC for backward compat — resolved from dark theme by default
+const BC = getBridgeColor(THEMES.dark)
+
+// ─── Formatters ───────────────────────────────────────────────────────────────
+const fmt = v => {
+  if (v == null) return '—'
+  const a = Math.abs(v)
+  if (a >= 1e9) return `$${(v/1e9).toFixed(1)}B`
+  if (a >= 1e6) return `$${(v/1e6).toFixed(1)}M`
+  if (a >= 1e3) return `$${(v/1e3).toFixed(0)}K`
+  return `$${v.toFixed(0)}`
+}
+const fmtPct = v => v != null ? `${v.toFixed(1)}%` : '—'
+
+// toARR: convert raw value to ARR based on revenue type
+// Used for all monetary display — if MRR, ×12; if ARR, passthrough
+// Called with the revenueType state variable via closure in component
+// ─── Period normalizer — handles every real-world date format ────────────────
+// Input: any date string. Output: always Mon-YYYY (e.g. Dec-2025) or '' if unparseable.
+// Handles: Mon-YY, Mon-YYYY, Month YYYY, YYYY-MM-DD, YYYY/MM/DD,
+//          MM/DD/YYYY, MM/DD/YY, DD/MM/YYYY, DD-MM-YYYY,
+//          MM-YYYY, MM/YYYY, YYYYMM, Q4 2025, 2025Q4
+function normalizePeriod(s) {
+  if (!s || typeof s !== 'string' || !s.trim()) return ''
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const MFULL  = ['january','february','march','april','may','june','july','august','september','october','november','december']
+  const str = s.trim()
+  let m
+
+  // 1. Mon-YY or Mon-YYYY  →  Dec-25, Dec-2025
+  m = str.match(/^([A-Za-z]{3})-(\d{2,4})$/)
+  if (m) { let y=parseInt(m[2]); if(y<100) y=y<50?2000+y:1900+y; return m[1]+'-'+y }
+
+  // 2. Month YYYY or Mon YYYY  →  December 2025, Dec 2025
+  m = str.match(/^([A-Za-z]+)\s+(\d{4})$/)
+  if (m) {
+    const name=m[1].toLowerCase(), yr=parseInt(m[2])
+    const fi=MFULL.indexOf(name)
+    if (fi>=0) return MONTHS[fi]+'-'+yr
+    const si=MONTHS.map(x=>x.toLowerCase()).indexOf(name)
+    if (si>=0) return MONTHS[si]+'-'+yr
+  }
+
+  // 3. YYYY-MM-DD  →  2025-12-31
+  m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (m) { const mi=parseInt(m[2])-1; if(mi>=0&&mi<12) return MONTHS[mi]+'-'+m[1] }
+
+  // 4. YYYY/MM/DD  →  2025/12/31
+  m = str.match(/^(\d{4})\/(\d{2})\/(\d{2})$/)
+  if (m) { const mi=parseInt(m[2])-1; if(mi>=0&&mi<12) return MONTHS[mi]+'-'+m[1] }
+
+  // 5. MM/DD/YYYY or M/D/YYYY  →  12/31/2025
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (m) { const mi=parseInt(m[1])-1,yr=parseInt(m[3]); if(mi>=0&&mi<12) return MONTHS[mi]+'-'+yr }
+
+  // 6. MM/DD/YY  →  12/31/25
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/)
+  if (m) { const mi=parseInt(m[1])-1; let yr=parseInt(m[3]); if(yr<100)yr=yr<50?2000+yr:1900+yr; if(mi>=0&&mi<12)return MONTHS[mi]+'-'+yr }
+
+  // 7. DD-MM-YYYY or DD/MM/YYYY — first number > 12 means it's a day
+  m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)
+  if (m) {
+    const a=parseInt(m[1]),b=parseInt(m[2]),yr=parseInt(m[3])
+    if (a>12&&b>=1&&b<=12) return MONTHS[b-1]+'-'+yr  // DD/MM/YYYY
+    if (b>12&&a>=1&&a<=12) return MONTHS[a-1]+'-'+yr  // MM/DD/YYYY
+    if (a>=1&&a<=12)       return MONTHS[a-1]+'-'+yr  // assume MM first
+  }
+
+  // 8. MM-YYYY or MM/YYYY  →  12-2025, 12/2025
+  m = str.match(/^(\d{1,2})[\/\-](\d{4})$/)
+  if (m) { const mi=parseInt(m[1])-1; if(mi>=0&&mi<12) return MONTHS[mi]+'-'+m[2] }
+
+  // 9. YYYYMM  →  202512
+  m = str.match(/^(\d{4})(\d{2})$/)
+  if (m) { const mi=parseInt(m[2])-1,yr=parseInt(m[1]); if(mi>=0&&mi<12) return MONTHS[mi]+'-'+yr }
+
+  // 10. Quarter: Q4 2025 or 2025Q4  →  quarter-end month
+  const QM = {'1':2,'2':5,'3':8,'4':11}
+  m = str.match(/^[Qq]([1-4])\s*(\d{4})$/)
+  if (m) return MONTHS[QM[m[1]]]+'-'+m[2]
+  m = str.match(/^(\d{4})\s*[Qq]([1-4])$/)
+  if (m) return MONTHS[QM[m[2]]]+'-'+m[1]
+
+  return str  // return as-is — caller decides what to do
 }
 
 function makeToARR(revenueType) {
   return (v) => revenueType === 'MRR' ? (v == null ? null : v * 12) : v
 }
 
+// ─── Engine config ────────────────────────────────────────────────────────────
 const ENGINE_CONFIG = {
   mrr: {
     label:'MRR / ARR Analytics', desc:'Revenue bridge, retention, NRR/GRR, top movers', icon:TrendingUp,
@@ -197,7 +482,7 @@ function KpiChip({label,value,sub,subGood,accent,theme=null}) {
       borderRadius:6,
       padding:     '12px 14px',
     }}>
-      <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.06em',color:'#9CA3AF',marginBottom:7}}>
+      <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:7}}>
         {label}
       </div>
       <div style={{fontFamily:"'JetBrains Mono',monospace",fontFeatureSettings:"'tnum'",fontSize:19,fontWeight:700,lineHeight:1,color:valColor,letterSpacing:'-0.02em'}}>
@@ -309,12 +594,12 @@ function AiInsightCard({
 }) {
   const T = theme || THEMES.dark
   const [open, setOpen] = useState(expanded)
-  const sevColor = severity==='risk'?'#EF4444':severity==='warning'?'#F59E0B':severity==='success'?'#10B981':'#7C3AED'
+  const sevColor = severity==='risk'?T.risk:severity==='warning'?T.warning:severity==='success'?T.success:T.insight
   const sevBg    = `${sevColor}12`
   const sevBorder= `${sevColor}30`
 
   return (
-    <div style={{background:'#FFFFFF',border:`1px solid ${sevBorder}`,borderLeft:`3px solid ${sevColor}`,borderRadius:6,overflow:'hidden'}}>
+    <div style={{background:T.bgElevated,border:`1px solid ${sevBorder}`,borderLeft:`3px solid ${sevColor}`,borderRadius:6,overflow:'hidden'}}>
       <button onClick={()=>setOpen(v=>!v)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 14px',background:'transparent',border:'none',cursor:'pointer',gap:10}}>
         <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0}}>
           <Sparkles size={11} color={sevColor} style={{flexShrink:0}}/>
@@ -714,14 +999,8 @@ export default function CommandCenter() {
   const [rerunning, setRerunning]   = useState(false)
   const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
   const [histChartWindow, setHistChartWindow] = useState(24)  // Historical perf chart window
-  const themeMode = 'dark'
-  // ── AI layer states ──────────────────────────────────────────────────────
-  const [aiNarrative, setAiNarrative]   = useState(null)
-  const [aiLoading,   setAiLoading]     = useState(false)
-  const [chatOpen,    setChatOpen]       = useState(false)
-  const [chatMessages,setChatMessages]   = useState([])
-  const [chatInput,   setChatInput]      = useState('')
-  const [chatLoading, setChatLoading]    = useState(false)
+  const [themeMode, setThemeMode] = useState<'dark'|'light'|'light-red'|'colorBlind'|'highContrast'>('dark')
+  const [showThemeMenu, setShowThemeMenu] = useState(false)
 
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
@@ -736,7 +1015,7 @@ export default function CommandCenter() {
 
   const step1  = true  // data pre-loaded from upload wizard
   const step2  = step1 && !!engine
-  const step3  = step2  // fields pre-mapped from upload wizard
+  const step3  = step2
   const canRun = step3 && !running
 
   // ── ARR converter — ×12 if MRR input ──────────────────────────────────────
@@ -1511,17 +1790,15 @@ export default function CommandCenter() {
       const cube = dataCubeStore.load()
       if (!cube) return
       const f = dataCubeStore.toFile(cube)
-      setFile(f); setColumns(cube.meta.columns); setRowCount(cube.meta.rowCount)
+      setFile(f); setColumns(cube.meta.columns); setRowCount(cube.meta.rowCount||0)
       setIsBridgeOutput(false)
-      const map = cube.meta.mapping; const fm = {}
+      const map = cube.meta.mapping||{}; const fm = {}
       if (map.customer) fm['customer'] = map.customer
       if (map.date)     fm['date']     = map.date
       if (map.revenue)  fm['revenue']  = map.revenue
       if (map.product)  fm['product']  = map.product
       if (map.channel)  fm['channel']  = map.channel
       if (map.region)   fm['region']   = map.region
-      if (map.fiscal)   fm['fiscal']   = map.fiscal
-      if (map.quantity) fm['quantity'] = map.quantity
       setFieldMap(fm)
     }
   }, [])
@@ -1547,81 +1824,48 @@ export default function CommandCenter() {
     setUploading(false)
   }
 
-  // ── AI: narrative from results ──────────────────────────────────────────────
-  async function fetchAiNarrative(data) {
-    if (!data) return
+  async function fetchAiNarrative(d) {
+    if (!d) return
     setAiLoading(true)
     try {
       const summary = [
-        data.beginning != null && `Beginning ARR: $${(data.beginning/1000).toFixed(0)}K`,
-        data.ending    != null && `Ending ARR: $${(data.ending/1000).toFixed(0)}K`,
-        data.nrr       != null && `Net Retention: ${(data.nrr*100).toFixed(1)}%`,
-        data.grr       != null && `Gross Retention: ${(data.grr*100).toFixed(1)}%`,
-        data.new_arr   != null && `New Logo: $${(data.new_arr/1000).toFixed(0)}K`,
-        data.churn     != null && `Churn: $${(data.churn/1000).toFixed(0)}K`,
-        data.upsell    != null && `Upsell: $${(data.upsell/1000).toFixed(0)}K`,
-        data.downsell  != null && `Downsell: $${(data.downsell/1000).toFixed(0)}K`,
-      ].filter(Boolean).join(' | ')
-
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 800,
-          system: `You are a senior revenue intelligence advisor and CFO consultant embedded in RevenueLens AI.
-Analyze ARR/MRR bridge data and return ONLY a JSON object (no markdown, no backticks):
-{
-  "headline": "One bold sentence — the single most important insight",
-  "body": "2-3 sentences explaining what happened and why, using exact numbers",
-  "implication": "The key risk or strategic opportunity this creates",
-  "action": "One specific, concrete recommended next step",
-  "severity": "info | warning | risk | success"
-}
-Be precise. Sound like a senior CFO advisor. Use exact numbers from the data.`,
-          messages: [{ role: 'user', content: `Analyze this revenue data: ${summary}` }]
-        })
-      })
-      const json = await resp.json()
-      const text = json.content?.[0]?.text || ''
-      const parsed = JSON.parse(text.replace(/```json|```/g, '').trim())
-      setAiNarrative(parsed)
-    } catch(e) {
-      console.error('AI narrative failed:', e)
-    }
+        d.beginning && `Beginning ARR: ${fmt(d.beginning)}`,
+        d.ending    && `Ending ARR: ${fmt(d.ending)}`,
+        d.nrr       && `NRR: ${(d.nrr*100).toFixed(1)}%`,
+        d.new_arr   && `New Logo: ${fmt(d.new_arr)}`,
+        d.churn     && `Churn: ${fmt(d.churn)}`,
+        d.upsell    && `Upsell: ${fmt(d.upsell)}`,
+      ].filter(Boolean).join(', ')
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,
+          system:'You are a CFO advisor. Respond ONLY with valid JSON (no markdown): {headline,body,implication,action,severity}. severity is one of: info|warning|risk|success.',
+          messages:[{role:'user',content:'Analyze: '+summary}]})})
+      const data = await res.json()
+      const text = data.content?.[0]?.text||''
+      setAiNarrative(JSON.parse(text.replace(/```json|```/g,'').trim()))
+    } catch(e){ console.error('AI:',e) }
     setAiLoading(false)
   }
 
-  // ── AI: chat consultant ───────────────────────────────────────────────────
   async function sendChatMessage() {
-    if (!chatInput.trim() || chatLoading) return
-    const userMsg = { role: 'user', content: chatInput.trim() }
-    const history = [...chatMessages, userMsg]
-    setChatMessages(history)
-    setChatInput('')
-    setChatLoading(true)
+    if (!chatInput.trim()||chatLoading) return
+    const userMsg = {role:'user',content:chatInput.trim()}
+    const msgs = [...chatMessages,userMsg]
+    setChatMessages(msgs); setChatInput(''); setChatLoading(true)
     try {
-      const r = retForPeriod || ret
-      const ctx = results ? `Current analysis — Period: ${selPeriod} | Beginning ARR: $${((r?.beginning||0)/1000).toFixed(0)}K | Ending ARR: $${((r?.ending||0)/1000).toFixed(0)}K | NRR: ${((r?.nrr||0)*100).toFixed(1)}% | GRR: ${((r?.grr||0)*100).toFixed(1)}% | New Logo: $${((r?.new_arr||0)/1000).toFixed(0)}K | Churn: $${((r?.churn||0)/1000).toFixed(0)}K | Upsell: $${((r?.upsell||0)/1000).toFixed(0)}K` : 'No analysis run yet.'
-
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 800,
-          system: `You are RevenueLens AI — an expert revenue intelligence advisor and CFO consultant built into RevenueLens.
-You have access to the company's current revenue analysis. Answer concisely and precisely using the actual numbers.
-Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
-          messages: history.map(m => ({ role: m.role, content: m.content }))
-        })
-      })
-      const json = await resp.json()
-      const reply = json.content?.[0]?.text || 'Could not generate a response.'
-      setChatMessages(prev => [...prev, { role: 'assistant', content: reply }])
-    } catch(e) {
-      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
-    }
+      const d = retForPeriod||ret
+      const ctx = results
+        ? 'Revenue data — Period:'+selPeriod+', Beginning ARR:'+fmt(d?.beginning)+', Ending ARR:'+fmt(d?.ending)+', NRR:'+(d?.nrr?(d.nrr*100).toFixed(1)+'%':'N/A')+', New Logo:'+fmt(d?.new_arr)+', Churn:'+fmt(d?.churn)+', Upsell:'+fmt(d?.upsell)
+        : 'No analysis run yet.'
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,
+          system:'You are RevenueLens AI — a senior revenue intelligence advisor. Be direct, specific with numbers. Context: '+ctx,
+          messages:msgs.map(m=>({role:m.role,content:m.content}))})})
+      const data = await res.json()
+      setChatMessages(prev=>[...prev,{role:'assistant',content:data.content?.[0]?.text||'Unable to respond.'}])
+    } catch(e){ setChatMessages(prev=>[...prev,{role:'assistant',content:'Error. Please try again.'}]) }
     setChatLoading(false)
   }
 
@@ -1816,6 +2060,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
     {id:'summary',label:'Summary'},
     {id:'retention_trend',label:'Detailed Bridge'},
     {id:'historical_perf',label:'Historical Performance'},
+    {id:'cohort_heatmap',label:'Cohorts'},
     {id:'top_movers',label:'Top Movers'},
     {id:'top_customers',label:'Customers'},
     {id:'kpi_matrix',label:'KPI Matrix'},
@@ -1847,7 +2092,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
 
   // Component style helpers — all consume tokens
   const S = {
-    card:  { background:'#FFFFFF', border:'1px solid #E5E7EB', borderRadius:14, padding:20, boxShadow:'0 1px 3px rgba(0,0,0,0.04)' },
+    card:  { background:T.bgSurface, border:`1px solid ${T.borderDefault}`, borderRadius:6, padding:20 },
     cardF: { background:T.bgSurface, border:`1px solid ${T.borderDefault}`, borderRadius:6, padding:0, overflow:'hidden' },
     label: { fontSize:9, fontWeight:600, textTransform:'uppercase' as const, letterSpacing:'0.1em', color:T.textMuted },
     th:    { fontSize:9, fontWeight:600, textTransform:'uppercase' as const, letterSpacing:'0.08em', color:T.textMuted, padding:'9px 14px', background:T.bgRaised, borderBottom:`1px solid ${T.borderDefault}`, textAlign:'left' as const, whiteSpace:'nowrap' as const },
@@ -1863,7 +2108,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; }
         body { background: #F6F4FB; }
-        html { font-family: 'Inter',ui-sans-serif,system-ui,sans-serif; font-size: 14px; color: #111827; }
+        html { font-family: 'Inter',ui-sans-serif,system-ui,sans-serif; font-size:14px; color:#111827; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity:0;transform:translateY(4px); } to { opacity:1;transform:none; } }
         input,select,textarea,button { font-family: inherit; }
@@ -1876,7 +2121,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
       `}</style>
 
       {/* ══ LEFT SIDEBAR ══════════════════════════════════════════════════ */}
-      <aside style={{width:260,display:'flex',flexDirection:'column',flexShrink:0,borderRight:'1px solid #EEF2F7',background:'#FFFFFF',overflow:'hidden',boxShadow:'1px 0 0 #EEF2F7'}}>
+      <aside style={{width:260,display:'flex',flexDirection:'column',flexShrink:0,borderRight:'1px solid #EEF2F7',background:'#FFFFFF',overflow:'hidden'}}>
 
         {/* Logo */}
         <div style={{height:60,display:'flex',alignItems:'center',gap:10,padding:'0 20px',borderBottom:'1px solid #EEF2F7',flexShrink:0}}>
@@ -1885,30 +2130,37 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
           </div>
           <div style={{flex:1}}>
             <div style={{fontSize:14,fontWeight:700,color:'#111827',letterSpacing:'-0.02em',lineHeight:1}}>RevenueLens</div>
-            <div style={{fontSize:10,fontWeight:500,color:'#9CA3AF',marginTop:2,letterSpacing:'0.02em'}}>Revenue Intelligence</div>
+            <div style={{fontSize:10,fontWeight:500,color:'#9CA3AF',marginTop:2}}>Analytics</div>
           </div>
           <button onClick={()=>router.push('/dashboard')} style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary}}>
             <Home size={12}/>
           </button>
-
+          <div style={{position:'relative'}}>
+            <button onClick={()=>setShowThemeMenu(v=>!v)} title="Theme" style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary,fontSize:10}}>
+              {themeMode==='dark'?'🌙':themeMode==='light'?'🟣':themeMode==='light-red'?'🔴':themeMode==='colorBlind'?'👁️':'⬤'}
+            </button>
+            {showThemeMenu&&(
+              <div style={{position:'absolute',right:0,top:'110%',background:T.bgElevated,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:8,zIndex:999,minWidth:140,boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}}>
+                {[['dark','🌙  Dark (Analytics)'],['light','🟣  Light (Purple)'],['light-red','🔴  Light (Alert)'],['colorBlind','👁️  Color-Safe'],['highContrast','⬤  High Contrast']].map(([mode,label])=>(
+                  <button key={mode} onClick={()=>{setThemeMode(mode as any);setShowThemeMenu(false)}}
+                    style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,fontWeight:themeMode===mode?700:400,background:themeMode===mode?T.selectionBg:'transparent',color:themeMode===mode?T.growth:T.textSecondary}}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+
+
 
         {/* Scrollable sidebar content */}
         <div style={{flex:1,overflowY:'auto'}}>
 
-          {/* Dataset strip */}
-          {file&&columns.length>0&&(
-            <div style={{padding:'10px 16px',borderBottom:'1px solid #EEF2F7',display:'flex',alignItems:'center',gap:8,background:'#F9F8FD'}}>
-              <CheckCircle size={11} color="#10B981"/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:11,fontWeight:600,color:'#111827',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div>
-                <div style={{fontSize:10,color:'#9CA3AF'}}>{rowCount>0?rowCount.toLocaleString()+' rows · ':''}{columns.length} cols</div>
-              </div>
-            </div>
-          )}
-
-          {/* Select Engine */}
-          {(
+          {/* STEP 1: Upload */}
+          <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
+            <div style={{...S.label}}>1. Upload Data</div>
+          {step1&&(
             <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
               <div style={{...S.label}}>Select Engine</div>
               <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:6}}>
@@ -1928,7 +2180,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                         <div style={{fontSize:12,fontWeight:600,color:active?'#7C3AED':'#111827',lineHeight:1.2}}>{ec.label}</div>
                         <div style={{fontSize:9,color:T.textTertiary,marginTop:2}}>{ec.desc}</div>
                       </div>
-                      {active&&<CheckCircle size={12} color="#10B981"/>}
+                      {active&&<CheckCircle size={12} color="#4ADE80"/>}
                     </button>
                   )
                 })}
@@ -1936,129 +2188,48 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
             </div>
           )}
 
-          {/* Cohort config — only when cohort engine selected */}
-        {step2&&engine==='cohort'&&(
-          <div style={{padding:16,borderBottom:'1px solid #EEF2F7'}}>
-            <div style={{...S.label,marginBottom:10}}>Cohort Types</div>
-            {[{id:'SG',label:'Size Cohorts',sub:'Tier 1 / 2 / 3'},{id:'PC',label:'Percentile Cohorts',sub:'Top 5% / 10% / 20%'},{id:'RC',label:'Revenue Cohorts',sub:'Leaders / Growth / Tail'}].map(ct=>{
-              const sel=cohortTypes.includes(ct.id)
-              return (
-                <div key={ct.id} onClick={()=>setCohortTypes(prev=>sel?prev.filter(x=>x!==ct.id):[...prev,ct.id])}
-                  style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:8,cursor:'pointer',marginBottom:4,
-                    border:`1px solid ${sel?'#DDD6FE':'#F3F4F6'}`,background:sel?'#F3E8FF':'#FAFAFA'}}>
-                  <div style={{width:14,height:14,borderRadius:3,flexShrink:0,border:`2px solid ${sel?'#7C3AED':'#D1D5DB'}`,background:sel?'#7C3AED':'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    {sel&&<div style={{width:5,height:5,borderRadius:1,background:'#FFFFFF'}}/>}
-                  </div>
-                  <div>
-                    <div style={{fontSize:11,fontWeight:600,color:sel?'#7C3AED':'#111827'}}>{ct.label}</div>
-                    <div style={{fontSize:10,color:'#9CA3AF'}}>{ct.sub}</div>
-                  </div>
-                </div>
-              )
-            })}
-
-            <div style={{...S.label,marginTop:12,marginBottom:8}}>Period Filter</div>
-            <div style={{display:'flex',borderRadius:8,border:'1px solid #E5E7EB',overflow:'hidden',height:28,marginBottom:12}}>
-              {[['all','All Time'],['latest','Latest'],['fiscal','By FY']].map(([val,lbl])=>(
-                <button key={val} onClick={()=>setPeriodFilter(val)}
-                  style={{flex:1,height:28,fontSize:10,border:'none',cursor:'pointer',fontWeight:periodFilter===val?600:400,
-                    background:periodFilter===val?'#F3E8FF':'transparent',color:periodFilter===val?'#7C3AED':'#6B7280'}}>
-                  {lbl}
+          {/* STEP 3: Map Fields */}
+          {step2&&cfg&&(
+            <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                <div style={{...S.label}}>3. Map Fields</div>
+                <span style={{fontSize:9,fontWeight:700,color:Object.keys(errors).length===0?T.growth:T.textSecondary}}>
+                  {cfg.required.filter(f=>!!fieldMap[f.key]).length}/{cfg.required.length} mapped
+                </span>
+              </div>
+              <div style={{borderRadius:10,border:`1px solid ${T.borderDefault}`,overflow:'hidden',marginBottom:8,background:T.bgSurface}}>
+                <div style={{padding:'6px 12px',borderBottom:`1px solid ${T.borderDefault}`,fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>Required</div>
+                {cfg.required.map(f=><FieldRow key={f.key} label={f.label} required value={fieldMap[f.key]||''} columns={columns} onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))} showError={validated}/>)}
+              </div>
+              <div style={{borderRadius:10,border:`1px solid ${T.borderDefault}`,overflow:'hidden',background:T.bgSurface}}>
+                <button onClick={()=>setShowOpt(v=>!v)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',background:'transparent',border:'none',cursor:'pointer'}}>
+                  <span style={{fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>Optional Fields</span>
+                  {showOpt?<ChevronUp size={10} color="#4A5A7A"/>:<ChevronDown size={10} color="#4A5A7A"/>}
                 </button>
-              ))}
-            </div>
-
-            <div style={{...S.label,marginBottom:6}}>Dimension Mode</div>
-
-            <div style={{marginBottom:6,border:`1px solid ${useSingle?'#DDD6FE':'#F3F4F6'}`,borderRadius:8,background:useSingle?'#F3E8FF':'#FAFAFA',overflow:'hidden'}}>
-              <div onClick={()=>setUseSingle(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
-                <div style={{width:14,height:14,borderRadius:3,flexShrink:0,border:`2px solid ${useSingle?'#7C3AED':'#D1D5DB'}`,background:useSingle?'#7C3AED':'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  {useSingle&&<div style={{width:5,height:5,borderRadius:1,background:'#FFFFFF'}}/>}
-                </div>
-                <div>
-                  <div style={{fontSize:11,fontWeight:600,color:useSingle?'#7C3AED':'#111827'}}>Individual columns</div>
-                  <div style={{fontSize:10,color:'#9CA3AF'}}>Single dimension cohort</div>
-                </div>
+                {showOpt&&cfg.optional.map(f=><FieldRow key={f.key} label={f.label} value={fieldMap[f.key]||''} columns={columns} onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))} showError={false}/>)}
               </div>
-              {useSingle&&(
-                <div style={{padding:'0 10px 10px 32px'}}>
-                  {individualCols.map((col,i)=>(
-                    <div key={i} style={{display:'flex',gap:4,marginBottom:4,alignItems:'center'}}>
-                      <select value={col} onChange={e=>{const n=[...individualCols];n[i]=e.target.value;setIndividualCols(n)}}
-                        style={{flex:1,height:26,padding:'0 6px',borderRadius:6,border:'1px solid #E5E7EB',background:'#FFFFFF',color:'#111827',fontSize:11,outline:'none'}}>
-                        <option value="">Select column</option>
-                        {columns.map(col2=><option key={col2} value={col2}>{col2}</option>)}
-                      </select>
-                      {individualCols.length>1&&(
-                        <button onClick={()=>setIndividualCols(prev=>prev.filter((_,j)=>j!==i))}
-                          style={{width:22,height:22,border:'1px solid #E5E7EB',borderRadius:4,background:'#FFFFFF',color:'#9CA3AF',cursor:'pointer',fontSize:12}}>×</button>
-                      )}
-                    </div>
-                  ))}
-                  <button onClick={()=>setIndividualCols(prev=>[...prev,''])}
-                    style={{fontSize:10,fontWeight:600,color:'#7C3AED',background:'transparent',border:'none',cursor:'pointer'}}>+ Add column</button>
+              {validated&&Object.keys(errors).length>0&&(
+                <div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid rgba(255,71,87,0.2)',background:'rgba(255,71,87,0.05)'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:T.risk,marginBottom:4}}>Map required fields:</div>
+                  {cfg.required.filter(f=>errors[f.key]).map(f=><div key={f.key} style={{fontSize:9,color:T.risk}}>· {f.label}</div>)}
                 </div>
               )}
             </div>
-
-            <div style={{border:`1px solid ${useMulti?'#DDD6FE':'#F3F4F6'}`,borderRadius:8,background:useMulti?'#F3E8FF':'#FAFAFA',overflow:'hidden'}}>
-              <div onClick={()=>setUseMulti(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
-                <div style={{width:14,height:14,borderRadius:3,flexShrink:0,border:`2px solid ${useMulti?'#7C3AED':'#D1D5DB'}`,background:useMulti?'#7C3AED':'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  {useMulti&&<div style={{width:5,height:5,borderRadius:1,background:'#FFFFFF'}}/>}
-                </div>
-                <div>
-                  <div style={{fontSize:11,fontWeight:600,color:useMulti?'#7C3AED':'#111827'}}>Hierarchical columns</div>
-                  <div style={{fontSize:10,color:'#9CA3AF'}}>Multi-dimension cohort</div>
-                </div>
-              </div>
-              {useMulti&&(
-                <div style={{padding:'0 10px 10px 32px'}}>
-                  {hierarchies.map((hier,hi)=>(
-                    <div key={hi} style={{marginBottom:8}}>
-                      <div style={{fontSize:9,color:'#9CA3AF',marginBottom:3}}>Level {hi+1}</div>
-                      <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
-                        {hier.map((col,ci)=>(
-                          <div key={ci} style={{display:'flex',gap:2}}>
-                            <select value={col} onChange={e=>{const n=hierarchies.map(h=>[...h]);n[hi][ci]=e.target.value;setHierarchies(n)}}
-                              style={{height:24,padding:'0 4px',borderRadius:4,border:'1px solid #E5E7EB',background:'#FFFFFF',color:'#111827',fontSize:10,outline:'none'}}>
-                              <option value="">--</option>
-                              {columns.map(col2=><option key={col2} value={col2}>{col2}</option>)}
-                            </select>
-                            {hier.length>1&&(
-                              <button onClick={()=>{const n=hierarchies.map(h=>[...h]);n[hi]=n[hi].filter((_,j)=>j!==ci);setHierarchies(n)}}
-                                style={{width:18,height:24,border:'1px solid #E5E7EB',borderRadius:3,background:'#FFFFFF',color:'#9CA3AF',cursor:'pointer',fontSize:10}}>×</button>
-                            )}
-                          </div>
-                        ))}
-                        <button onClick={()=>{const n=hierarchies.map(h=>[...h]);n[hi]=[...n[hi],''];setHierarchies(n)}}
-                          style={{fontSize:10,color:'#7C3AED',background:'transparent',border:'none',cursor:'pointer',fontWeight:600}}>+col</button>
-                      </div>
-                    </div>
-                  ))}
-                  <button onClick={()=>setHierarchies(prev=>[...prev,['','']])}
-                    style={{fontSize:10,fontWeight:600,color:'#7C3AED',background:'transparent',border:'none',cursor:'pointer'}}>+ Add level</button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+          )}
 
         </div>
 
-        {/* Run button */}        {/* Run button */}
+        {/* Run button */}
         <div style={{padding:16,borderTop:`1px solid ${T.borderDefault}`,flexShrink:0}}>
           {runErr&&<div style={{marginBottom:10,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:`${T.decline}0F`,color:T.risk,fontSize:10,display:'flex',gap:6}}><AlertCircle size={10} style={{flexShrink:0}}/>{runErr}</div>}
-          <button onClick={runAnalysis} disabled={!columns.length||!engine||running} style={{
+          <button onClick={runAnalysis} disabled={!step1||!step2||running} style={{
             width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-            fontWeight:600,fontSize:13,padding:'12px 0',borderRadius:12,border:'none',
-            cursor:columns.length>0&&engine&&!running?'pointer':'not-allowed',
+            fontWeight:600,fontSize:13,padding:'12px 0',borderRadius:12,border:'none',cursor:columns.length>0&&engine&&!running?'pointer':'not-allowed',
             background:columns.length>0&&engine&&!running?'#7C3AED':'#F3F4F6',
-            color:columns.length>0&&engine&&!running?'#FFFFFF':'#9CA3AF',
-            transition:'all 0.18s',
-            boxShadow:columns.length>0&&engine&&!running?'0 4px 14px rgba(124,58,237,0.3)':'none',
+            color:columns.length>0&&engine&&!running?'#FFFFFF':'#9CA3AF',transition:'all 0.18s',boxShadow:columns.length>0&&engine&&!running?'0 4px 14px rgba(124,58,237,0.3)':'none',
           }}>
-            {running?<Loader2 size={14} color="#FFFFFF" style={{animation:'spin 1s linear infinite'}}/>:<Zap size={14} color={columns.length>0&&engine&&!running?'#FFFFFF':'#9CA3AF'}/>}
-            {running?'Analyzing…':'⚡ Run Analysis'}
+            {running?<Loader2 size={14} color={canRun?T.growth:T.textMuted} style={{animation:'spin 1s linear infinite'}}/>:<Zap size={14}/>}
+            {running?'Analyzing…':'Run Analysis'}
           </button>
           {running&&<UploadTimer active={running}/>}
           {results&&!running&&(
@@ -2082,7 +2253,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
       <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:'#F6F4FB'}}>
 
         {/* ── PAGE HEADER ───────────────────────────────────────────── */}
-        <header style={{flexShrink:0,borderBottom:'1px solid #EEF2F7',background:'#FFFFFF'}}>
+        <header style={{flexShrink:0,borderBottom:`1px solid ${T.borderDefault}`,background:T.bgSurface}}>
 
           {/* Row 1: Title + all controls in ONE line */}
           <div style={{display:'flex',alignItems:'center',padding:'0 28px',height:52,gap:16}}>
@@ -2209,7 +2380,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
         {!results&&(
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
             <div style={{textAlign:'center',maxWidth:480}}>
-              <div style={{width:80,height:80,borderRadius:24,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={28} color="#9CA3AF" style={{opacity:1}}/></div>
+              <div style={{width:80,height:80,borderRadius:24,border:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><BarChart3 size={28} color="#4A5A6E" style={{opacity:1}}/></div>
               <h2 style={{fontSize:24,fontWeight:900,color:T.textPrimary,margin:'0 0 8px',letterSpacing:'-0.02em'}}>{engine?ENGINE_CONFIG[engine].label:'Revenue Analytics'}</h2>
               <p style={{color:T.textSecondary,fontSize:14,marginBottom:32,lineHeight:1.6}}>
                 {engine==='cohort'?'Upload data, map fields, then run to see retention heatmaps.'
@@ -2227,7 +2398,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                   {icon:Activity,   label:'Retention Trends', desc:'NRR, GRR over time'},
                 ]).map((m,i)=>(
                   <div key={i} style={{padding:16,borderRadius:14,border:`1px solid ${T.borderDefault}`,background:T.bgSurface,textAlign:'left'}}>
-                    <m.icon size={15} color="#9CA3AF" style={{opacity:1,marginBottom:8}}/>
+                    <m.icon size={15} color="#4A5A6E" style={{opacity:1,marginBottom:8}}/>
                     <div style={{fontSize:12,fontWeight:700,color:T.textPrimary,marginBottom:3}}>{m.label}</div>
                     <div style={{fontSize:10,color:T.textSecondary}}>{m.desc}</div>
                   </div>
@@ -2265,7 +2436,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
             )}
 
             {/* Tab content */}
-            <div style={{flex:1,overflowY:'auto',padding:'20px 28px',background:T.bgPage}}>
+            <div style={{flex:1,overflowY:'auto',padding:'20px 28px',background:'#F6F4FB'}}>
 
               {/* COHORT: Heatmap */}
               {isCohort&&activeTab==='heatmap'&&(
@@ -2350,28 +2521,16 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                 <div style={{display:'flex',flexDirection:'column',gap:0}}>
 
                   {/* ── AI narrative insight bar ─────────────────────── */}
-                  {/* ── AI Insight Card ─────────────────────────────── */}
-                  {aiLoading&&(
-                    <div style={{padding:'14px 16px',background:'#FFFFFF',borderRadius:12,border:'1px solid #DDD6FE',display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
-                      <Loader2 size={13} color="#7C3AED" style={{animation:'spin 1s linear infinite',flexShrink:0}}/>
-                      <span style={{fontSize:12,color:'#7C3AED',fontWeight:500}}>RevenueLens AI is analyzing your data…</span>
-                    </div>
-                  )}
-                  {aiNarrative&&!aiLoading&&(
-                    <div style={{marginBottom:12}}>
-                      <AiInsightCard theme={T} title="RevenueLens AI" headline={aiNarrative.headline} body={aiNarrative.body} implication={aiNarrative.implication} action={aiNarrative.action} severity={aiNarrative.severity||'info'} expanded={true}/>
-                    </div>
-                  )}
-                  {!aiNarrative&&!aiLoading&&narrative&&(
-                    <div style={{padding:'12px 18px',background:'#FFFFFF',border:'1px solid #E5E7EB',borderLeft:'3px solid #7C3AED',borderRadius:12,display:'flex',alignItems:'center',gap:10,margin:'0 0 16px'}}>
-                      <Info size={12} color="#7C3AED" style={{flexShrink:0}}/>
-                      <p style={{margin:0,fontSize:13,color:'#111827',lineHeight:1.55,fontWeight:400}}>{narrative}</p>
+                  {narrative&&(
+                    <div style={{padding:'12px 18px',background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderLeft:'3px solid #3D5068',borderRadius:6,display:'flex',alignItems:'center',gap:10,margin:'0 0 16px'}}>
+                      <Info size={12} color="#64748B" style={{flexShrink:0}}/>
+                      <p style={{margin:0,fontSize:13,color:T.textPrimary,lineHeight:1.55,fontWeight:400}}>{narrative}</p>
                     </div>
                   )}
 
                   {/* ── Metadata chip ────────────────────────────────── */}
                   {results?.metadata&&(
-                    <div style={{padding:'7px 14px',borderRadius:8,border:'1px solid #E5E7EB',background:'#F9F8FD',display:'inline-flex',alignItems:'center',gap:8,alignSelf:'flex-start',marginBottom:16}}>
+                    <div style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${T.borderStrong}`,background:T.bgRaised,display:'inline-flex',alignItems:'center',gap:8,alignSelf:'flex-start',marginBottom:16}}>
                       <span style={{fontSize:11,color:T.textPrimary,fontWeight:600}}>{results.metadata.dimensions?.length>0?`Customer × ${results.metadata.dimensions.join(' × ')}`:'Customer level'}</span>
                       <span style={{color:T.borderDefault}}>·</span>
                       <span style={{fontSize:11,color:T.textSecondary}}>{results.metadata.row_count?.toLocaleString()} rows</span>
@@ -2621,7 +2780,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                                   <div style={{overflowX:'auto'}}>
                                     <table style={{borderCollapse:'collapse',width:'100%',fontSize:12,minWidth:Math.max(monthCols.length*110+200,480)}}>
                                       <thead>
-                                        <tr style={{background:'#F9F8FD',borderBottom:'1px solid #E5E7EB'}}>
+                                        <tr style={{background:T.bgRaised,borderBottom:`1px solid ${T.borderDefault}`}}>
                                           <th style={{textAlign:'left',padding:'9px 16px',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:T.textMuted,position:'sticky',left:0,background:T.bgRaised,minWidth:160}}>Bridge</th>
                                           {monthCols.map(p=>(
                                             <th key={p} style={{textAlign:'right',padding:'9px 14px',fontSize:10,fontWeight:p===selPeriod?700:500,color:p===selPeriod?T.accentPrimary:T.textMuted,whiteSpace:'nowrap',background:p===selPeriod?T.bgElevated:T.bgRaised}}>
@@ -2632,7 +2791,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                                       </thead>
                                       <tbody>
                                         {/* Beginning ARR */}
-                                        <tr style={{background:'#F9F8FD',borderBottom:'1px solid #E5E7EB'}}>
+                                        <tr style={{background:T.bgRaised,borderBottom:`1px solid ${T.borderDefault}`}}>
                                           <td style={{padding:'9px 16px',fontWeight:700,color:T.textPrimary,position:'sticky',left:0,background:T.bgRaised,fontSize:12}}>Beginning ARR</td>
                                           {monthCols.map(p=>{
                                             const v = lookup[p]?.['Beginning ARR']||0
@@ -2720,7 +2879,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                                 {label:'Net Expansion',      val:upsellNet+downsellNet},
                               ].map(c=>(
                                 <div key={c.label} style={{background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',padding:'12px 14px'}}>
-                                  <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.06em',color:'#9CA3AF',marginBottom:6}}>{c.label}</div>
+                                  <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:6}}>{c.label}</div>
                                   <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:17,fontWeight:700,color:fc(c.val)}}>{fs(c.val)}</div>
                                 </div>
                               ))}
@@ -2770,7 +2929,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                               </table>
                               {/* Footer note */}
                               <div style={{padding:'12px 20px',background:T.bgMuted,borderTop:`1px solid ${T.borderDefault}`,display:'flex',alignItems:'flex-start',gap:8}}>
-                                <Info size={11} color="#9CA3AF" style={{flexShrink:0,marginTop:2}}/>
+                                <Info size={11} color="#4A5A6E" style={{flexShrink:0,marginTop:2}}/>
                                 <span style={{fontSize:11,color:T.textMuted,lineHeight:1.6}}>
                                   <strong style={{color:T.textTertiary}}>Note on reconciliation:</strong> Price Impact, Volume Impact, and Price-on-Volume rows are sub-decompositions of Upsell/Downsell — they share the same units. Including them in the core bridge sum double-counts the Upsell/Downsell movement. Only the 8 core categories (New Logo, Cross-sell, Returning, Upsell, Downsell, Churn, Churn-Partial, Lapsed) are summed in the bridge reconciliation above.
                                 </span>
@@ -2992,7 +3151,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                         {label:'LTV Proxy',  value:beg>0?(nrr/(100-grr+0.01)).toFixed(1)+'x':'—', sub:'NRR / Churn Rate', subGood:true, accent:T.accentPrimary},
                       ].map(k=>(
                         <div key={k.label} style={{background:T.bgSurface,border:`1px solid #1E2D45`,borderTop:`2px solid ${k.accent}`,borderRadius:6,padding:'14px 16px'}}>
-                          <div style={{fontSize:10,fontWeight:500,textTransform:'uppercase',letterSpacing:'0.06em',color:'#9CA3AF',marginBottom:8}}>{k.label}</div>
+                          <div style={{fontSize:9,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:T.textMuted,marginBottom:8}}>{k.label}</div>
                           <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:22,fontWeight:700,color:k.accent,letterSpacing:'-0.02em'}}>{k.value}</div>
                           {k.sub&&<div style={{marginTop:4,fontSize:10,color:k.subGood?T.growth:T.decline}}>{k.sub}</div>}
                         </div>
@@ -3029,7 +3188,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                                 labelStyle={{color:T.textTertiary,fontSize:10,marginBottom:4}}
                                 formatter={(v,n)=>[v!=null?`${v.toFixed(1)}%`:'—',n]}/>
                               <Legend iconType="circle" iconSize={6} wrapperStyle={{fontSize:10,color:T.textSecondary,paddingTop:8}}/>
-                              <Line yAxisId="pct" type="monotone" dataKey="nrr" stroke="#10B981" strokeWidth={2} dot={false} activeDot={{r:3}} name="NRR" connectNulls/>
+                              <Line yAxisId="pct" type="monotone" dataKey="nrr" stroke="#4ADE80" strokeWidth={2} dot={false} activeDot={{r:3}} name="NRR" connectNulls/>
                               <Line yAxisId="pct" type="monotone" dataKey="grr" stroke="#94A3B8" strokeWidth={1.5} dot={false} activeDot={{r:3}} name="GRR" connectNulls strokeDasharray="4 2"/>
                               <Line yAxisId="pct" type="monotone" dataKey="churnPct" stroke="#F87171" strokeWidth={1.5} dot={false} activeDot={{r:3}} name="Churn %" connectNulls/>
                               <Line yAxisId="pct" type="monotone" dataKey="expansionPct" stroke="#22C55E" strokeWidth={1.5} dot={false} activeDot={{r:3}} name="Expansion %" connectNulls strokeDasharray="2 2"/>
@@ -3115,7 +3274,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                       <div style={{overflowX:'auto'}}>
                         <table style={{borderCollapse:'collapse',width:'100%',fontSize:12}}>
                           <thead>
-                            <tr style={{background:'#F9F8FD',borderBottom:'1px solid #E5E7EB'}}>
+                            <tr style={{background:T.bgRaised,borderBottom:`1px solid ${T.borderDefault}`}}>
                               {['Fiscal Month','Net Retention','Gross Retention','Expansion MRR','Contraction MRR','Momentum'].map((h,i)=>(
                                 <th key={h} style={{padding:'10px 16px',textAlign:i===0?'left':'right',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:T.textMuted,whiteSpace:'nowrap'}}>{h}</th>
                               ))}
@@ -3285,8 +3444,8 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                           <AreaChart data={kpiRowsWindowed} margin={{left:8,right:16,bottom:4}}>
                             <defs>
                               <linearGradient id="arrGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.08}/>
-                                <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="#4ADE80" stopOpacity={0.08}/>
+                                <stop offset="95%" stopColor="#4ADE80" stopOpacity={0}/>
                               </linearGradient>
                             </defs>
                             <XAxis dataKey="period" tick={{fontSize:9,fill:T.textTertiary}}
@@ -3297,7 +3456,7 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                               formatter={(v,n)=>[fmt(v), n==='ending'?'Ending ARR':'Beginning ARR']}
                               contentStyle={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:4,fontSize:11,color:T.textPrimary,boxShadow:`0 4px 20px rgba(0,0,0,0.4)`}}
                               labelStyle={{color:T.textTertiary,marginBottom:3,fontSize:10}}/>
-                            <Area type="monotone" dataKey="ending" stroke="#10B981" strokeWidth={1.5}
+                            <Area type="monotone" dataKey="ending" stroke="#4ADE80" strokeWidth={1.5}
                               fill="url(#arrGrad)" dot={false} activeDot={{r:3,fill:T.growth,strokeWidth:0}} name="ending"/>
                           </AreaChart>
                         </ResponsiveContainer>
@@ -3332,8 +3491,8 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
                               formatter={(v,n)=>[`${Number(v).toFixed(1)}%`, n]}
                               contentStyle={{background:T.bgSurface,border:`1px solid ${T.borderDefault}`,borderRadius:4,fontSize:11,color:T.textPrimary,boxShadow:`0 4px 20px rgba(0,0,0,0.4)`}}
                               labelStyle={{color:T.textTertiary,marginBottom:3,fontSize:10}}/>
-                            <Line type="monotone" dataKey="nrr" stroke="#10B981" strokeWidth={1.5}
-                              dot={false} activeDot={{r:3,fill:"#10B981"}} name="NRR" connectNulls/>
+                            <Line type="monotone" dataKey="nrr" stroke="#4ADE80" strokeWidth={1.5}
+                              dot={false} activeDot={{r:3,fill:"#4ADE80"}} name="NRR" connectNulls/>
                             <Line type="monotone" dataKey="grr" stroke="#94A3B8" strokeWidth={1.5}
                               dot={false} activeDot={{r:3,fill:"#94A3B8"}} name="GRR" connectNulls strokeDasharray="4 2"/>
                           </LineChart>
@@ -3848,87 +4007,55 @@ Sound like a senior revenue advisor — direct, insightful, no fluff. ${ctx}`,
 
       {/* ── Floating AI chat ─────────────────────────────────────────────── */}
       {results&&(
-        <div style={{position:'fixed',bottom:28,right:28,zIndex:9999,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:12}}>
-
+        <div style={{position:'fixed',bottom:24,right:24,zIndex:999,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:10}}>
           {chatOpen&&(
-            <div style={{width:360,height:500,background:'#FFFFFF',border:'1px solid #DDD6FE',borderRadius:20,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 20px 60px rgba(124,58,237,0.18)'}}>
-
-              {/* Header */}
-              <div style={{padding:'14px 16px',borderBottom:'1px solid #EEF2F7',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,background:'#F9F8FD'}}>
+            <div style={{width:360,height:480,background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:18,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,0.12)'}}>
+              <div style={{padding:'14px 16px',borderBottom:'1px solid #EEF2F7',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <div style={{width:28,height:28,borderRadius:8,background:'#7C3AED',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    <Sparkles size={13} color="#FFFFFF"/>
-                  </div>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:700,color:'#111827'}}>RevenueLens AI</div>
-                    <div style={{fontSize:10,color:'#9CA3AF'}}>Your revenue intelligence advisor</div>
-                  </div>
+                  <div style={{width:28,height:28,borderRadius:8,background:'#7C3AED',display:'flex',alignItems:'center',justifyContent:'center'}}><Sparkles size={13} color="#FFFFFF"/></div>
+                  <div><div style={{fontSize:13,fontWeight:700,color:'#111827'}}>RevenueLens AI</div><div style={{fontSize:10,color:'#9CA3AF'}}>Your revenue intelligence advisor</div></div>
                 </div>
-                <button onClick={()=>setChatOpen(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:'#9CA3AF',fontSize:18,lineHeight:1,padding:'0 4px'}}>x</button>
+                <button onClick={()=>setChatOpen(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:'#9CA3AF',fontSize:20,lineHeight:1}}>×</button>
               </div>
-
-              {/* Messages */}
-              <div style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
+              <div style={{flex:1,overflowY:'auto',padding:14,display:'flex',flexDirection:'column',gap:10}}>
                 {chatMessages.length===0&&(
-                  <div style={{textAlign:'center',padding:'24px 12px'}}>
-                    <div style={{width:44,height:44,borderRadius:12,background:'#F3E8FF',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px'}}>
-                      <Sparkles size={20} color="#7C3AED"/>
-                    </div>
-                    <div style={{fontSize:13,fontWeight:600,color:'#111827',marginBottom:4}}>Ask anything about your revenue</div>
-                    <div style={{fontSize:11,color:'#9CA3AF',marginBottom:16}}>Powered by Claude AI</div>
-                    {['Why did NRR change?','Who are our top churned accounts?','What drove expansion this period?','How does churn compare to last year?'].map(q=>(
-                      <button key={q} onClick={()=>setChatInput(q)} style={{display:'block',width:'100%',textAlign:'left',padding:'8px 12px',margin:'0 0 6px',borderRadius:10,border:'1px solid #E5E7EB',background:'#F9F8FD',color:'#4B5563',fontSize:11,cursor:'pointer',fontWeight:500,transition:'all 0.15s'}}>
-                        {q}
-                      </button>
+                  <div style={{textAlign:'center',padding:'16px 8px'}}>
+                    <Sparkles size={22} color="#DDD6FE" style={{margin:'0 auto 10px'}}/>
+                    <div style={{fontSize:13,fontWeight:600,color:'#111827',marginBottom:4}}>Ask me anything</div>
+                    <div style={{fontSize:12,color:'#9CA3AF',marginBottom:14}}>I have full context of your revenue data</div>
+                    {['Why did NRR change?','Who are top churned accounts?','What drove expansion?','Compare to last year'].map(q=>(
+                      <button key={q} onClick={()=>setChatInput(q)} style={{display:'block',width:'100%',textAlign:'left',padding:'8px 12px',margin:'0 0 6px',borderRadius:8,border:'1px solid #EEF2F7',background:'#F9F8FD',color:'#4B5563',fontSize:12,cursor:'pointer'}}>{q}</button>
                     ))}
                   </div>
                 )}
                 {chatMessages.map((msg,i)=>(
                   <div key={i} style={{display:'flex',justifyContent:msg.role==='user'?'flex-end':'flex-start'}}>
-                    <div style={{maxWidth:'85%',padding:'10px 13px',borderRadius:msg.role==='user'?'14px 14px 3px 14px':'14px 14px 14px 3px',background:msg.role==='user'?'#7C3AED':'#F9F8FD',border:msg.role==='user'?'none':'1px solid #E5E7EB',fontSize:12,color:msg.role==='user'?'#FFFFFF':'#111827',lineHeight:1.6,whiteSpace:'pre-wrap'}}>
-                      {msg.content}
-                    </div>
+                    <div style={{maxWidth:'85%',padding:'9px 13px',borderRadius:msg.role==='user'?'12px 12px 2px 12px':'12px 12px 12px 2px',background:msg.role==='user'?'#7C3AED':'#F9F8FD',border:msg.role==='user'?'none':'1px solid #EEF2F7',fontSize:12,color:msg.role==='user'?'#FFFFFF':'#111827',lineHeight:1.6,whiteSpace:'pre-wrap'}}>{msg.content}</div>
                   </div>
                 ))}
                 {chatLoading&&(
                   <div style={{display:'flex',justifyContent:'flex-start'}}>
-                    <div style={{padding:'10px 13px',borderRadius:'14px 14px 14px 3px',background:'#F9F8FD',border:'1px solid #E5E7EB',display:'flex',alignItems:'center',gap:6}}>
+                    <div style={{padding:'9px 13px',borderRadius:'12px 12px 12px 2px',background:'#F9F8FD',border:'1px solid #EEF2F7',display:'flex',alignItems:'center',gap:6}}>
                       <Loader2 size={11} color="#7C3AED" style={{animation:'spin 1s linear infinite'}}/>
-                      <span style={{fontSize:11,color:'#9CA3AF'}}>Thinking…</span>
+                      <span style={{fontSize:12,color:'#9CA3AF'}}>Thinking…</span>
                     </div>
                   </div>
                 )}
               </div>
-
-              {/* Input */}
-              <div style={{padding:10,borderTop:'1px solid #EEF2F7',display:'flex',gap:8,flexShrink:0,background:'#FFFFFF'}}>
-                <input
-                  value={chatInput}
-                  onChange={e=>setChatInput(e.target.value)}
+              <div style={{padding:10,borderTop:'1px solid #EEF2F7',display:'flex',gap:8,flexShrink:0}}>
+                <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
                   onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage()}}}
-                  placeholder="Ask about your revenue…"
-                  style={{flex:1,padding:'8px 12px',borderRadius:10,border:'1px solid #E5E7EB',background:'#F9F8FD',color:'#111827',fontSize:12,outline:'none',fontFamily:'inherit'}}
-                />
-                <button
-                  onClick={sendChatMessage}
-                  disabled={!chatInput.trim()||chatLoading}
-                  style={{padding:'8px 14px',borderRadius:10,border:'none',background:chatInput.trim()?'#7C3AED':'#F3F4F6',color:chatInput.trim()?'#FFFFFF':'#9CA3AF',cursor:chatInput.trim()?'pointer':'default',fontSize:12,fontWeight:600,transition:'all 0.15s'}}
-                >
+                  placeholder="Ask about your revenue data…"
+                  style={{flex:1,padding:'8px 12px',borderRadius:8,border:'1px solid #E5E7EB',background:'#FFFFFF',color:'#111827',fontSize:12,outline:'none'}}/>
+                <button onClick={sendChatMessage} disabled={!chatInput.trim()||chatLoading}
+                  style={{padding:'8px 14px',borderRadius:8,border:'none',background:chatInput.trim()&&!chatLoading?'#7C3AED':'#F3F4F6',color:chatInput.trim()&&!chatLoading?'#FFFFFF':'#9CA3AF',cursor:chatInput.trim()&&!chatLoading?'pointer':'default',fontSize:12,fontWeight:600}}>
                   Send
                 </button>
               </div>
             </div>
           )}
-
-          {/* Toggle button */}
-          <button
-            onClick={()=>setChatOpen(v=>!v)}
-            style={{width:52,height:52,borderRadius:'50%',background:'#7C3AED',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 20px rgba(124,58,237,0.4)',transition:'all 0.18s'}}
-          >
-            {chatOpen
-              ? <span style={{fontSize:20,color:'#FFFFFF',lineHeight:1}}>x</span>
-              : <Sparkles size={20} color="#FFFFFF"/>
-            }
+          <button onClick={()=>setChatOpen(v=>!v)} style={{width:52,height:52,borderRadius:'50%',background:'#7C3AED',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 20px rgba(124,58,237,0.4)'}}>
+            {chatOpen?<span style={{fontSize:20,color:'#FFFFFF',lineHeight:1}}>x</span>:<Sparkles size={20} color="#FFFFFF"/>}
           </button>
         </div>
       )}
