@@ -1000,7 +1000,6 @@ export default function CommandCenter() {
   const [summarySubTab, setSummarySubTab] = useState('ARR Bridge') // sub-tabs inside summary
   const [histChartWindow, setHistChartWindow] = useState(24)  // Historical perf chart window
   const [themeMode, setThemeMode] = useState<'dark'|'light'|'light-red'|'colorBlind'|'highContrast'>('dark')
-  const [showThemeMenu, setShowThemeMenu] = useState(false)
 
   const isAdmin  = canDownload(profile)
   const cfg      = engine ? ENGINE_CONFIG[engine] : null
@@ -2133,21 +2132,6 @@ export default function CommandCenter() {
           <button onClick={()=>router.push('/dashboard')} style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary}}>
             <Home size={12}/>
           </button>
-          <div style={{position:'relative'}}>
-            <button onClick={()=>setShowThemeMenu(v=>!v)} title="Theme" style={{padding:6,borderRadius:8,background:'transparent',border:'none',cursor:'pointer',color:T.textTertiary,fontSize:10}}>
-              {themeMode==='dark'?'🌙':themeMode==='light'?'🟣':themeMode==='light-red'?'🔴':themeMode==='colorBlind'?'👁️':'⬤'}
-            </button>
-            {showThemeMenu&&(
-              <div style={{position:'absolute',right:0,top:'110%',background:T.bgElevated,border:`1px solid ${T.borderStrong}`,borderRadius:8,padding:8,zIndex:999,minWidth:140,boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}}>
-                {[['dark','🌙  Dark (Analytics)'],['light','🟣  Light (Purple)'],['light-red','🔴  Light (Alert)'],['colorBlind','👁️  Color-Safe'],['highContrast','⬤  High Contrast']].map(([mode,label])=>(
-                  <button key={mode} onClick={()=>{setThemeMode(mode as any);setShowThemeMenu(false)}}
-                    style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',borderRadius:5,border:'none',cursor:'pointer',fontSize:11,fontWeight:themeMode===mode?700:400,background:themeMode===mode?T.selectionBg:'transparent',color:themeMode===mode?T.growth:T.textSecondary}}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
 
@@ -2155,69 +2139,123 @@ export default function CommandCenter() {
         {/* Scrollable sidebar content */}
         <div style={{flex:1,overflowY:'auto'}}>
 
-          {/* STEP 1: Upload */}
-          <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
-            <div style={{...S.label}}>1. Upload Data</div>
-          {step1&&(
-            <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
-              <div style={{...S.label}}>Select Engine</div>
-              <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:6}}>
-                {Object.entries(ENGINE_CONFIG).map(([id,ec])=>{
-                  const Icon=ec.icon; const active=engine===id
-                  return (
-                    <button key={id} onClick={()=>setEngine(id)} style={{
-                      display:'flex',alignItems:'center',gap:12,padding:12,borderRadius:10,
-                      border:`1px solid ${active?'#DDD6FE':'#F3F4F6'}`,
-                      background:active?'#F3E8FF':'#F9FAFB',
-                      cursor:'pointer',textAlign:'left',width:'100%',transition:'all 0.15s',
-                    }}>
-                      <div style={{width:28,height:28,borderRadius:8,background:active?'#EDE9FE':'#F3F4F6',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                        <Icon size={12} color={active?'#7C3AED':'#9CA3AF'}/>
-                      </div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:12,fontWeight:600,color:active?'#7C3AED':'#111827',lineHeight:1.2}}>{ec.label}</div>
-                        <div style={{fontSize:9,color:T.textTertiary,marginTop:2}}>{ec.desc}</div>
-                      </div>
-                      {active&&<CheckCircle size={12} color="#4ADE80"/>}
-                    </button>
-                  )
-                })}
+          {/* Dataset strip */}
+          {file&&columns.length>0&&(
+            <div style={{padding:'10px 16px',borderBottom:'1px solid #EEF2F7',display:'flex',alignItems:'center',gap:8,background:'#F9F8FD'}}>
+              <CheckCircle size={11} color="#10B981"/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:11,fontWeight:600,color:'#111827',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</div>
+                <div style={{fontSize:10,color:'#9CA3AF'}}>{rowCount>0?rowCount.toLocaleString()+' rows · ':''}{columns.length} cols</div>
               </div>
             </div>
           )}
 
-          {/* STEP 3: Map Fields */}
-          {step2&&cfg&&(
-            <div style={{padding:16,borderBottom:`1px solid ${T.borderDefault}`}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                <div style={{...S.label}}>3. Map Fields</div>
-                <span style={{fontSize:9,fontWeight:700,color:Object.keys(errors).length===0?T.growth:T.textSecondary}}>
-                  {cfg.required.filter(f=>!!fieldMap[f.key]).length}/{cfg.required.length} mapped
-                </span>
+          {/* Select Engine */}
+          <div style={{padding:16,borderBottom:'1px solid #EEF2F7'}}>
+            <div style={{...S.label,marginBottom:10}}>Select Engine</div>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {Object.entries(ENGINE_CONFIG).map(([id,ec])=>{
+                const Icon=ec.icon; const active=engine===id
+                return (
+                  <button key={id} onClick={()=>setEngine(id)} style={{
+                    display:'flex',alignItems:'center',gap:10,padding:10,borderRadius:10,
+                    border:`1px solid ${active?'#DDD6FE':'#F3F4F6'}`,
+                    background:active?'#F3E8FF':'#F9FAFB',
+                    cursor:'pointer',textAlign:'left' as const,width:'100%',transition:'all 0.15s',
+                  }}>
+                    <div style={{width:28,height:28,borderRadius:8,background:active?'#EDE9FE':'#F3F4F6',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                      <Icon size={12} color={active?'#7C3AED':'#9CA3AF'}/>
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,fontWeight:600,color:active?'#7C3AED':'#111827',lineHeight:1.2}}>{ec.label}</div>
+                      <div style={{fontSize:9,color:'#9CA3AF',marginTop:2}}>{ec.desc}</div>
+                    </div>
+                    {active&&<CheckCircle size={12} color="#10B981"/>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Cohort config */}
+          {step2&&engine==='cohort'&&(
+            <div style={{padding:16,borderBottom:'1px solid #EEF2F7'}}>
+              <div style={{...S.label,marginBottom:10}}>Cohort Types</div>
+              {[{id:'SG',label:'Size Cohorts',sub:'Tier 1/2/3'},{id:'PC',label:'Percentile',sub:'Top 5/10/20%'},{id:'RC',label:'Revenue Cohorts',sub:'Leaders/Growth/Tail'}].map(ct=>{
+                const sel=cohortTypes.includes(ct.id)
+                return(<div key={ct.id} onClick={()=>setCohortTypes(prev=>sel?prev.filter(x=>x!==ct.id):[...prev,ct.id])}
+                  style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:8,cursor:'pointer',marginBottom:4,
+                    border:`1px solid ${sel?'#DDD6FE':'#F3F4F6'}`,background:sel?'#F3E8FF':'#FAFAFA'}}>
+                  <div style={{width:14,height:14,borderRadius:3,flexShrink:0,border:`2px solid ${sel?'#7C3AED':'#D1D5DB'}`,background:sel?'#7C3AED':'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    {sel&&<div style={{width:5,height:5,borderRadius:1,background:'#FFFFFF'}}/>}
+                  </div>
+                  <div><div style={{fontSize:11,fontWeight:600,color:sel?'#7C3AED':'#111827'}}>{ct.label}</div><div style={{fontSize:10,color:'#9CA3AF'}}>{ct.sub}</div></div>
+                </div>)
+              })}
+              <div style={{...S.label,marginTop:12,marginBottom:8}}>Period Filter</div>
+              <div style={{display:'flex',borderRadius:8,border:'1px solid #E5E7EB',overflow:'hidden',height:28,marginBottom:12}}>
+                {[['all','All'],['latest','Latest'],['fiscal','FY']].map(([val,lbl])=>(
+                  <button key={val} onClick={()=>setPeriodFilter(val)} style={{flex:1,height:28,fontSize:10,border:'none',cursor:'pointer',fontWeight:periodFilter===val?600:400,background:periodFilter===val?'#F3E8FF':'transparent',color:periodFilter===val?'#7C3AED':'#6B7280'}}>{lbl}</button>
+                ))}
               </div>
-              <div style={{borderRadius:10,border:`1px solid ${T.borderDefault}`,overflow:'hidden',marginBottom:8,background:T.bgSurface}}>
-                <div style={{padding:'6px 12px',borderBottom:`1px solid ${T.borderDefault}`,fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>Required</div>
-                {cfg.required.map(f=><FieldRow key={f.key} label={f.label} required value={fieldMap[f.key]||''} columns={columns} onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))} showError={validated}/>)}
-              </div>
-              <div style={{borderRadius:10,border:`1px solid ${T.borderDefault}`,overflow:'hidden',background:T.bgSurface}}>
-                <button onClick={()=>setShowOpt(v=>!v)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',background:'transparent',border:'none',cursor:'pointer'}}>
-                  <span style={{fontSize:8,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.12em',color:T.textSecondary}}>Optional Fields</span>
-                  {showOpt?<ChevronUp size={10} color="#4A5A7A"/>:<ChevronDown size={10} color="#4A5A7A"/>}
-                </button>
-                {showOpt&&cfg.optional.map(f=><FieldRow key={f.key} label={f.label} value={fieldMap[f.key]||''} columns={columns} onChange={v=>setFieldMap(m=>({...m,[f.key]:v}))} showError={false}/>)}
-              </div>
-              {validated&&Object.keys(errors).length>0&&(
-                <div style={{marginTop:8,padding:10,borderRadius:10,border:'1px solid rgba(255,71,87,0.2)',background:'rgba(255,71,87,0.05)'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:T.risk,marginBottom:4}}>Map required fields:</div>
-                  {cfg.required.filter(f=>errors[f.key]).map(f=><div key={f.key} style={{fontSize:9,color:T.risk}}>· {f.label}</div>)}
+              <div style={{...S.label,marginBottom:8}}>Dimension Mode</div>
+              <div style={{marginBottom:6,border:`1px solid ${useSingle?'#DDD6FE':'#F3F4F6'}`,borderRadius:8,background:useSingle?'#F3E8FF':'#FAFAFA',overflow:'hidden'}}>
+                <div onClick={()=>setUseSingle(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
+                  <div style={{width:14,height:14,borderRadius:3,border:`2px solid ${useSingle?'#7C3AED':'#D1D5DB'}`,background:useSingle?'#7C3AED':'transparent',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    {useSingle&&<div style={{width:5,height:5,borderRadius:1,background:'#FFFFFF'}}/>}
+                  </div>
+                  <div><div style={{fontSize:11,fontWeight:600,color:useSingle?'#7C3AED':'#111827'}}>Individual columns</div><div style={{fontSize:10,color:'#9CA3AF'}}>Single dimension</div></div>
                 </div>
-              )}
+                {useSingle&&(
+                  <div style={{padding:'0 10px 10px 32px'}}>
+                    {individualCols.map((col,i)=>(
+                      <div key={i} style={{display:'flex',gap:4,marginBottom:4}}>
+                        <select value={col} onChange={e=>{const n=[...individualCols];n[i]=e.target.value;setIndividualCols(n)}}
+                          style={{flex:1,height:26,padding:'0 6px',borderRadius:6,border:'1px solid #E5E7EB',background:'#FFFFFF',color:'#111827',fontSize:11,outline:'none'}}>
+                          <option value="">Select column</option>{columns.map(c2=><option key={c2} value={c2}>{c2}</option>)}
+                        </select>
+                        {individualCols.length>1&&<button onClick={()=>setIndividualCols(prev=>prev.filter((_,j)=>j!==i))} style={{width:22,height:22,border:'1px solid #E5E7EB',borderRadius:4,background:'#FFFFFF',color:'#9CA3AF',cursor:'pointer',fontSize:12}}>x</button>}
+                      </div>
+                    ))}
+                    <button onClick={()=>setIndividualCols(prev=>[...prev,''])} style={{fontSize:10,fontWeight:600,color:'#7C3AED',background:'transparent',border:'none',cursor:'pointer'}}>+ Add column</button>
+                  </div>
+                )}
+              </div>
+              <div style={{border:`1px solid ${useMulti?'#DDD6FE':'#F3F4F6'}`,borderRadius:8,background:useMulti?'#F3E8FF':'#FAFAFA',overflow:'hidden'}}>
+                <div onClick={()=>setUseMulti(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer'}}>
+                  <div style={{width:14,height:14,borderRadius:3,border:`2px solid ${useMulti?'#7C3AED':'#D1D5DB'}`,background:useMulti?'#7C3AED':'transparent',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    {useMulti&&<div style={{width:5,height:5,borderRadius:1,background:'#FFFFFF'}}/>}
+                  </div>
+                  <div><div style={{fontSize:11,fontWeight:600,color:useMulti?'#7C3AED':'#111827'}}>Hierarchical columns</div><div style={{fontSize:10,color:'#9CA3AF'}}>Multi-dimension</div></div>
+                </div>
+                {useMulti&&(
+                  <div style={{padding:'0 10px 10px 32px'}}>
+                    {hierarchies.map((hier,hi)=>(
+                      <div key={hi} style={{marginBottom:8}}>
+                        <div style={{fontSize:9,color:'#9CA3AF',marginBottom:3}}>Level {hi+1}</div>
+                        <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                          {hier.map((col,ci)=>(
+                            <div key={ci} style={{display:'flex',gap:2}}>
+                              <select value={col} onChange={e=>{const n=hierarchies.map(h=>[...h]);n[hi][ci]=e.target.value;setHierarchies(n)}} style={{height:24,padding:'0 4px',borderRadius:4,border:'1px solid #E5E7EB',background:'#FFFFFF',color:'#111827',fontSize:10,outline:'none'}}>
+                                <option value="">--</option>{columns.map(c2=><option key={c2} value={c2}>{c2}</option>)}
+                              </select>
+                              {hier.length>1&&<button onClick={()=>{const n=hierarchies.map(h=>[...h]);n[hi]=n[hi].filter((_,j)=>j!==ci);setHierarchies(n)}} style={{width:18,height:24,border:'1px solid #E5E7EB',borderRadius:3,background:'#FFFFFF',color:'#9CA3AF',cursor:'pointer',fontSize:10}}>x</button>}
+                            </div>
+                          ))}
+                          <button onClick={()=>{const n=hierarchies.map(h=>[...h]);n[hi]=[...n[hi],''];setHierarchies(n)}} style={{fontSize:10,color:'#7C3AED',background:'transparent',border:'none',cursor:'pointer',fontWeight:600}}>+col</button>
+                        </div>
+                      </div>
+                    ))}
+                    <button onClick={()=>setHierarchies(prev=>[...prev,['','']])} style={{fontSize:10,fontWeight:600,color:'#7C3AED',background:'transparent',border:'none',cursor:'pointer'}}>+ Add level</button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
         </div>
 
-        {/* Run button */}
+                {/* Run button */}
         <div style={{padding:16,borderTop:`1px solid ${T.borderDefault}`,flexShrink:0}}>
           {runErr&&<div style={{marginBottom:10,padding:10,borderRadius:10,border:'1px solid #9CA3AF',background:`${T.decline}0F`,color:T.risk,fontSize:10,display:'flex',gap:6}}><AlertCircle size={10} style={{flexShrink:0}}/>{runErr}</div>}
           <button onClick={runAnalysis} disabled={!step1||!step2||running} style={{
