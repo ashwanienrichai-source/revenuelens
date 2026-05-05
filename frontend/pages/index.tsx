@@ -2,242 +2,175 @@
 /**
  * pages/index.tsx — RevenueLens Landing Page
  * Deploy to: frontend/pages/index.tsx
- *
- * Original style + new sections merged.
- * Uses existing Tailwind design system: card, btn-primary, section-label, etc.
+ * Pure addition. Zero changes to existing product.
+ * All CTAs route to /auth/login
  */
 
+import React, { useState, useEffect, useRef } from 'react'
 import Head from 'next/head'
-import Link from 'next/link'
-import { useState, useEffect, useRef } from 'react'
-import {
-  BarChart3, TrendingUp, Users, ArrowRight, CheckCircle, ChevronRight,
-  Layers, Target, LineChart, Play, Star, Sparkles,
-  Database, GitMerge, FileDown, Cpu, Shield
-} from 'lucide-react'
+import { useRouter } from 'next/router'
 
-// ── useInView ─────────────────────────────────────────────────────────────────
+const C = {
+  bg:'#F8F7FC',surface:'#FFFFFF',purple:'#6B31D4',purple2:'#5A28B4',
+  purpleXl:'#F0EBFF',purpleMd:'#E0D5FF',text1:'#0F0A1E',text2:'#4C4668',
+  text3:'#9990B0',border:'#E8E4F2',borderMd:'#D0C9E8',green:'#12B76A',
+  greenBg:'#ECFDF3',red:'#F04438',amber:'#F79009',blue:'#2E90FA',
+}
+const FONT  = "'DM Sans','Helvetica Neue',Arial,sans-serif"
+const SERIF = "'DM Serif Display',Georgia,serif"
+const MONO  = "'DM Mono','Fira Code',monospace"
+
 function useInView() {
   const ref = useRef(null)
   const [v, setV] = useState(false)
   useEffect(() => {
     const el = ref.current; if (!el) return
-    const obs = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) { setV(true); obs.disconnect() } },
-      { threshold: 0.1 }
-    )
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setV(true); obs.disconnect() } }, { threshold: 0.1 })
     obs.observe(el)
     return () => obs.disconnect()
   }, [])
   return [ref, v]
 }
 
-// ── Nav ───────────────────────────────────────────────────────────────────────
-function Nav() {
-  const [scrolled, setScrolled] = useState(false)
-  useEffect(() => {
-    const h = () => setScrolled(window.scrollY > 20)
-    window.addEventListener('scroll', h)
-    return () => window.removeEventListener('scroll', h)
-  }, [])
+const fadeIn = (v, d=0) => ({ opacity: v?1:0, transform: v?'none':'translateY(20px)', transition: `opacity 0.65s ease ${d}s, transform 0.65s ease ${d}s` })
 
+function Nav({ onLogin, onStart }) {
+  const [sc, setSc] = useState(false)
+  useEffect(() => { const fn = () => setSc(window.scrollY>40); window.addEventListener('scroll',fn,{passive:true}); return ()=>window.removeEventListener('scroll',fn) },[])
   return (
-    <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
-      scrolled ? 'bg-white/95 backdrop-blur-md border-b border-ink-100 shadow-sm' : 'bg-transparent'
-    }`}>
-      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
-            <BarChart3 size={16} className="text-white" />
+    <header style={{ position:'fixed',top:0,left:0,right:0,zIndex:1000, background:sc?'rgba(248,247,252,0.88)':'transparent', backdropFilter:sc?'blur(16px)':'none', borderBottom:sc?`1px solid ${C.border}`:'1px solid transparent', transition:'all 0.3s' }}>
+      <div style={{ maxWidth:1200,margin:'0 auto',padding:'0 32px',height:64,display:'flex',alignItems:'center',gap:48 }}>
+        <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
+          <div style={{ width:32,height:32,borderRadius:10,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 2px 8px rgba(107,49,212,0.4)' }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 13L8 3L14 13H2Z" fill="white" fillOpacity="0.95"/><path d="M5.5 13L8 8.5L10.5 13H5.5Z" fill="white" fillOpacity="0.5"/></svg>
           </div>
-          <span className="font-display font-700 text-ink-900 text-[15px] tracking-tight">RevenueLens</span>
-        </Link>
-
-        <div className="hidden md:flex items-center gap-1">
-          {['Product','Pricing','Consulting','About'].map(item => (
-            <Link key={item} href={`/${item.toLowerCase()}`}
-              className="px-4 py-2 text-[13px] font-medium text-ink-600 hover:text-ink-900 hover:bg-ink-50 rounded-lg transition-all">
-              {item}
-            </Link>
-          ))}
+          <span style={{ fontFamily:FONT,fontSize:16,fontWeight:700,color:C.text1,letterSpacing:'-0.02em' }}>RevenueLens</span>
         </div>
-
-        <div className="flex items-center gap-3">
-          <Link href="/auth/login" className="btn-ghost text-[13px]">Sign in</Link>
-          <Link href="/auth/login" className="btn-primary text-[13px] py-2 px-4">
-            Start free <ArrowRight size={14} />
-          </Link>
+        <nav style={{ display:'flex',gap:32,flex:1 }}>
+          {['Product','How it works','Pricing','Docs'].map(l=>(
+            <a key={l} href="#" style={{ fontFamily:FONT,fontSize:14,fontWeight:500,color:C.text2,textDecoration:'none',transition:'color 0.15s' }} onMouseEnter={e=>e.target.style.color=C.purple} onMouseLeave={e=>e.target.style.color=C.text2}>{l}</a>
+          ))}
+        </nav>
+        <div style={{ display:'flex',alignItems:'center',gap:12 }}>
+          <button onClick={onLogin} style={{ background:'none',border:'none',cursor:'pointer',fontFamily:FONT,fontSize:14,fontWeight:500,color:C.text2,padding:'8px 12px' }}>Sign in</button>
+          <button onClick={onStart} style={{ background:C.purple,color:'#fff',border:'none',borderRadius:9,padding:'9px 20px',fontFamily:FONT,fontSize:14,fontWeight:600,cursor:'pointer',boxShadow:'0 1px 2px rgba(107,49,212,0.3)',transition:'all 0.18s' }} onMouseEnter={e=>{e.target.style.background=C.purple2;e.target.style.boxShadow='0 4px 14px rgba(107,49,212,0.45)'}} onMouseLeave={e=>{e.target.style.background=C.purple;e.target.style.boxShadow='0 1px 2px rgba(107,49,212,0.3)'}}>Get started free</button>
         </div>
       </div>
-    </nav>
+    </header>
   )
 }
 
-// ── Hero ──────────────────────────────────────────────────────────────────────
-function Hero() {
-  const words = ['ARR bridge analysis','cohort analytics','AI insights','retention trends','ACV analysis','revenue decisions']
+function Hero({ onStart }) {
+  const words = ['ARR bridge','cohort analysis','AI insights','retention trends','ACV analysis','revenue decisions']
   const [wi, setWi] = useState(0)
   const [fd, setFd] = useState(true)
-
   useEffect(() => {
-    const t = setInterval(() => {
-      setFd(false)
-      setTimeout(() => { setWi(p => (p + 1) % words.length); setFd(true) }, 280)
-    }, 2400)
-    return () => clearInterval(t)
-  }, [])
-
+    const t = setInterval(()=>{ setFd(false); setTimeout(()=>{ setWi(p=>(p+1)%words.length); setFd(true) },280) },2200)
+    return ()=>clearInterval(t)
+  },[])
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden bg-ink-950">
-      {/* Background mesh */}
-      <div className="absolute inset-0">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-600/20 rounded-full blur-[100px]" />
-        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-brand-400/15 rounded-full blur-[80px]" />
-        <div className="absolute inset-0" style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0)',
-          backgroundSize: '40px 40px'
-        }} />
+    <section style={{ minHeight:'100vh',background:`radial-gradient(ellipse 80% 55% at 50% -5%, ${C.purpleMd} 0%, ${C.bg} 65%)`,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'120px 32px 80px',position:'relative',overflow:'hidden' }}>
+      <div aria-hidden style={{ position:'absolute',inset:0,pointerEvents:'none',backgroundImage:`linear-gradient(${C.borderMd}44 1px,transparent 1px),linear-gradient(90deg,${C.borderMd}44 1px,transparent 1px)`,backgroundSize:'60px 60px',maskImage:'radial-gradient(ellipse 80% 55% at 50% 0%,black 0%,transparent 70%)',WebkitMaskImage:'radial-gradient(ellipse 80% 55% at 50% 0%,black 0%,transparent 70%)' }}/>
+      <div style={{ maxWidth:820,textAlign:'center',position:'relative' }}>
+        <div style={{ display:'inline-flex',alignItems:'center',gap:7,background:C.surface,border:`1px solid ${C.borderMd}`,borderRadius:99,padding:'5px 14px 5px 8px',marginBottom:32 }}>
+          <span style={{ background:C.purple,color:'#fff',borderRadius:99,fontSize:10,fontWeight:700,padding:'2px 8px',fontFamily:FONT,letterSpacing:'0.04em' }}>NEW</span>
+          <span style={{ fontFamily:FONT,fontSize:13,fontWeight:500,color:C.text2 }}>AI Consultant now live — ask anything about your revenue</span>
+        </div>
+        <h1 style={{ fontFamily:SERIF,fontSize:'clamp(44px,6vw,72px)',fontWeight:400,color:C.text1,lineHeight:1.1,letterSpacing:'-0.025em',margin:'0 0 14px' }}>
+          Your revenue data,{' '}<em style={{ fontStyle:'italic',color:C.purple }}>finally</em>{' '}understood.
+        </h1>
+        <p style={{ fontFamily:FONT,fontSize:20,fontWeight:400,color:C.text2,lineHeight:1.6,margin:'0 0 40px',maxWidth:600,marginLeft:'auto',marginRight:'auto' }}>
+          Upload any revenue data. Get instant{' '}
+          <span style={{ color:C.purple,fontWeight:600,opacity:fd?1:0,transition:'opacity 0.28s',display:'inline-block' }}>{words[wi]}</span>
+          {' '}powered by an AI that explains, teaches, and advises.
+        </p>
+        <div style={{ display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap' }}>
+          <button onClick={onStart} style={{ background:C.purple,color:'#fff',border:'none',borderRadius:10,padding:'14px 32px',fontFamily:FONT,fontSize:16,fontWeight:600,cursor:'pointer',boxShadow:'0 4px 20px rgba(107,49,212,0.35)',transition:'all 0.18s' }} onMouseEnter={e=>{e.target.style.transform='translateY(-2px)';e.target.style.boxShadow='0 8px 28px rgba(107,49,212,0.45)'}} onMouseLeave={e=>{e.target.style.transform='';e.target.style.boxShadow='0 4px 20px rgba(107,49,212,0.35)'}}>Start for free →</button>
+          <button style={{ background:C.surface,color:C.text1,border:`1px solid ${C.border}`,borderRadius:10,padding:'14px 28px',fontFamily:FONT,fontSize:16,fontWeight:500,cursor:'pointer',transition:'all 0.18s' }} onMouseEnter={e=>{e.target.style.borderColor=C.borderMd;e.target.style.boxShadow='0 4px 12px rgba(0,0,0,0.07)'}} onMouseLeave={e=>{e.target.style.borderColor=C.border;e.target.style.boxShadow='none'}}>Watch 2-min demo</button>
+        </div>
+        <div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:28,marginTop:52,paddingTop:36,borderTop:`1px solid ${C.border}` }}>
+          {[{v:'100%',l:'Reconciliation accuracy'},{v:'< 2 min',l:'Time to first insight'},{v:'8+',l:'Analytics engines'},{v:'SOC 2',l:'Compliance ready'}].map((s,i)=>(
+            <div key={i} style={{ textAlign:'center',paddingRight:i<3?28:0,borderRight:i<3?`1px solid ${C.border}`:'none' }}>
+              <div style={{ fontFamily:SERIF,fontSize:26,fontWeight:400,color:C.purple,letterSpacing:'-0.02em' }}>{s.v}</div>
+              <div style={{ fontFamily:FONT,fontSize:12,color:C.text3,marginTop:2,fontWeight:500 }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
       </div>
+    </section>
+  )
+}
 
-      <div className="relative max-w-7xl mx-auto px-6 pt-24 pb-20 w-full">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-
-          {/* Left */}
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold tracking-wide mb-8">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
-              Revenue Decision Platform
-            </div>
-
-            <h1 className="font-display text-5xl lg:text-6xl font-800 text-white leading-[1.05] tracking-tight mb-4">
-              The system that{' '}
-              <span className="text-brand-400">understands</span>{' '}
-              your revenue.
-            </h1>
-
-            <p className="text-ink-300 text-lg leading-relaxed mb-2 max-w-xl">
-              Upload any data. Get instant{' '}
-              <span
-                className="text-brand-400 font-semibold transition-opacity duration-300"
-                style={{ opacity: fd ? 1 : 0 }}
-              >
-                {words[wi]}
-              </span>
-            </p>
-            <p className="text-ink-400 text-base leading-relaxed mb-10 max-w-xl">
-              Powered by an AI that explains what happened, teaches your metrics, and tells you what to do next.
-            </p>
-
-            <div className="flex flex-wrap gap-4 mb-12">
-              <Link href="/auth/login" className="btn-primary text-sm px-6 py-3">
-                Start free analysis <ArrowRight size={15} />
-              </Link>
-              <button className="inline-flex items-center gap-2.5 px-6 py-3 text-white/80 text-sm font-medium hover:text-white transition-colors">
-                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                  <Play size={12} className="fill-white text-white ml-0.5" />
-                </div>
-                Watch demo (2 min)
-              </button>
-            </div>
-
-            <div className="flex items-center gap-8">
-              {[
-                { n:'100%', l:'Reconciliation accuracy' },
-                { n:'< 2 min', l:'Time to first insight' },
-                { n:'8+', l:'Analytics engines' },
-              ].map(({ n, l }) => (
-                <div key={l}>
-                  <div className="font-display text-2xl font-700 text-white">{n}</div>
-                  <div className="text-ink-400 text-xs mt-0.5">{l}</div>
-                </div>
-              ))}
+function ProductPreview() {
+  const [ref,iv] = useInView()
+  return (
+    <section ref={ref} style={{ background:C.text1,padding:'80px 32px',position:'relative',overflow:'hidden' }}>
+      <div aria-hidden style={{ position:'absolute',top:-200,left:'50%',transform:'translateX(-50%)',width:800,height:400,background:`radial-gradient(ellipse,${C.purple}33 0%,transparent 70%)`,pointerEvents:'none' }}/>
+      <div style={{ maxWidth:1100,margin:'0 auto',...fadeIn(iv) }}>
+        <div style={{ textAlign:'center',marginBottom:48 }}>
+          <p style={{ fontFamily:FONT,fontSize:13,fontWeight:600,color:C.purple,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:12 }}>The platform</p>
+          <h2 style={{ fontFamily:SERIF,fontSize:38,fontWeight:400,color:'#fff',letterSpacing:'-0.02em',margin:0 }}>Built for CFOs. Loved by revenue teams.</h2>
+        </div>
+        <div style={{ background:'#1A1530',border:'1px solid #2D2650',borderRadius:16,overflow:'hidden',boxShadow:'0 40px 80px rgba(0,0,0,0.6)' }}>
+          <div style={{ background:'#120F24',padding:'10px 16px',borderBottom:'1px solid #2D2650',display:'flex',alignItems:'center',gap:8 }}>
+            <div style={{ width:10,height:10,borderRadius:'50%',background:'#FF5F56' }}/><div style={{ width:10,height:10,borderRadius:'50%',background:'#FFBD2E' }}/><div style={{ width:10,height:10,borderRadius:'50%',background:'#27C93F' }}/>
+            <div style={{ flex:1,background:'#1E1A38',borderRadius:6,height:24,marginLeft:12,display:'flex',alignItems:'center',justifyContent:'center' }}>
+              <span style={{ fontFamily:MONO,fontSize:10,color:'#6B6490' }}>revenuelens.ai/app/command-center</span>
             </div>
           </div>
-
-          {/* Right — dashboard preview */}
-          <div className="relative hidden lg:block">
-            <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-ink-900">
-              {/* Browser chrome */}
-              <div className="bg-ink-950 border-b border-white/5 px-5 py-3 flex items-center gap-3">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-500/60" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
-                  <div className="w-3 h-3 rounded-full bg-green-500/60" />
+          <div style={{ display:'grid',gridTemplateColumns:'220px 1fr',minHeight:400 }}>
+            <div style={{ background:'#120F24',borderRight:'1px solid #2D2650',padding:16 }}>
+              <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:24 }}>
+                <div style={{ width:26,height:26,borderRadius:8,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center' }}>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 13L8 3L14 13H2Z" fill="white"/></svg>
                 </div>
-                <div className="flex-1 bg-white/5 rounded-md h-5 mx-4 flex items-center justify-center">
-                  <span className="text-ink-500 text-[10px] font-mono">revenuelens.ai/app/command-center</span>
-                </div>
+                <span style={{ fontFamily:FONT,fontSize:13,fontWeight:700,color:'#fff' }}>RevenueLens</span>
               </div>
-
-              {/* KPI row */}
-              <div className="p-5 grid grid-cols-3 gap-3">
-                {[
-                  { label:'Ending ARR', value:'$11.1M', change:'+5.3%', up:true },
-                  { label:'Net Retention', value:'105.3%', change:'+2.1pp', up:true },
-                  { label:'New Logo ARR', value:'$1.1M', change:'+22%', up:true },
-                ].map(kpi => (
-                  <div key={kpi.label} className="bg-ink-800/50 rounded-xl p-3.5 border border-white/5">
-                    <div className="text-ink-400 text-[10px] font-semibold uppercase tracking-wide mb-1">{kpi.label}</div>
-                    <div className="font-display text-white text-lg font-700">{kpi.value}</div>
-                    <div className={`text-xs font-medium mt-1 ${kpi.up ? 'text-green-400' : 'text-red-400'}`}>{kpi.change}</div>
+              <div style={{ fontSize:9,fontWeight:700,color:'#6B6490',letterSpacing:'0.08em',textTransform:'uppercase',fontFamily:FONT,marginBottom:8 }}>Select Engine</div>
+              {[{l:'MRR / ARR Analytics',a:true},{l:'ACV Analysis'},{l:'Cohort Analytics'}].map((e,i)=>(
+                <div key={i} style={{ display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:8,marginBottom:4,background:e.a?`${C.purple}22`:'transparent',border:e.a?`1px solid ${C.purple}44`:'1px solid transparent' }}>
+                  <div style={{ width:6,height:6,borderRadius:'50%',background:e.a?C.purple:'#3D3860',flexShrink:0 }}/>
+                  <span style={{ fontFamily:FONT,fontSize:11,fontWeight:e.a?600:400,color:e.a?'#C4A8FF':'#6B6490' }}>{e.l}</span>
+                </div>
+              ))}
+              <div style={{ marginTop:16,background:C.purple,borderRadius:8,padding:'10px 0',textAlign:'center',fontFamily:FONT,fontSize:12,fontWeight:600,color:'#fff',boxShadow:'0 4px 12px rgba(107,49,212,0.4)' }}>Run Analysis</div>
+            </div>
+            <div style={{ padding:20 }}>
+              <div style={{ display:'flex',gap:0,borderBottom:'1px solid #2D2650',marginBottom:16 }}>
+                {['Summary','Detailed Bridge','Historical','Top Movers','KPI Matrix'].map((t,i)=>(
+                  <div key={i} style={{ padding:'8px 14px',fontFamily:FONT,fontSize:12,fontWeight:i===0?600:400,color:i===0?C.purple:'#6B6490',borderBottom:i===0?`2px solid ${C.purple}`:'2px solid transparent',marginBottom:-1 }}>{t}</div>
+                ))}
+              </div>
+              <div style={{ display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:16 }}>
+                {[{l:'Beginning ARR',v:'$10.5M'},{l:'Ending ARR',v:'$11.1M',d:'+5.3%',up:true},{l:'Net Retention',v:'105.3%',d:'+2.1pp',up:true},{l:'Gross Retention',v:'94.7%'},{l:'New Logo ARR',v:'$1.1M',d:'+$1.1M',up:true}].map((k,i)=>(
+                  <div key={i} style={{ background:'#1E1A38',borderRadius:8,padding:'10px 12px',border:'1px solid #2D2650' }}>
+                    <div style={{ fontFamily:FONT,fontSize:9,color:'#6B6490',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4 }}>{k.l}</div>
+                    <div style={{ fontFamily:MONO,fontSize:16,fontWeight:700,color:'#fff',letterSpacing:'-0.02em' }}>{k.v}</div>
+                    {k.d&&<div style={{ fontFamily:FONT,fontSize:10,fontWeight:600,color:k.up?C.green:C.red,marginTop:2 }}>{k.d}</div>}
                   </div>
                 ))}
               </div>
-
-              {/* Waterfall bars */}
-              <div className="px-5 pb-3">
-                <div className="bg-ink-800/40 rounded-xl p-4 border border-white/5">
-                  <div className="text-ink-300 text-xs font-semibold mb-4">ARR Bridge — YoY 12M Dec 2025</div>
-                  <div className="flex items-end gap-2 h-24">
-                    {[
-                      { h:80, c:'#6B7280', l:'Beg.' },
-                      { h:18, c:'#EF4444', l:'Churn' },
-                      { h:10, c:'#EF4444', l:'Down' },
-                      { h:40, c:'#10B981', l:'Upsell' },
-                      { h:28, c:'#10B981', l:'New' },
-                      { h:12, c:'#3B82F6', l:'Ret.' },
-                      { h:88, c:'#6B31D4', l:'End.' },
-                    ].map((b,i) => (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                        <div className="w-full rounded-sm opacity-90" style={{ height: b.h * 0.85 + '%', background: b.c, minHeight: 4 }} />
-                        <div className="text-ink-500 text-[9px]">{b.l}</div>
+              <div style={{ display:'grid',gridTemplateColumns:'1fr 280px',gap:12 }}>
+                <div style={{ background:'#1E1A38',borderRadius:8,padding:'12px 14px',border:'1px solid #2D2650' }}>
+                  <div style={{ fontFamily:FONT,fontSize:11,fontWeight:600,color:'#9990B0',marginBottom:12 }}>ARR Bridge — YoY 12M Dec 2025</div>
+                  <div style={{ display:'flex',alignItems:'flex-end',gap:5,height:72 }}>
+                    {[{h:100,c:'#6B6490',l:'Beg.'},{h:18,c:C.red,l:'Churn'},{h:10,c:C.red,l:'Down'},{h:40,c:C.green,l:'Up'},{h:28,c:C.green,l:'New'},{h:12,c:C.blue,l:'Ret.'},{h:110,c:C.purple,l:'End.'}].map((b,i)=>(
+                      <div key={i} style={{ flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4 }}>
+                        <div style={{ width:'100%',height:b.h*0.65,background:b.c,borderRadius:'3px 3px 0 0',minHeight:4 }}/>
+                        <span style={{ fontFamily:MONO,fontSize:8,color:'#6B6490' }}>{b.l}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-              </div>
-
-              {/* AI insight */}
-              <div className="px-5 pb-5">
-                <div className="rounded-xl p-3 bg-brand-500/5 border border-brand-500/20 border-l-2 border-l-brand-500">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Sparkles size={11} className="text-brand-400" />
-                    <span className="text-brand-400 text-[10px] font-700 tracking-wide uppercase">RevenueLens AI</span>
+                <div style={{ background:'#1A1130',borderRadius:8,padding:'12px 14px',border:`1px solid ${C.purple}55`,borderLeft:`3px solid ${C.purple}` }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:6,marginBottom:8 }}>
+                    <span style={{ color:C.purple,fontSize:14 }}>&#10022;</span>
+                    <span style={{ fontFamily:FONT,fontSize:10,fontWeight:700,color:C.purple,letterSpacing:'0.04em' }}>REVENUELENS AI</span>
                   </div>
-                  <p className="text-ink-300 text-[11px] leading-relaxed">NRR 105.3% driven by $832K upsell from 12 accounts. Churn controlled at $362K — below 4% threshold. Review Top Movers for customer-level drivers.</p>
+                  <div style={{ fontFamily:FONT,fontSize:11,fontWeight:600,color:'#E8E0FF',marginBottom:6,lineHeight:1.4 }}>NRR 105.3% — strong expansion quarter</div>
+                  <div style={{ fontFamily:FONT,fontSize:11,color:'#9990B0',lineHeight:1.55 }}>Upsell of $832K from 12 accounts drove growth. Churn controlled at $362K below 4% threshold.</div>
+                  <div style={{ marginTop:8,fontFamily:FONT,fontSize:10,color:C.purple,fontWeight:600 }}>Review Top Movers for customer drivers</div>
                 </div>
-              </div>
-            </div>
-
-            {/* Floating tag — top right */}
-            <div className="absolute -top-4 -right-4 bg-white rounded-xl px-4 py-2.5 shadow-card-lg flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-green-50 flex items-center justify-center">
-                <TrendingUp size={14} className="text-green-600" />
-              </div>
-              <div>
-                <div className="text-ink-900 text-xs font-700">NRR 105.3%</div>
-                <div className="text-ink-400 text-[10px]">Dec 2025</div>
-              </div>
-            </div>
-
-            {/* Floating tag — bottom left */}
-            <div className="absolute -bottom-4 -left-4 bg-white rounded-xl px-4 py-2.5 shadow-card-lg flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-brand-50 flex items-center justify-center">
-                <Sparkles size={14} className="text-brand-600" />
-              </div>
-              <div>
-                <div className="text-ink-900 text-xs font-700">AI insight ready</div>
-                <div className="text-ink-400 text-[10px]">What to do next</div>
               </div>
             </div>
           </div>
@@ -247,41 +180,34 @@ function Hero() {
   )
 }
 
-// ── Platform Story ─────────────────────────────────────────────────────────────
-function PlatformStory() {
-  const [ref, iv] = useInView()
+function HowItWorks() {
+  const [ref,iv] = useInView()
   const steps = [
-    { icon:Database,   n:'01', title:'Upload anything',       sub:'CSV, ERP, CRM — any format, any mess',       tag:'Any source',     tc:'text-amber-700', tb:'bg-amber-50',  ic:'text-amber-600', ib:'bg-amber-50' },
-    { icon:GitMerge,   n:'02', title:'Clean and classify',    sub:'Fuzzy match, dedup, reconcile to zero',      tag:'100% accurate',  tc:'text-green-700', tb:'bg-green-50',  ic:'text-green-600', ib:'bg-green-50' },
-    { icon:FileDown,   n:'03', title:'Download data cube',    sub:'Verified flat file — your ground truth',     tag:'Ground truth',   tc:'text-blue-700',  tb:'bg-blue-50',   ic:'text-blue-600',  ib:'bg-blue-50'  },
-    { icon:Cpu,        n:'04', title:'Run 8 engines',         sub:'ARR, ACV, Cohorts, PVM, 4-Wall...',          tag:'8 engines',      tc:'text-brand-700', tb:'bg-brand-50',  ic:'text-brand-600', ib:'bg-brand-50' },
-    { icon:Sparkles,   n:'05', title:'AI explains + advises', sub:'What, why, what next — in plain English',    tag:'AI-powered',     tc:'text-purple-700',tb:'bg-purple-50', ic:'text-purple-600',ib:'bg-purple-50'},
-    { icon:ArrowRight, n:'06', title:'Export any format',     sub:'PDF, CSV, board pack, Slack, dashboard',     tag:'Any format',     tc:'text-ink-600',   tb:'bg-ink-100',   ic:'text-ink-600',   ib:'bg-ink-50'   },
+    {n:'01',icon:'📥',title:'Upload anything',body:'CSV, Excel, ERP exports, CRM dumps. Any format. Duplicates, gaps, dirty data — all handled automatically.',tag:'Any source',tc:C.text3,tb:`${C.border}88`},
+    {n:'02',icon:'⚙️',title:'Clean, map and classify',body:'Fuzzy matching, deduplication, customer consolidation. Every revenue movement classified at the atomic level.',tag:'100% reconciled',tc:C.green,tb:C.greenBg},
+    {n:'03',icon:'📦',title:'Download the data cube',body:'A single verified flat file — your ground truth. Downloadable, auditable, used by every analysis engine.',tag:'Ground truth',tc:C.blue,tb:'#EFF6FF'},
+    {n:'04',icon:'📊',title:'Run any analysis engine',body:'ARR Bridge, ACV, Cohorts, Segmentation, Retention, PVM, 4-Wall, Product Bundling — 8 engines, one file.',tag:'8 engines',tc:C.purple,tb:C.purpleXl},
+    {n:'05',icon:'✦',title:'AI explains and advises',body:'What happened. Why it happened. What it means. What to do next. Embedded financial intelligence, not a chatbot.',tag:'AI-powered',tc:'#7C3AED',tb:'#F5F3FF'},
+    {n:'06',icon:'📤',title:'Export in any format',body:'Board packs, PDFs, CSVs, Slack alerts, dashboards. Take the decision wherever it needs to go.',tag:'Any format',tc:C.text3,tb:`${C.border}88`},
   ]
-
   return (
-    <section ref={ref} className="py-24 bg-ink-50">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className={`text-center mb-16 transition-all duration-700 ${iv ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
-          <span className="section-label">How it works</span>
-          <h2 className="font-display text-4xl font-800 text-ink-900 tracking-tight mb-4">From raw data to real decisions</h2>
-          <p className="text-ink-500 text-lg max-w-xl mx-auto">Six steps. Fully automated. No analysts, no spreadsheets, no waiting.</p>
+    <section ref={ref} style={{ background:C.bg,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+      <div style={{ maxWidth:1100,margin:'0 auto' }}>
+        <div style={{ textAlign:'center',marginBottom:60,...fadeIn(iv) }}>
+          <p style={{ fontFamily:FONT,fontSize:13,fontWeight:600,color:C.purple,letterSpacing:'0.08em',textTransform:'uppercase',margin:'0 0 14px' }}>How it works</p>
+          <h2 style={{ fontFamily:SERIF,fontSize:42,fontWeight:400,color:C.text1,letterSpacing:'-0.025em',margin:'0 0 14px' }}>From raw data to real decisions</h2>
+          <p style={{ fontFamily:FONT,fontSize:17,color:C.text2,maxWidth:500,margin:'0 auto',lineHeight:1.65 }}>Six steps. Fully automated. No analysts, no spreadsheets, no waiting.</p>
         </div>
-
-        <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {steps.map((s, i) => (
-            <div key={i}
-              className={`card p-5 card-hover transition-all duration-700 ${iv ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}
-              style={{ transitionDelay: `${i * 70}ms` }}>
-              <div className="flex justify-between items-start mb-4">
-                <div className={`w-9 h-9 rounded-xl ${s.ib} flex items-center justify-center`}>
-                  <s.icon size={16} className={s.ic} />
-                </div>
-                <span className="font-mono text-[10px] font-600 text-ink-300">{s.n}</span>
+        <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16 }}>
+          {steps.map((s,i)=>(
+            <div key={i} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:'26px 24px',...fadeIn(iv,i*0.07),transition:`opacity 0.65s ease ${i*0.07}s, transform 0.65s ease ${i*0.07}s, border-color 0.18s, box-shadow 0.18s`,cursor:'default' }} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.purple+'66';e.currentTarget.style.boxShadow='0 4px 24px rgba(107,49,212,0.09)'}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.boxShadow='none'}}>
+              <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14 }}>
+                <span style={{ fontSize:22 }}>{s.icon}</span>
+                <span style={{ fontFamily:MONO,fontSize:11,fontWeight:600,color:C.text3 }}>{s.n}</span>
               </div>
-              <div className="font-display text-[13px] font-700 text-ink-900 mb-1 leading-snug">{s.title}</div>
-              <div className="text-ink-500 text-[11px] leading-relaxed mb-3">{s.sub}</div>
-              <span className={`inline-block text-[10px] font-600 ${s.tc} ${s.tb} rounded-full px-2.5 py-0.5`}>{s.tag}</span>
+              <div style={{ fontFamily:FONT,fontSize:16,fontWeight:700,color:C.text1,letterSpacing:'-0.015em',marginBottom:8 }}>{s.title}</div>
+              <div style={{ fontFamily:FONT,fontSize:13,color:C.text2,lineHeight:1.65,marginBottom:16 }}>{s.body}</div>
+              <span style={{ display:'inline-block',fontFamily:FONT,fontSize:11,fontWeight:600,color:s.tc,background:s.tb,borderRadius:99,padding:'3px 10px' }}>{s.tag}</span>
             </div>
           ))}
         </div>
@@ -290,368 +216,247 @@ function PlatformStory() {
   )
 }
 
-// ── Features ──────────────────────────────────────────────────────────────────
-const FEATURES = [
-  { icon:Layers,    title:'Cohort Analytics',      desc:'Size, percentile, and revenue cohorts. Individual and hierarchical with fiscal year filtering.', c:'text-brand-600', bg:'bg-brand-50' },
-  { icon:TrendingUp,title:'ARR Bridge Analysis',   desc:'Full SaaS waterfall: New Logo, Upsell, Downsell, Churn, Lapsed, Returning. 1M/3M/12M windows.', c:'text-green-600',bg:'bg-green-50' },
-  { icon:Users,     title:'Customer Analytics',    desc:'NRR/GRR tracking, vintage cohorts, top movers, segmentation by fiscal year. PE-grade output.',  c:'text-purple-600',bg:'bg-purple-50' },
-  { icon:Target,    title:'PVM Diagnostics',       desc:'Price vs volume decomposition. Isolate price impact and volume impact for Upsell/Downsell.',    c:'text-amber-600', bg:'bg-amber-50' },
-  { icon:LineChart, title:'Revenue Concentration', desc:'See what percentage of revenue comes from top 5/10/20% of customers and how it shifts over time.', c:'text-red-600', bg:'bg-red-50' },
-  { icon:Sparkles,  title:'AI Intelligence',       desc:'Explains what happened, teaches metrics, recommends next actions. Embedded advisor, not a chatbot.', c:'text-brand-600',bg:'bg-brand-50' },
-]
-
-function Features() {
-  const [ref, iv] = useInView()
-  return (
-    <section ref={ref} className="py-24 bg-white">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className={`text-center mb-16 transition-all duration-700 ${iv ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
-          <span className="section-label">Platform Capabilities</span>
-          <h2 className="font-display text-4xl font-800 text-ink-900 tracking-tight mb-4">
-            Everything you need to<br />diagnose revenue health
-          </h2>
-          <p className="text-ink-500 text-lg max-w-2xl mx-auto">
-            Built on the same methodology used by PE firms and SaaS-focused investment bankers.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {FEATURES.map((f, i) => (
-            <div key={f.title}
-              className={`card p-6 card-hover transition-all duration-700 ${iv ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}
-              style={{ transitionDelay: `${i * 80}ms` }}>
-              <div className={`w-10 h-10 rounded-xl ${f.bg} flex items-center justify-center mb-4`}>
-                <f.icon size={20} className={f.c} />
-              </div>
-              <h3 className="font-display text-[15px] font-700 text-ink-900 mb-2">{f.title}</h3>
-              <p className="text-ink-500 text-sm leading-relaxed">{f.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ── AI Section ────────────────────────────────────────────────────────────────
 function AISection() {
-  const [ref, iv] = useInView()
-  const [active, setActive] = useState(0)
+  const [ref,iv] = useInView()
+  const [active,setActive] = useState(0)
   const caps = [
-    { icon:'📈', label:'AI Insights',      hl:'What changed and why',          q:null,                            a:'NRR 105.3% this quarter — driven by $832K upsell from 12 accounts. Churn held at $362K, below 4% threshold. Gross retention: 94.7%.' },
-    { icon:'💬', label:'AI Consultant',    hl:'Ask anything about your data',  q:'Why did NRR drop in Q3?',       a:'Q3 NRR fell to 98.4% from 107.2% in Q2. Primary driver: $421K downsell from 3 Enterprise accounts reducing seats post-renewal.' },
-    { icon:'🎓', label:'AI Educator',      hl:'Teaches metrics in context',    q:'What is NRR and is mine good?', a:'NRR measures revenue kept and grown from existing customers. Above 100% means growth without new customers. Your 105.3% is top quartile.' },
-    { icon:'🎯', label:'Decision Advisor', hl:'Tells you exactly what to do',  q:null,                            a:'Action: Call accounts A-119, A-203, A-341 — all showing expansion signals with seat usage above 85%. Combined upsell opportunity: $280K ARR.' },
+    {icon:'📈',label:'AI Insights',hl:'What changed and why',detail:'After every analysis, RevenueLens AI generates a structured executive narrative. What moved. What caused it. What it means.',preview:{q:null,a:'NRR 105.3% this quarter — driven by $832K upsell from 12 expansion accounts. Churn held at $362K, below the 4% threshold. Gross retention: 94.7%.'}},
+    {icon:'💬',label:'AI Consultant',hl:'Ask anything about your data',detail:'Not generic AI. Every answer is grounded in your actual verified revenue data. Ask about customers, products, time periods.',preview:{q:'Why did NRR drop in Q3?',a:'Q3 NRR fell to 98.4% from 107.2% in Q2. Primary driver: $421K downsell from 3 Enterprise accounts reducing seats post-renewal. New logo at $198K vs $340K prior quarter.'}},
+    {icon:'🎓',label:'AI Educator',hl:'Teaches metrics in context',detail:'New to NRR? Never modeled a cohort? RevenueLens AI explains every metric in plain English — always in context of your own data.',preview:{q:'What is NRR and is mine good?',a:'NRR measures revenue kept and grown from existing customers. Above 100% means you grow without new customers. Your 105.3% is top quartile — healthy SaaS benchmark is 100-110%.'}},
+    {icon:'🎯',label:'Decision Advisor',hl:'Tells you what to do next',detail:'Beyond explaining what happened, RevenueLens AI surfaces specific actions — which customers to call, where to focus.',preview:{q:null,a:'Action 1: Call accounts A-119, A-203, A-341 — all show expansion signals with seat usage above 85%. Upsell opportunity: $280K ARR.\n\nAction 2: SMB cohort at month 6 shows 23% churn. Run proactive check-in at month 5.'}},
   ]
   const cur = caps[active]
-
   return (
-    <section ref={ref} className="py-24 bg-ink-50">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className={`grid lg:grid-cols-2 gap-16 items-center transition-all duration-700 ${iv ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
-
-          {/* Left */}
-          <div>
-            <span className="section-label">AI Intelligence</span>
-            <h2 className="font-display text-4xl font-800 text-ink-900 tracking-tight mt-4 mb-4 leading-tight">
-              Analyzes. Explains.<br />Teaches. Advises.
-            </h2>
-            <p className="text-ink-500 text-base leading-relaxed mb-8">
-              Most tools show charts. RevenueLens AI understands your revenue and tells you exactly what to do about it.
-            </p>
-
-            <div className="flex flex-col gap-3">
-              {caps.map((c, i) => (
-                <button key={i} onClick={() => setActive(i)}
-                  className={`flex items-center gap-3 p-4 rounded-xl text-left transition-all border ${
-                    active === i
-                      ? 'border-brand-200 bg-brand-50 shadow-sm'
-                      : 'border-ink-200 bg-white hover:border-brand-100 hover:shadow-sm'
-                  }`}>
-                  <span className="text-xl flex-shrink-0">{c.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-600 ${active === i ? 'text-brand-700' : 'text-ink-900'}`}>{c.label}</div>
-                    <div className="text-ink-400 text-xs mt-0.5">{c.hl}</div>
-                  </div>
-                  {active === i && <ChevronRight size={14} className="text-brand-600 flex-shrink-0" />}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Right — chat preview */}
-          <div>
-            <div className="card overflow-hidden shadow-card-lg">
-              {/* Header */}
-              <div className="px-5 py-4 border-b border-ink-100 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
-                  <Sparkles size={14} className="text-white" />
+    <section ref={ref} style={{ background:C.surface,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+      <div style={{ maxWidth:1100,margin:'0 auto',display:'grid',gridTemplateColumns:'1fr 1fr',gap:72,alignItems:'center' }}>
+        <div style={{ ...fadeIn(iv) }}>
+          <p style={{ fontFamily:FONT,fontSize:13,fontWeight:600,color:C.purple,letterSpacing:'0.08em',textTransform:'uppercase',margin:'0 0 14px' }}>AI intelligence</p>
+          <h2 style={{ fontFamily:SERIF,fontSize:40,fontWeight:400,color:C.text1,letterSpacing:'-0.025em',margin:'0 0 16px',lineHeight:1.15 }}>Analyzes. Explains.<br/>Teaches. Advises.</h2>
+          <p style={{ fontFamily:FONT,fontSize:15,color:C.text2,lineHeight:1.7,margin:'0 0 32px' }}>Most tools show charts. RevenueLens AI understands your revenue and tells you exactly what to do about it.</p>
+          <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
+            {caps.map((c,i)=>(
+              <button key={i} onClick={()=>setActive(i)} style={{ display:'flex',alignItems:'center',gap:12,padding:'11px 14px',borderRadius:10,cursor:'pointer',textAlign:'left',border:`1px solid ${active===i?C.purpleMd:C.border}`,background:active===i?C.purpleXl:'transparent',transition:'all 0.15s',fontFamily:FONT }}>
+                <span style={{ fontSize:18,flexShrink:0 }}>{c.icon}</span>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13,fontWeight:600,color:active===i?C.purple:C.text1 }}>{c.label}</div>
+                  <div style={{ fontSize:11,color:C.text3,marginTop:1 }}>{c.hl}</div>
                 </div>
-                <div>
-                  <div className="text-sm font-700 text-ink-900">RevenueLens AI</div>
-                  <div className="text-ink-400 text-[11px]">{cur.label}</div>
-                </div>
-                <div className="ml-auto flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                  <span className="text-ink-400 text-[10px]">live</span>
-                </div>
-              </div>
-
-              {/* Messages */}
-              <div className="p-5 min-h-[200px] flex flex-col gap-3 bg-ink-50/40">
-                {cur.q && (
-                  <div className="flex justify-end">
-                    <div className="bg-brand-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm max-w-[80%] leading-relaxed">{cur.q}</div>
-                  </div>
-                )}
-                <div className="flex">
-                  <div className="bg-white border border-ink-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-ink-800 max-w-[90%] leading-relaxed shadow-sm">{cur.a}</div>
-                </div>
-              </div>
-
-              {/* Input */}
-              <div className="px-4 py-3 border-t border-ink-100 flex gap-2">
-                <div className="flex-1 bg-ink-50 border border-ink-200 rounded-lg px-3 py-2 text-sm text-ink-400">Ask about your revenue…</div>
-                <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center cursor-pointer">
-                  <ArrowRight size={14} className="text-white" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ── Competitive Table ─────────────────────────────────────────────────────────
-function CompetitiveTable() {
-  const [ref, iv] = useInView()
-  const rows = [
-    { cap:'Analyzes your revenue data',           rl:true, tb:true,  gpt:false,     con:false },
-    { cap:'Explains what happened and why',        rl:true, tb:false, gpt:'partial', con:true  },
-    { cap:'Uses your actual real data',            rl:true, tb:true,  gpt:false,     con:true  },
-    { cap:'Teaches your metrics in context',       rl:true, tb:false, gpt:'partial', con:false },
-    { cap:'Recommends specific next actions',      rl:true, tb:false, gpt:'partial', con:true  },
-    { cap:'Available instantly around the clock',  rl:true, tb:true,  gpt:true,      con:false },
-    { cap:'100% reconciled output guaranteed',     rl:true, tb:false, gpt:false,     con:false },
-    { cap:'Costs under $1,000 per month',          rl:true, tb:false, gpt:true,      con:false },
-  ]
-
-  const Cell = ({ v }) => {
-    if (v === true)      return <CheckCircle size={15} className="text-green-500 mx-auto" />
-    if (v === false)     return <span className="block text-center text-ink-300 text-base leading-none">&#8212;</span>
-    return <span className="text-amber-600 text-[10px] font-600 bg-amber-50 px-2 py-0.5 rounded-full">partial</span>
-  }
-
-  return (
-    <section ref={ref} className="py-24 bg-white">
-      <div className="max-w-4xl mx-auto px-6">
-        <div className={`text-center mb-12 transition-all duration-700 ${iv ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
-          <span className="section-label">Why RevenueLens</span>
-          <h2 className="font-display text-4xl font-800 text-ink-900 tracking-tight mb-4">Nothing else does all of this.</h2>
-        </div>
-
-        <div className={`card overflow-hidden transition-all duration-700 ${iv ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`} style={{ transitionDelay:'100ms' }}>
-          {/* Header */}
-          <div className="grid bg-ink-50 border-b border-ink-100" style={{ gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr' }}>
-            <div className="p-4" />
-            {['RevenueLens','Tableau / BI','ChatGPT','Consultants'].map((col, i) => (
-              <div key={i} className={`p-4 text-center border-l border-ink-100 ${i === 0 ? 'bg-brand-50' : ''}`}>
-                <span className={`text-xs font-700 ${i === 0 ? 'text-brand-700' : 'text-ink-500'}`}>{col}</span>
-              </div>
+                {active===i&&<span style={{ color:C.purple,fontSize:14 }}>&#8594;</span>}
+              </button>
             ))}
           </div>
-          {rows.map((r, ri) => (
-            <div key={ri} className={`grid border-b last:border-0 border-ink-50 ${ri % 2 === 0 ? 'bg-white' : 'bg-ink-50/30'}`} style={{ gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr' }}>
-              <div className="p-4 text-sm font-500 text-ink-700">{r.cap}</div>
-              {[r.rl, r.tb, r.gpt, r.con].map((v, ci) => (
-                <div key={ci} className={`p-4 flex items-center justify-center border-l border-ink-50 ${ci === 0 ? 'bg-brand-50/40' : ''}`}>
-                  <Cell v={v} />
-                </div>
-              ))}
+        </div>
+        <div style={{ ...fadeIn(iv,0.15) }}>
+          <div style={{ background:C.bg,border:`1px solid ${C.border}`,borderRadius:18,overflow:'hidden',boxShadow:'0 8px 32px rgba(0,0,0,0.06)' }}>
+            <div style={{ padding:'14px 18px',borderBottom:`1px solid ${C.border}`,background:C.surface,display:'flex',alignItems:'center',gap:10 }}>
+              <div style={{ width:30,height:30,borderRadius:9,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center' }}>
+                <span style={{ color:'#fff',fontSize:14 }}>&#10022;</span>
+              </div>
+              <div>
+                <div style={{ fontFamily:FONT,fontSize:13,fontWeight:700,color:C.text1 }}>RevenueLens AI</div>
+                <div style={{ fontFamily:FONT,fontSize:11,color:C.text3 }}>{cur.label}</div>
+              </div>
+              <div style={{ marginLeft:'auto',display:'flex',alignItems:'center',gap:5 }}>
+                <div style={{ width:6,height:6,borderRadius:'50%',background:C.green }}/>
+                <span style={{ fontFamily:FONT,fontSize:10,color:C.text3 }}>live</span>
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ── Pricing ───────────────────────────────────────────────────────────────────
-const PRICING_PLANS = [
-  {
-    name:'Starter', price:'$299', period:'/month',
-    desc:'For finance teams starting with ARR analytics.',
-    features:['MRR / ARR bridge analytics','Up to 5M rows per month','3 users included','Data cube download','Email support'],
-    cta:'Start free trial', href:'/auth/login', highlight:false,
-  },
-  {
-    name:'Growth', price:'$799', period:'/month',
-    desc:'For teams who need the full platform and AI layer.',
-    features:['All 8 analytics engines','Unlimited rows','10 users included','AI Insights + Consultant + Educator','Board pack generation','Slack alerts'],
-    cta:'Start free trial', href:'/auth/login', highlight:true,
-  },
-  {
-    name:'Enterprise', price:'$2,500', period:'/month',
-    desc:'For large teams, PE firms, and portfolio oversight.',
-    features:['Everything in Growth','Unlimited users','SSO + audit logs','Dedicated CSM','SLA 99.9% uptime','SOC 2 on request'],
-    cta:'Talk to sales', href:'/auth/login', highlight:false,
-  },
-]
-
-function Pricing() {
-  const [ref, iv] = useInView()
-  return (
-    <section id="pricing" ref={ref} className="py-24 bg-ink-50">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className={`text-center mb-16 transition-all duration-700 ${iv ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
-          <span className="section-label">Pricing</span>
-          <h2 className="font-display text-4xl font-800 text-ink-900 tracking-tight mb-4">Simple, transparent pricing</h2>
-          <p className="text-ink-500 text-lg">All plans include the data cube, classification engine, and AI layer.</p>
-        </div>
-
-        <div className={`grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-10 transition-all duration-700 ${iv ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`} style={{ transitionDelay:'80ms' }}>
-          {PRICING_PLANS.map((plan, i) => (
-            <div key={plan.name} className={`relative rounded-2xl p-7 border transition-all duration-700 ${
-              plan.highlight ? 'bg-brand-600 border-brand-600 shadow-glow' : 'bg-white border-ink-200'
-            }`} style={{ transitionDelay:`${i*100+80}ms` }}>
-              {plan.highlight && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-ink-900 text-[10px] font-700 px-3 py-1 rounded-full uppercase tracking-wide">Most popular</div>
+            <div style={{ padding:'20px 18px',minHeight:200,display:'flex',flexDirection:'column',gap:12 }}>
+              {cur.preview.q&&(
+                <div style={{ display:'flex',justifyContent:'flex-end' }}>
+                  <div style={{ background:C.purple,color:'#fff',borderRadius:'12px 12px 2px 12px',padding:'10px 14px',maxWidth:'80%',fontFamily:FONT,fontSize:13,lineHeight:1.55 }}>{cur.preview.q}</div>
+                </div>
               )}
-              <div className={`text-sm font-600 mb-1 ${plan.highlight ? 'text-blue-200' : 'text-ink-500'}`}>{plan.name}</div>
-              <div className={`font-display text-3xl font-800 ${plan.highlight ? 'text-white' : 'text-ink-900'}`}>
-                {plan.price}<span className={`text-sm font-400 ${plan.highlight ? 'text-blue-200' : 'text-ink-400'}`}>{plan.period}</span>
+              <div style={{ display:'flex' }}>
+                <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:cur.preview.q?'12px 12px 12px 2px':'12px',padding:'12px 14px',maxWidth:'90%',fontFamily:FONT,fontSize:13,color:C.text1,lineHeight:1.65,whiteSpace:'pre-line' }}>{cur.preview.a}</div>
               </div>
-              <p className={`text-sm mt-2 mb-6 ${plan.highlight ? 'text-blue-100' : 'text-ink-500'}`}>{plan.desc}</p>
-              <Link href={plan.href} className={`block text-center py-2.5 px-4 rounded-lg text-sm font-600 transition-all mb-7 ${
-                plan.highlight ? 'bg-white text-brand-600 hover:bg-blue-50' : 'bg-brand-600 text-white hover:bg-brand-700'
-              }`}>{plan.cta}</Link>
-              <ul className="space-y-2.5">
-                {plan.features.map(f => (
-                  <li key={f} className="flex items-center gap-2.5 text-sm">
-                    <CheckCircle size={14} className={`flex-shrink-0 ${plan.highlight ? 'text-blue-200' : 'text-brand-500'}`} />
-                    <span className={plan.highlight ? 'text-blue-100' : 'text-ink-600'}>{f}</span>
-                  </li>
-                ))}
-              </ul>
+              <div style={{ fontFamily:FONT,fontSize:12,color:C.text3,fontStyle:'italic',marginTop:4 }}>{cur.detail}</div>
             </div>
-          ))}
-        </div>
-
-        {/* Consulting add-on */}
-        <div className={`max-w-4xl mx-auto card p-6 flex flex-col md:flex-row items-start md:items-center gap-6 transition-all duration-700 ${iv ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`} style={{ transitionDelay:'300ms' }}>
-          <div className="flex-1">
-            <div className="font-display text-[15px] font-700 text-ink-900 mb-1">Expert Analytics Consulting</div>
-            <p className="text-ink-500 text-sm leading-relaxed">Need someone to interpret your data, build a revenue narrative for investors, or set up your analytics model? Former PE analytics background, deep SaaS metrics expertise. No retainer.</p>
+            <div style={{ padding:'10px 14px',borderTop:`1px solid ${C.border}`,background:C.surface,display:'flex',gap:8 }}>
+              <div style={{ flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:'9px 12px',fontFamily:FONT,fontSize:12,color:C.text3 }}>Ask about your revenue…</div>
+              <div style={{ width:34,height:34,borderRadius:8,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0 }}>
+                <span style={{ color:'#fff',fontSize:14 }}>&#8594;</span>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-3 flex-shrink-0">
-            {[{t:'1 hr',p:'$150'},{t:'2 hrs',p:'$280'},{t:'Half day',p:'$500'}].map(s=>(
-              <div key={s.t} className="px-4 py-2 bg-ink-50 rounded-lg text-center border border-ink-200">
-                <div className="font-700 text-ink-900 text-sm">{s.t}</div>
-                <div className="text-ink-500 text-xs">{s.p}</div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ComparisonTable() {
+  const [ref,iv] = useInView()
+  const rows = [
+    {cap:'Analyzes your revenue data',rl:true,tb:true,gpt:false,con:false},
+    {cap:'Explains what happened and why',rl:true,tb:false,gpt:'partial',con:true},
+    {cap:'Uses your actual real data',rl:true,tb:true,gpt:false,con:true},
+    {cap:'Teaches your metrics in context',rl:true,tb:false,gpt:'partial',con:false},
+    {cap:'Recommends specific next actions',rl:true,tb:false,gpt:'partial',con:true},
+    {cap:'Available instantly, 24 hours a day',rl:true,tb:true,gpt:true,con:false},
+    {cap:'100% reconciled output guaranteed',rl:true,tb:false,gpt:false,con:false},
+    {cap:'Costs under $1,000 per month',rl:true,tb:false,gpt:true,con:false},
+  ]
+  const Cell=({v})=>{
+    if(v===true) return <span style={{color:C.green,fontSize:17,fontWeight:700}}>&#10003;</span>
+    if(v===false) return <span style={{color:C.borderMd,fontSize:17}}>&#8212;</span>
+    return <span style={{fontFamily:FONT,fontSize:10,fontWeight:600,color:C.amber,background:'#FFFBEB',borderRadius:99,padding:'2px 8px'}}>partial</span>
+  }
+  return (
+    <section ref={ref} style={{ background:C.bg,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+      <div style={{ maxWidth:900,margin:'0 auto' }}>
+        <div style={{ textAlign:'center',marginBottom:52,...fadeIn(iv) }}>
+          <p style={{ fontFamily:FONT,fontSize:13,fontWeight:600,color:C.purple,letterSpacing:'0.08em',textTransform:'uppercase',margin:'0 0 14px' }}>Why RevenueLens</p>
+          <h2 style={{ fontFamily:SERIF,fontSize:40,fontWeight:400,color:C.text1,letterSpacing:'-0.025em',margin:0 }}>Nothing else does all of this.</h2>
+        </div>
+        <div style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,overflow:'hidden',boxShadow:'0 4px 20px rgba(0,0,0,0.04)',...fadeIn(iv,0.1) }}>
+          <div style={{ display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr',background:C.bg,borderBottom:`1px solid ${C.border}` }}>
+            <div style={{ padding:'13px 20px' }}/>
+            {['RevenueLens','Tableau / BI','ChatGPT','Consultants'].map((col,i)=>(
+              <div key={i} style={{ padding:'13px 12px',textAlign:'center',borderLeft:`1px solid ${C.border}`,background:i===0?C.purpleXl:'transparent' }}>
+                <span style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:i===0?C.purple:C.text2 }}>{col}</span>
               </div>
             ))}
           </div>
-          <Link href="/consulting" className="btn-secondary text-sm flex-shrink-0">
-            Book a session <ChevronRight size={14} />
-          </Link>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ── Final CTA ─────────────────────────────────────────────────────────────────
-function FinalCTA() {
-  return (
-    <section className="relative bg-ink-950 py-24 overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-600/20 rounded-full blur-[100px]" />
-        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-brand-400/15 rounded-full blur-[80px]" />
-      </div>
-      <div className="max-w-2xl mx-auto px-6 text-center relative">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold tracking-wide mb-8">
-          <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
-          No dominant player owns this space yet
-        </div>
-        <h2 className="font-display text-5xl font-800 text-white tracking-tight mb-4 leading-tight">The window is now.</h2>
-        <p className="text-ink-300 text-lg leading-relaxed mb-10">The CFO who logs into RevenueLens every morning makes better decisions, faster — and wins.</p>
-        <div className="flex justify-center gap-4 flex-wrap">
-          <Link href="/auth/login" className="btn-primary text-sm px-8 py-3.5">
-            Start free — no card required <ArrowRight size={15} />
-          </Link>
-          <button className="inline-flex items-center gap-2.5 px-6 py-3.5 text-white/80 text-sm font-medium hover:text-white transition-colors border border-white/10 rounded-xl hover:border-white/20">
-            Book a demo
-          </button>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ── Footer ────────────────────────────────────────────────────────────────────
-function Footer() {
-  return (
-    <footer className="bg-ink-950 py-16 border-t border-white/5">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="grid md:grid-cols-5 gap-10 mb-12">
-          <div className="md:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
-                <BarChart3 size={13} className="text-white" />
-              </div>
-              <span className="font-display font-700 text-white text-sm">RevenueLens</span>
-            </div>
-            <p className="text-ink-400 text-sm leading-relaxed max-w-xs">The system that understands your revenue — and tells you what to do next.</p>
-          </div>
-          {[
-            { title:'Product', links:['ARR Bridge','Cohort Analytics','ACV Analysis','AI Intelligence','Pricing'] },
-            { title:'Company', links:['About','Consulting','Blog','Careers'] },
-            { title:'Legal', links:['Privacy Policy','Terms of Service','Security'] },
-          ].map(col => (
-            <div key={col.title}>
-              <div className="text-ink-300 text-xs font-700 uppercase tracking-widest mb-4">{col.title}</div>
-              <ul className="space-y-2">
-                {col.links.map(l => (
-                  <li key={l}><Link href="#" className="text-ink-400 text-sm hover:text-white transition-colors">{l}</Link></li>
-                ))}
-              </ul>
+          {rows.map((r,ri)=>(
+            <div key={ri} style={{ display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr',borderBottom:ri<rows.length-1?`1px solid ${C.bg}`:'none' }}>
+              <div style={{ padding:'12px 20px',fontFamily:FONT,fontSize:13,color:C.text1,fontWeight:500 }}>{r.cap}</div>
+              {[r.rl,r.tb,r.gpt,r.con].map((v,ci)=>(
+                <div key={ci} style={{ padding:'12px',textAlign:'center',borderLeft:`1px solid ${C.bg}`,background:ci===0?`${C.purpleXl}88`:'transparent',display:'flex',alignItems:'center',justifyContent:'center' }}>
+                  <Cell v={v}/>
+                </div>
+              ))}
             </div>
           ))}
         </div>
-        <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="text-ink-500 text-sm">&#169; 2026 RevenueLens. All rights reserved.</div>
-          <div className="flex items-center gap-2 text-ink-500 text-sm">
-            <Star size={12} className="text-amber-400 fill-amber-400" />
-            Built for CFOs who want answers, not charts.
+      </div>
+    </section>
+  )
+}
+
+function Pricing({ onStart }) {
+  const [ref,iv] = useInView()
+  const plans = [
+    {name:'Starter',price:'$299',desc:'For growing finance teams starting with ARR analytics.',features:['MRR / ARR bridge analytics','Up to 5M rows per month','3 users included','Data cube download','Email support'],cta:'Start free trial',popular:false},
+    {name:'Growth',price:'$799',desc:'For teams who need the full platform and AI layer.',features:['All 8 analytics engines','Unlimited rows','10 users included','AI Insights + Consultant + Educator','Board pack generation','Slack alerts'],cta:'Start free trial',popular:true},
+    {name:'Enterprise',price:'$2,500',desc:'For large teams, PE firms, and portfolio oversight.',features:['Everything in Growth','Unlimited users','SSO + audit logs','Dedicated CSM','SLA 99.9% uptime','SOC 2 report on request'],cta:'Talk to sales',popular:false},
+  ]
+  return (
+    <section ref={ref} style={{ background:C.surface,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+      <div style={{ maxWidth:1000,margin:'0 auto' }}>
+        <div style={{ textAlign:'center',marginBottom:56,...fadeIn(iv) }}>
+          <p style={{ fontFamily:FONT,fontSize:13,fontWeight:600,color:C.purple,letterSpacing:'0.08em',textTransform:'uppercase',margin:'0 0 14px' }}>Pricing</p>
+          <h2 style={{ fontFamily:SERIF,fontSize:40,fontWeight:400,color:C.text1,letterSpacing:'-0.025em',margin:'0 0 12px' }}>Simple pricing. Serious value.</h2>
+          <p style={{ fontFamily:FONT,fontSize:16,color:C.text2 }}>All plans include the data cube, classification engine, and AI layer.</p>
+        </div>
+        <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16 }}>
+          {plans.map((p,i)=>(
+            <div key={i} style={{ background:C.bg,border:`${p.popular?'2px':'1px'} solid ${p.popular?C.purple:C.border}`,borderRadius:16,padding:'28px 24px',position:'relative',boxShadow:p.popular?'0 8px 32px rgba(107,49,212,0.14)':'0 1px 4px rgba(0,0,0,0.04)',...fadeIn(iv,i*0.1) }}>
+              {p.popular&&<div style={{ position:'absolute',top:-14,left:'50%',transform:'translateX(-50%)',background:C.purple,color:'#fff',borderRadius:99,padding:'4px 16px',fontFamily:FONT,fontSize:11,fontWeight:700,whiteSpace:'nowrap' }}>Most popular</div>}
+              <div style={{ fontFamily:FONT,fontSize:15,fontWeight:700,color:C.text1,marginBottom:6 }}>{p.name}</div>
+              <div style={{ display:'flex',alignItems:'baseline',gap:3,marginBottom:8 }}>
+                <span style={{ fontFamily:SERIF,fontSize:36,fontWeight:400,color:p.popular?C.purple:C.text1,letterSpacing:'-0.02em' }}>{p.price}</span>
+                <span style={{ fontFamily:FONT,fontSize:13,color:C.text3 }}>/mo</span>
+              </div>
+              <div style={{ fontFamily:FONT,fontSize:13,color:C.text2,lineHeight:1.55,marginBottom:22 }}>{p.desc}</div>
+              <button onClick={onStart} style={{ width:'100%',padding:'11px 0',borderRadius:9,border:`1px solid ${p.popular?'transparent':C.borderMd}`,background:p.popular?C.purple:C.surface,color:p.popular?'#fff':C.text1,fontFamily:FONT,fontSize:13,fontWeight:600,cursor:'pointer',marginBottom:20,boxShadow:p.popular?'0 4px 12px rgba(107,49,212,0.3)':'none',transition:'all 0.15s' }}>{p.cta}</button>
+              <div style={{ display:'flex',flexDirection:'column',gap:9 }}>
+                {p.features.map((f,fi)=>(
+                  <div key={fi} style={{ display:'flex',gap:8,alignItems:'center',fontFamily:FONT,fontSize:13,color:C.text2 }}>
+                    <span style={{ color:C.green,flexShrink:0,fontSize:13 }}>&#10003;</span>{f}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p style={{ textAlign:'center',marginTop:28,fontFamily:FONT,fontSize:13,color:C.text3 }}>
+          PE portfolio or multi-company?{' '}
+          <a href="#" style={{ color:C.purple,fontWeight:600,textDecoration:'none' }}>Talk to us about custom pricing</a>
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function FinalCTA({ onStart }) {
+  return (
+    <section style={{ background:C.purple,padding:'88px 32px',position:'relative',overflow:'hidden' }}>
+      <div aria-hidden style={{ position:'absolute',top:-100,left:'50%',transform:'translateX(-50%)',width:600,height:300,background:'radial-gradient(ellipse,rgba(255,255,255,0.12) 0%,transparent 70%)',pointerEvents:'none' }}/>
+      <div style={{ maxWidth:640,margin:'0 auto',textAlign:'center',position:'relative' }}>
+        <div style={{ fontFamily:FONT,fontSize:40,marginBottom:20,lineHeight:1,color:'#fff' }}>&#10022;</div>
+        <h2 style={{ fontFamily:SERIF,fontSize:44,fontWeight:400,color:'#fff',letterSpacing:'-0.025em',margin:'0 0 18px',lineHeight:1.15 }}>The window is now.</h2>
+        <p style={{ fontFamily:FONT,fontSize:17,color:'rgba(255,255,255,0.72)',lineHeight:1.7,margin:'0 0 40px' }}>No dominant player owns this space yet. The CFO who logs into RevenueLens every morning makes better decisions, faster.</p>
+        <div style={{ display:'flex',justifyContent:'center',gap:12,flexWrap:'wrap' }}>
+          <button onClick={onStart} style={{ background:'#fff',color:C.purple,border:'none',borderRadius:10,padding:'14px 30px',fontFamily:FONT,fontSize:15,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 16px rgba(0,0,0,0.15)',transition:'all 0.18s' }} onMouseEnter={e=>e.target.style.transform='translateY(-2px)'} onMouseLeave={e=>e.target.style.transform=''}>Start free — no card required</button>
+          <button style={{ background:'rgba(255,255,255,0.14)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'14px 24px',fontFamily:FONT,fontSize:15,fontWeight:500,cursor:'pointer' }}>Book a demo</button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function Footer() {
+  const links = [
+    {head:'Product',items:['Features','Pricing','Changelog','Roadmap']},
+    {head:'Company',items:['About','Blog','Careers','Press']},
+    {head:'Resources',items:['Documentation','API Reference','Status','Security']},
+    {head:'Legal',items:['Privacy','Terms','SOC 2','GDPR']},
+  ]
+  return (
+    <footer style={{ background:C.text1,padding:'60px 32px 32px' }}>
+      <div style={{ maxWidth:1100,margin:'0 auto' }}>
+        <div style={{ display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr',gap:48,marginBottom:48 }}>
+          <div>
+            <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:16 }}>
+              <div style={{ width:28,height:28,borderRadius:8,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center' }}>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 13L8 3L14 13H2Z" fill="white"/></svg>
+              </div>
+              <span style={{ fontFamily:FONT,fontSize:14,fontWeight:700,color:'#fff' }}>RevenueLens</span>
+            </div>
+            <p style={{ fontFamily:FONT,fontSize:13,color:'rgba(255,255,255,0.42)',lineHeight:1.65,margin:0,maxWidth:220 }}>The system that understands your revenue and tells you what to do next.</p>
           </div>
+          {links.map((col,i)=>(
+            <div key={i}>
+              <div style={{ fontFamily:FONT,fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.4)',letterSpacing:'0.07em',textTransform:'uppercase',marginBottom:14 }}>{col.head}</div>
+              {col.items.map(item=>(
+                <a key={item} href="#" style={{ display:'block',fontFamily:FONT,fontSize:13,color:'rgba(255,255,255,0.52)',textDecoration:'none',marginBottom:9,transition:'color 0.15s' }} onMouseEnter={e=>e.target.style.color='rgba(255,255,255,0.85)'} onMouseLeave={e=>e.target.style.color='rgba(255,255,255,0.52)'}>{item}</a>
+              ))}
+            </div>
+          ))}
+        </div>
+        <div style={{ borderTop:'1px solid rgba(255,255,255,0.08)',paddingTop:24,display:'flex',justifyContent:'space-between',alignItems:'center' }}>
+          <span style={{ fontFamily:FONT,fontSize:12,color:'rgba(255,255,255,0.28)' }}>&#169; 2026 RevenueLens. All rights reserved.</span>
+          <span style={{ fontFamily:FONT,fontSize:12,color:'rgba(255,255,255,0.28)' }}>Built for CFOs who want answers, not charts.</span>
         </div>
       </div>
     </footer>
   )
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-export default function HomePage() {
+export default function LandingPage() {
+  const router = useRouter()
+  const go = () => router.push('/auth/login')
   return (
     <>
       <Head>
-        <title>RevenueLens — Revenue Intelligence for SaaS</title>
-        <meta name="description" content="The system that understands your revenue. ARR bridge, cohort analytics, AI insights, and decision recommendations — in minutes." />
-        <link rel="icon" href="/favicon.ico" />
+        <title>RevenueLens — The Revenue Decision Platform</title>
+        <meta name="description" content="From raw data to real decisions. RevenueLens analyzes your revenue, explains what happened, teaches your metrics, and tells you what to do next."/>
+        <link rel="preconnect" href="https://fonts.googleapis.com"/>
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
       </Head>
-      <Nav />
-      <main>
-        <Hero />
-        <PlatformStory />
-        <Features />
-        <AISection />
-        <CompetitiveTable />
-        <Pricing />
-        <FinalCTA />
-      </main>
-      <Footer />
+      <div style={{ background:C.bg,overflowX:'hidden' }}>
+        <Nav onLogin={go} onStart={go}/>
+        <Hero onStart={go}/>
+        <ProductPreview/>
+        <HowItWorks/>
+        <AISection/>
+        <ComparisonTable/>
+        <Pricing onStart={go}/>
+        <FinalCTA onStart={go}/>
+        <Footer/>
+      </div>
     </>
   )
 }
