@@ -52,7 +52,7 @@ export default function LoginPage() {
     try {
       const { error: err } = await supabase.auth.signInWithPassword({ email, password })
       if (err) { setError(err.message); setLoading(false); return }
-      router.push('/app/command-center')
+      router.push('/dashboard')
     } catch (e) {
       setError('Something went wrong. Please try again.')
       setLoading(false)
