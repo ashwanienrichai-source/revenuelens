@@ -41,8 +41,7 @@ const NAV_SECTIONS = [
     label: 'Analytics',
     items: [
       { href: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard',          live: true  },
-      { href: '/app/command-center', icon: Zap,             label: 'Command Center',     live: true, badge: 'New' },
-      { href: '/app/cohort',         icon: Users,           label: 'Cohort Analytics',   live: true  },
+      { href: '/dashboard/upload',   icon: Zap,             label: 'Command Center',     live: true, badge: 'Live' },
       { href: '/app/customer',       icon: TrendingUp,      label: 'Customer Analytics', live: false },
       { href: '/app/bridge',         icon: TrendingUp,      label: 'Revenue Bridge',     live: false },
       { href: '/app/pricing',        icon: DollarSign,      label: 'Pricing',            live: false },
