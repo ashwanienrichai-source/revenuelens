@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
@@ -10,6 +10,150 @@ const supabase = createClient(
 )
 
 const ROLES = ['CFO', 'Founder', 'RevOps', 'Finance', 'Other']
+
+// ─── Verify Waiting Screen ────────────────────────────────────────────────────
+
+function VerifyWaiting({ email }: { email: string }) {
+  const router = useRouter()
+
+  useEffect(() => {
+    // Poll every 3 seconds — catches cross-device verification (phone verifies, desktop redirects)
+    const interval = setInterval(async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data.session) {
+        clearInterval(interval)
+        router.replace('/dashboard')
+      }
+    }, 3000)
+
+    // Also listen for same-device verification
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        clearInterval(interval)
+        router.replace('/dashboard')
+      }
+    })
+
+    return () => {
+      clearInterval(interval)
+      listener.subscription.unsubscribe()
+    }
+  }, [router])
+
+  const s: Record<string, React.CSSProperties> = {
+    page: {
+      minHeight: '100vh',
+      backgroundColor: '#F8F7FC',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px 16px',
+      fontFamily: "'DM Sans', sans-serif",
+    },
+    card: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: '16px',
+      border: '1px solid #E8E4F2',
+      padding: '48px 40px',
+      width: '100%',
+      maxWidth: '440px',
+      boxShadow: '0 4px 24px rgba(107,49,212,0.06)',
+      textAlign: 'center' as const,
+    },
+    icon: {
+      width: '56px',
+      height: '56px',
+      borderRadius: '16px',
+      backgroundColor: '#F0EBFF',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      margin: '0 auto 20px',
+      fontSize: '24px',
+    },
+    heading: {
+      fontFamily: "'DM Serif Display', serif",
+      fontSize: '24px',
+      color: '#0F0A1E',
+      marginBottom: '8px',
+      fontWeight: 400,
+    },
+    emailText: {
+      fontSize: '14px',
+      color: '#6B31D4',
+      fontWeight: 600,
+      marginBottom: '12px',
+    },
+    sub: {
+      fontSize: '13px',
+      color: '#9990B0',
+      lineHeight: '1.6',
+      marginBottom: '28px',
+    },
+    pulseRow: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      padding: '12px 20px',
+      backgroundColor: '#F8F7FC',
+      borderRadius: '10px',
+      border: '1px solid #E8E4F2',
+    },
+    dot: {
+      width: '8px',
+      height: '8px',
+      borderRadius: '50%',
+      backgroundColor: '#6B31D4',
+    },
+    pulseText: {
+      fontSize: '13px',
+      color: '#4C4668',
+    },
+  }
+
+  return (
+    <>
+      <Head>
+        <title>Verify your email — RevenueLens AI</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+        <style>{`
+          @keyframes pulse {
+            0%, 100% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+          }
+          .rl-dot-1 { animation: pulse 1.4s ease-in-out infinite; animation-delay: 0s; }
+          .rl-dot-2 { animation: pulse 1.4s ease-in-out infinite; animation-delay: 0.2s; }
+          .rl-dot-3 { animation: pulse 1.4s ease-in-out infinite; animation-delay: 0.4s; }
+        `}</style>
+      </Head>
+      <div style={s.page}>
+        <div style={s.card}>
+          <div style={s.icon}>✉️</div>
+          <h2 style={s.heading}>Check your email</h2>
+          <p style={s.emailText}>{email}</p>
+          <p style={s.sub}>
+            We sent a confirmation link to your email.<br />
+            Click it on any device — this page will automatically<br />
+            redirect you to your dashboard.
+          </p>
+          <div style={s.pulseRow}>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <div style={s.dot} className="rl-dot-1" />
+              <div style={s.dot} className="rl-dot-2" />
+              <div style={s.dot} className="rl-dot-3" />
+            </div>
+            <span style={s.pulseText}>Waiting for verification...</span>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Signup Page ──────────────────────────────────────────────────────────────
 
 export default function SignupPage() {
   const router = useRouter()
@@ -80,7 +224,6 @@ export default function SignupPage() {
       color: '#9990B0',
       marginBottom: '28px',
     },
-    // Social buttons row
     socialRow: {
       display: 'flex',
       gap: '10px',
@@ -185,15 +328,6 @@ export default function SignupPage() {
       fontSize: '13px',
       marginBottom: '16px',
     },
-    success: {
-      backgroundColor: '#F0FFF8',
-      border: '1px solid #12B76A',
-      borderRadius: '8px',
-      padding: '16px',
-      color: '#0A7A47',
-      fontSize: '14px',
-      textAlign: 'center' as const,
-    },
     footer: {
       textAlign: 'center' as const,
       marginTop: '20px',
@@ -294,29 +428,9 @@ export default function SignupPage() {
     setLoading(false)
   }
 
+  // ── After signup: show verify waiting screen with auto-redirect ──
   if (success) {
-    return (
-      <div style={s.page}>
-        <div style={s.card}>
-          <div style={s.logo}>
-            <div style={s.logoMark}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M3 13L8 3L13 13H3Z" fill="white" fillOpacity="0.9"/>
-              </svg>
-            </div>
-            <span style={s.logoText}>RevenueLens AI</span>
-          </div>
-          <div style={s.success}>
-            <div style={{ fontSize: '28px', marginBottom: '12px' }}>✉️</div>
-            <div style={{ fontWeight: 600, marginBottom: '6px' }}>Check your email</div>
-            <div style={{ color: '#4C4668', fontSize: '13px' }}>
-              We sent a confirmation link to <strong>{form.email}</strong>.<br />
-              Click it to activate your account.
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+    return <VerifyWaiting email={form.email} />
   }
 
   return (
@@ -345,10 +459,7 @@ export default function SignupPage() {
           <div style={s.socialRow}>
             {/* Google */}
             <button
-              style={{
-                ...s.socialBtn,
-                opacity: googleLoading ? 0.7 : 1,
-              }}
+              style={{ ...s.socialBtn, opacity: googleLoading ? 0.7 : 1 }}
               onClick={handleGoogleSignup}
               disabled={googleLoading || linkedinLoading}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#F8F7FC'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#D0C9E8' }}
@@ -358,7 +469,6 @@ export default function SignupPage() {
                 <span style={{ fontSize: '13px' }}>Redirecting...</span>
               ) : (
                 <>
-                  {/* Google G logo */}
                   <svg width="17" height="17" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M16.32 8.69c0-.57-.05-1.12-.14-1.64H8.5v3.1h4.4a3.76 3.76 0 01-1.63 2.47v2.05h2.64c1.55-1.43 2.44-3.53 2.44-6z" fill="#4285F4"/>
                     <path d="M8.5 17c2.21 0 4.07-.73 5.42-1.98l-2.64-2.05c-.73.49-1.67.78-2.78.78-2.14 0-3.95-1.44-4.6-3.38H1.18v2.12A8.5 8.5 0 008.5 17z" fill="#34A853"/>
@@ -372,10 +482,7 @@ export default function SignupPage() {
 
             {/* LinkedIn */}
             <button
-              style={{
-                ...s.socialBtn,
-                opacity: linkedinLoading ? 0.7 : 1,
-              }}
+              style={{ ...s.socialBtn, opacity: linkedinLoading ? 0.7 : 1 }}
               onClick={handleLinkedInSignup}
               disabled={googleLoading || linkedinLoading}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#F8F7FC'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#D0C9E8' }}
