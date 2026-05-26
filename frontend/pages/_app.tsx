@@ -1,15 +1,10 @@
 // @ts-nocheck
 /**
- * _app.tsx — Global app wrapper
+ * _app.tsx — Global app wrapper with PWA support
  * Deploy to: frontend/pages/_app.tsx
- *
- * Provides:
- * - Page transition (fade 200ms, no flicker)
- * - Global CSS import
- * - Font preload
  */
-
 import type { AppProps } from 'next/app'
+import Head from 'next/head'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import '../styles/globals.css'
@@ -21,13 +16,16 @@ export default function App({ Component, pageProps }: AppProps) {
 
   useEffect(() => { setMounted(true) }, [])
 
+  // Register service worker
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(console.error)
+    }
+  }, [])
+
   useEffect(() => {
     function onStart() { setVisible(false) }
-    function onDone()  {
-      setVisible(true)
-      // Scroll to top on navigation
-      window.scrollTo(0, 0)
-    }
+    function onDone()  { setVisible(true); window.scrollTo(0, 0) }
     router.events.on('routeChangeStart',    onStart)
     router.events.on('routeChangeComplete', onDone)
     router.events.on('routeChangeError',    onDone)
@@ -40,7 +38,28 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <>
-      {/* Progress bar */}
+      <Head>
+        {/* PWA Meta Tags */}
+        <meta name="application-name" content="RevenueLens" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="RevenueLens" />
+        <meta name="description" content="Revenue Intelligence Operating System for CFOs" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="theme-color" content="#6B31D4" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+        {/* PWA Icons */}
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-192.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-192.png" />
+
+        {/* Apple Splash Screens */}
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </Head>
+
       <style>{`
         @keyframes rl-progress {
           0%   { width: 0%; opacity: 1; }
@@ -56,24 +75,15 @@ export default function App({ Component, pageProps }: AppProps) {
         }
       `}</style>
 
-      {/* Top loading bar */}
       {!visible && (
         <div style={{
-          position:   'fixed',
-          top:         0,
-          left:        0,
-          height:      2,
-          background: '#2563EB',
-          zIndex:      9999,
-          animation:  'rl-progress 800ms ease forwards',
+          position: 'fixed', top: 0, left: 0, height: 2,
+          background: '#6B31D4', zIndex: 9999,
+          animation: 'rl-progress 800ms ease forwards',
         }}/>
       )}
 
-      {/* Page with fade transition */}
-      <div
-        className={`rl-transition${mounted && visible ? ' ready' : ''}`}
-        style={{ minHeight: '100vh' }}
-      >
+      <div className={`rl-transition${mounted && visible ? ' ready' : ''}`} style={{ minHeight: '100vh' }}>
         <Component {...pageProps} />
       </div>
     </>
