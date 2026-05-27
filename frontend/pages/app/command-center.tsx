@@ -1835,22 +1835,38 @@ export default function CommandCenter() {
     if (!d) return
     setAiLoading(true)
     try {
-      const summary = [
-        d.beginning && `Beginning ARR: ${fmt(d.beginning)}`,
-        d.ending    && `Ending ARR: ${fmt(d.ending)}`,
-        d.nrr       && `NRR: ${(d.nrr*100).toFixed(1)}%`,
-        d.new_arr   && `New Logo: ${fmt(d.new_arr)}`,
-        d.churn     && `Churn: ${fmt(d.churn)}`,
-        d.upsell    && `Upsell: ${fmt(d.upsell)}`,
-      ].filter(Boolean).join(', ')
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,
-          system:'You are a CFO advisor. Respond ONLY with valid JSON (no markdown): {headline,body,implication,action,severity}. severity is one of: info|warning|risk|success.',
-          messages:[{role:'user',content:'Analyze: '+summary}]})})
+      async function fetchAiNarrative(d) {
+    if (!d) return
+    setAiLoading(true)
+    try {
+      const context = {
+        beginningARR: d.beginning,
+        endingARR:    d.ending,
+        nrr:          d.nrr,
+        newLogo:      d.new_arr,
+        churn:        d.churn,
+        upsell:       d.upsell,
+      }
+      const res = await fetch(`${API}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'Generate a comprehensive executive revenue intelligence briefing based on the data provided.',
+          mode:    'insights',
+          context,
+          history: [],
+        })
+      })
       const data = await res.json()
-      const text = data.content?.[0]?.text||''
-      setAiNarrative(JSON.parse(text.replace(/```json/g,'').replace(/```/g,'').trim()))
+      const text = data.response || ''
+      try {
+        setAiNarrative(JSON.parse(text.replace(/```json/g,'').replace(/```/g,'').trim()))
+      } catch {
+        setAiNarrative({ headline: '', body: text, severity: 'info' })
+      }
+    } catch(e){ console.error('AI:',e) }
+    setAiLoading(false)
+  }
     } catch(e){ console.error('AI:',e) }
     setAiLoading(false)
   }
@@ -1862,20 +1878,38 @@ export default function CommandCenter() {
     setChatMessages(msgs); setChatInput(''); setChatLoading(true)
     try {
       const d = retForPeriod||ret
-      const ctx = results
-        ? 'Revenue data — Period:'+selPeriod+', Beginning ARR:'+fmt(d?.beginning)+', Ending ARR:'+fmt(d?.ending)+', NRR:'+(d?.nrr?(d.nrr*100).toFixed(1)+'%':'N/A')+', New Logo:'+fmt(d?.new_arr)+', Churn:'+fmt(d?.churn)+', Upsell:'+fmt(d?.upsell)
-        : 'No analysis run yet.'
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,
-          system:'You are RevenueLens AI — a senior revenue intelligence advisor. Be direct, specific with numbers. Context: '+ctx,
-          messages:msgs.map(m=>({role:m.role,content:m.content}))})})
+      async function sendChatMessage() {
+    if (!chatInput.trim()||chatLoading) return
+    const userMsg = {role:'user',content:chatInput.trim()}
+    const msgs = [...chatMessages,userMsg]
+    setChatMessages(msgs); setChatInput(''); setChatLoading(true)
+    try {
+      const d = retForPeriod||ret
+      const context = results ? {
+        period:       selPeriod,
+        beginningARR: d?.beginning,
+        endingARR:    d?.ending,
+        nrr:          d?.nrr,
+        grr:          d?.grr,
+        newLogo:      d?.new_arr,
+        churn:        d?.churn,
+        upsell:       d?.upsell,
+      } : null
+      const res = await fetch(`${API}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsg.content,
+          mode:    'consultant',
+          context,
+          history: msgs.slice(-6).map(m => ({ role: m.role, content: m.content })),
+        })
+      })
       const data = await res.json()
-      setChatMessages(prev=>[...prev,{role:'assistant',content:data.content?.[0]?.text||'Unable to respond.'}])
-    } catch(e){ setChatMessages(prev=>[...prev,{role:'assistant',content:'Error. Please try again.'}]) }
+      setChatMessages(prev=>[...prev,{role:'assistant',content:data.response||'Unable to respond.'}])
+    } catch(e){ setChatMessages(prev=>[...prev,{role:'assistant',content:'Error connecting to AI. Please try again.'}]) }
     setChatLoading(false)
   }
-
   async function runAnalysis() {
     setValidated(true)
     if (!canRun) return
