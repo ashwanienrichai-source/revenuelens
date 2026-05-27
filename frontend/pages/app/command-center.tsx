@@ -1883,9 +1883,7 @@ export default function CommandCenter() {
 
   setAiLoading(false)
 }
-    } catch(e){ console.error('AI:',e) }
-    setAiLoading(false)
-  }
+
 
   async function sendChatMessage() {
   if (!chatInput.trim() || chatLoading) return
