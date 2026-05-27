@@ -1002,10 +1002,10 @@ export default function CommandCenter() {
   const [themeMode, setThemeMode] = useState('dark')
 
   // ── AI layer states ──────────────────────────────────────────────────────────
-  const [aiNarrative, setAiNarrative]   = useState<any>(null)
+  const [aiNarrative, setAiNarrative] = useState(null)
   const [aiLoading, setAiLoading]       = useState(false)
   const [chatOpen, setChatOpen]         = useState(false)
-  const [chatMessages, setChatMessages] = useState<any[]>([])
+  const [chatMessages, setChatMessages] = useState([])
   const [chatInput, setChatInput]       = useState('')
   const [chatLoading, setChatLoading]   = useState(false)
 
@@ -1832,84 +1832,132 @@ export default function CommandCenter() {
   }
 
   async function fetchAiNarrative(d) {
-    if (!d) return
-    setAiLoading(true)
+  if (!d) return
+
+  setAiLoading(true)
+
+  try {
+    const context = {
+      beginningARR: d.beginning,
+      endingARR: d.ending,
+      nrr: d.nrr,
+      newLogo: d.new_arr,
+      churn: d.churn,
+      upsell: d.upsell,
+    }
+
+    const res = await fetch(`${API}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message:
+          'Generate a comprehensive executive revenue intelligence briefing based on the data provided.',
+        mode: 'insights',
+        context,
+        history: [],
+      }),
+    })
+
+    const data = await res.json()
+    const text = data.response || ''
+
     try {
-      async function fetchAiNarrative(d) {
-    if (!d) return
-    setAiLoading(true)
-    try {
-      const context = {
-        beginningARR: d.beginning,
-        endingARR:    d.ending,
-        nrr:          d.nrr,
-        newLogo:      d.new_arr,
-        churn:        d.churn,
-        upsell:       d.upsell,
-      }
-      const res = await fetch(`${API}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: 'Generate a comprehensive executive revenue intelligence briefing based on the data provided.',
-          mode:    'insights',
-          context,
-          history: [],
-        })
+      const cleaned = text
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim()
+
+      setAiNarrative(JSON.parse(cleaned))
+    } catch {
+      setAiNarrative({
+        headline: '',
+        body: text,
+        severity: 'info',
       })
-      const data = await res.json()
-      const text = data.response || ''
-      try {
-        setAiNarrative(JSON.parse(text.replace(/```json/g,'').replace(/```/g,'').trim()))
-      } catch {
-        setAiNarrative({ headline: '', body: text, severity: 'info' })
-      }
-    } catch(e){ console.error('AI:',e) }
-    setAiLoading(false)
+    }
+  } catch (e) {
+    console.error('AI:', e)
   }
+
+  setAiLoading(false)
+}
     } catch(e){ console.error('AI:',e) }
     setAiLoading(false)
   }
 
   async function sendChatMessage() {
-    if (!chatInput.trim()||chatLoading) return
-    const userMsg = {role:'user',content:chatInput.trim()}
-    const msgs = [...chatMessages,userMsg]
-    setChatMessages(msgs); setChatInput(''); setChatLoading(true)
-    try {
-      const d = retForPeriod||ret
-      async function sendChatMessage() {
-    if (!chatInput.trim()||chatLoading) return
-    const userMsg = {role:'user',content:chatInput.trim()}
-    const msgs = [...chatMessages,userMsg]
-    setChatMessages(msgs); setChatInput(''); setChatLoading(true)
-    try {
-      const d = retForPeriod||ret
-      const context = results ? {
-        period:       selPeriod,
-        beginningARR: d?.beginning,
-        endingARR:    d?.ending,
-        nrr:          d?.nrr,
-        grr:          d?.grr,
-        newLogo:      d?.new_arr,
-        churn:        d?.churn,
-        upsell:       d?.upsell,
-      } : null
-      const res = await fetch(`${API}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMsg.content,
-          mode:    'consultant',
-          context,
-          history: msgs.slice(-6).map(m => ({ role: m.role, content: m.content })),
-        })
-      })
-      const data = await res.json()
-      setChatMessages(prev=>[...prev,{role:'assistant',content:data.response||'Unable to respond.'}])
-    } catch(e){ setChatMessages(prev=>[...prev,{role:'assistant',content:'Error connecting to AI. Please try again.'}]) }
-    setChatLoading(false)
+  if (!chatInput.trim() || chatLoading) return
+
+  const userMsg = {
+    role: 'user',
+    content: chatInput.trim(),
   }
+
+  const msgs = [...chatMessages, userMsg]
+
+  setChatMessages(msgs)
+  setChatInput('')
+  setChatLoading(true)
+
+  try {
+    const d = retForPeriod || ret
+
+    const context = results
+      ? {
+          period: selPeriod,
+          beginningARR: d?.beginning,
+          endingARR: d?.ending,
+          nrr: d?.nrr,
+          grr: d?.grr,
+          newLogo: d?.new_arr,
+          churn: d?.churn,
+          upsell: d?.upsell,
+        }
+      : null
+
+    const history = msgs.slice(-6).map((m) => {
+      return {
+        role: m.role,
+        content: m.content,
+      }
+    })
+
+    const res = await fetch(`${API}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: userMsg.content,
+        mode: 'consultant',
+        context,
+        history,
+      }),
+    })
+
+    const data = await res.json()
+
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: data.response || 'Unable to respond.',
+      },
+    ])
+  } catch (e) {
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: 'Error connecting to AI. Please try again.',
+      },
+    ])
+  }
+
+  setChatLoading(false)
+}
   async function runAnalysis() {
     setValidated(true)
     if (!canRun) return
