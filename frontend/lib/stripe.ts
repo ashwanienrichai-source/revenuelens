@@ -1,3 +1,4 @@
+// frontend/lib/stripe.ts
 import Stripe from 'stripe'
 import { loadStripe } from '@stripe/stripe-js'
 
@@ -16,40 +17,26 @@ export function getStripe() {
   return stripePromise
 }
 
-// ── Plan definitions ─────────────────────────────────────────────────
+// ── Plan definitions — single Pro plan at $299/month ─────────────────
 export const PLANS = {
-  starter: {
-    id: 'starter',
-    name: 'Starter',
-    price: 25,
-    interval: 'month',
-    priceId: process.env.STRIPE_STARTER_PRICE_ID!,
-    features: [
-      'Upload & analyze datasets',
-      'Cohort analytics',
-      'Customer analytics',
-      'Revenue bridge',
-      'Download reports',
-      'Email support',
-    ],
-    highlighted: false,
-  },
   pro: {
     id: 'pro',
     name: 'Pro',
-    price: 99,
+    price: 299,
     interval: 'month',
     priceId: process.env.STRIPE_PRO_PRICE_ID!,
-    features: [
-      'Everything in Starter',
-      'Unlimited datasets',
-      'Advanced cohort analysis',
-      'Price / volume decomposition',
-      'API access',
-      'Priority support',
-      '1 consulting hour/month',
-    ],
     highlighted: true,
+    features: [
+      'Unlimited revenue bridge analysis',
+      'Export CSV (unlimited)',
+      'AI revenue advisor chat',
+      'NRR / GRR waterfall',
+      'Top movers intelligence',
+      'Historical performance tab',
+      'Cohort retention heatmaps',
+      'ACV / contract analytics',
+      'Email support',
+    ],
   },
   enterprise: {
     id: 'enterprise',
@@ -57,15 +44,16 @@ export const PLANS = {
     price: null,
     interval: 'month',
     priceId: null,
+    highlighted: false,
     features: [
       'Everything in Pro',
-      'Custom integrations',
-      'Dedicated analytics setup',
-      'Custom data pipeline',
-      'SLA guarantee',
-      'Dedicated support',
+      'Multi-portfolio dashboard',
+      'Custom data connectors',
+      'White-label reports',
+      'Dedicated CSM',
+      'SLA 99.9% uptime',
+      'Custom contract',
     ],
-    highlighted: false,
   },
 } as const
 
