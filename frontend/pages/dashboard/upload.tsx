@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { useDropzone } from 'react-dropzone'
-import { Upload, FileText, CheckCircle, ArrowRight, ChevronRight, AlertCircle, Users, Loader2, RefreshCw, AlertTriangle } from 'lucide-react'
+import { Upload, FileText, CheckCircle, ArrowRight, ChevronRight, AlertCircle, Users, Loader2, RefreshCw, AlertTriangle, Search, Edit2, X, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { supabase } from '../../lib/supabase'
 import { dataCubeStore } from '../../lib/dataCubeStore'
@@ -35,49 +35,93 @@ const STEPS = [
   { id: 'review',  label: 'Review' },
 ]
 
-// ── Fuzzy match helpers (client-side, no dependency) ─────────────────────────
-function normalize(s) {
-  return s.toLowerCase()
-    .replace(/[.,\-_&()'"/\\]+/g, ' ')
-    .replace(/\b(inc|ltd|llc|corp|co|the|and|plc|gmbh|sas|bv|ag|sa)\b/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+// ═══════════════════════════════════════════════════════════════════════════════
+// SIX-LAYER FUZZY ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function cleanEntity(str) {
+  let s = String(str).toUpperCase().trim()
+  if (!s) return ''
+  s = s.replace(/\*\*\s*SEE\s+([^*]+)\s*\*\*/g, '$1')
+  s = s.replace(/\bA\/R\b/g,' ').replace(/\bPO\s*[A-Z0-9\-]+\b/g,' ')
+       .replace(/\*/g,' ').replace(/\.COM|\.NET|\.ORG/g,' ')
+  s = s.replace(/\([^)]+\)/g,' ').replace(/&/g,' AND ').replace(/[^\w\s\-]/g,' ')
+  s = s.replace(/\bUNIV\b/g,'UNIVERSITY').replace(/\bINTL\b/g,'INTERNATIONAL')
+       .replace(/\bTECH\b/g,'TECHNOLOGIES').replace(/\bGRP\b/g,'GROUP')
+  const busSuffixes = /\b(INC|LLC|LLP|LTD|LIMITED|CORP|CORPORATION|CO|COMPANY|PA|PLLC|PLC|GMBH|AG|SA|BV|HOLDINGS|GROUP|INTERNATIONAL|ENTERPRISES|SERVICES|LP|LC)\b/g
+  s = s.replace(busSuffixes,' ')
+  return s.replace(/\s+/g,' ').trim()
 }
 
-function similarity(a, b) {
-  const na = normalize(a), nb = normalize(b)
-  if (na === nb) return 1
-  // Jaccard on bigrams
-  function bigrams(s) {
-    const bg = new Set()
-    for (let i = 0; i < s.length - 1; i++) bg.add(s[i] + s[i+1])
-    return bg
-  }
-  const ba = bigrams(na), bb = bigrams(nb)
-  let inter = 0
-  ba.forEach(g => { if (bb.has(g)) inter++ })
-  const union = ba.size + bb.size - inter
-  return union === 0 ? 0 : inter / union
+function standardLev(a, b) {
+  if (!a || !b) return 0
+  if (a === b) return 1
+  const la = a.length, lb = b.length
+  const d = Array.from({length:la+1}, () => new Uint16Array(lb+1))
+  for (let i = 0; i <= la; i++) d[i][0] = i
+  for (let j = 0; j <= lb; j++) d[0][j] = j
+  for (let i = 1; i <= la; i++)
+    for (let j = 1; j <= lb; j++)
+      d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+(a[i-1]===b[j-1]?0:1))
+  return 1 - d[la][lb] / Math.max(la, lb)
 }
 
-function findFuzzyGroups(names, threshold = 0.72) {
-  const groups = []
-  const assigned = new Set()
-  const sorted = [...names].sort()
-  for (let i = 0; i < sorted.length; i++) {
-    if (assigned.has(sorted[i])) continue
-    const group = [sorted[i]]
-    assigned.add(sorted[i])
-    for (let j = i + 1; j < sorted.length; j++) {
-      if (assigned.has(sorted[j])) continue
-      if (similarity(sorted[i], sorted[j]) >= threshold) {
-        group.push(sorted[j])
-        assigned.add(sorted[j])
-      }
-    }
-    if (group.length > 1) groups.push(group)
-  }
-  return groups
+function tokenSetRatio(s1, s2) {
+  const t1 = s1.split(' ').filter(x=>x), t2 = s2.split(' ').filter(x=>x)
+  const intersect = t1.filter(x => t2.includes(x))
+  const diff1 = t1.filter(x => !t2.includes(x))
+  const diff2 = t2.filter(x => !t1.includes(x))
+  return Math.max(
+    standardLev(intersect.join(' '), [...intersect,...diff1].join(' ')),
+    standardLev(intersect.join(' '), [...intersect,...diff2].join(' ')),
+    standardLev([...intersect,...diff1].join(' '), [...intersect,...diff2].join(' '))
+  )
+}
+
+function soundex(s) {
+  if (!s) return ''
+  const codes = {A:'',E:'',I:'',O:'',U:'',B:1,F:1,P:1,V:1,C:2,G:2,J:2,K:2,Q:2,S:2,X:2,Z:2,D:3,T:3,L:4,M:5,N:5,R:6}
+  const a = s.split('')
+  const f = a.shift()
+  const r = f + a.map(v=>codes[v]).filter((v,i,arr)=>(i===0?v!==codes[f]:v!==arr[i-1])).filter(v=>v!=='').join('')
+  return (r+'000').slice(0,4)
+}
+
+function multiSoundex(str) { return str.split(' ').map(soundex).join(' ') }
+
+function jaroWinkler(s1, s2) {
+  if (s1 === s2) return 1
+  const len1 = s1.length, len2 = s2.length
+  if (!len1 || !len2) return 0
+  const mw = Math.max(0, Math.floor(Math.max(len1,len2)/2)-1)
+  const m1 = new Array(len1).fill(false), m2 = new Array(len2).fill(false)
+  let m = 0
+  for (let i = 0; i < len1; i++)
+    for (let j = Math.max(0,i-mw); j < Math.min(i+mw+1,len2); j++)
+      if (!m2[j] && s1[i]===s2[j]) { m1[i]=true; m2[j]=true; m++; break }
+  if (!m) return 0
+  let t=0, k=0
+  for (let i=0;i<len1;i++) { if(m1[i]){while(!m2[k])k++;if(s1[i]!==s2[k])t++;k++} }
+  const jaro = (m/len1+m/len2+(m-t/2)/m)/3
+  let prefix=0
+  for (let i=0;i<Math.min(4,Math.min(len1,len2));i++){if(s1[i]===s2[i])prefix++;else break}
+  return jaro+prefix*0.1*(1-jaro)
+}
+
+function getClean(raw) {
+  return cleanEntity(raw).replace(/[:\-]/g,' ').replace(/\s+/g,' ').trim()
+}
+
+function evalScore(s1, s2) {
+  if (!s1 || !s2) return {val:0, meth:'none'}
+  if (s1 === s2) return {val:100, meth:'exact'}
+  const tsr  = tokenSetRatio(s1, s2)
+  const phon = standardLev(multiSoundex(s1), multiSoundex(s2))
+  const jw   = jaroWinkler(s1, s2)
+  const lev  = standardLev(s1, s2)
+  const val  = Math.round((tsr*0.35 + phon*0.10 + jw*0.30 + lev*0.25) * 100)
+  const meth = tsr>0.95?'substring':jw>0.90?'jaro-winkler':lev>0.85?'levenshtein':'fuzzy'
+  return {val, meth}
 }
 
 // ── File reading helper ────────────────────────────────────────────────────────
@@ -97,19 +141,26 @@ export default function UploadPage() {
   const [step, setStep]             = useState('upload')
   const stepIdx = STEPS.findIndex(s => s.id === step)
   const [file, setFile]             = useState(null)
-  const [rawRows, setRawRows]       = useState([])    // parsed CSV rows
+  const [rawRows, setRawRows]       = useState([])
   const [columns, setColumns]       = useState([])
   const [datasetType, setDatasetType] = useState('revenue')
   const [mapping, setMapping]       = useState({})
   const [error, setError]           = useState('')
 
-  // Quality step state
-  const [qualityRunning, setQualityRunning] = useState(false)
-  const [qualityDone, setQualityDone]       = useState(false)
-  const [fuzzyGroups, setFuzzyGroups]       = useState([])   // [{names:[], canonical:''}]
+  // ── Quality step state ──────────────────────────────────────────────────────
+  const [qualityState, setQualityState]   = useState('idle') // 'idle'|'running'|'done'
+  const [qualityProgress, setQualityProgress] = useState(0)
+  const [qualityMsg, setQualityMsg]       = useState('')
+  const [fuzzyGroups, setFuzzyGroups]     = useState([])
+  // Each group: { canonical, editedCanonical, members[], confidence, method, status }
   const [totalCustomers, setTotalCustomers] = useState(0)
-  const [resolvedNames, setResolvedNames]   = useState({})   // original → canonical
-  const [appliedFuzzy, setAppliedFuzzy]     = useState(false)
+  const [appliedFuzzy, setAppliedFuzzy]   = useState(false)
+  const [expandedIdx, setExpandedIdx]     = useState(null)
+  const [editingIdx, setEditingIdx]       = useState(null)
+  const [editValue, setEditValue]         = useState('')
+  const [searchQuery, setSearchQuery]     = useState('')
+  const [filterStatus, setFilterStatus]   = useState('all')
+  const runRef = useRef(0)
 
   // ── Upload source tab state ─────────────────────────────────────────────────
   const [sourceTab, setSourceTab]           = useState('file')
@@ -137,8 +188,9 @@ export default function UploadPage() {
     setFile(f)
     setColumns([])
     setRawRows([])
-    setQualityDone(false)
+    setQualityState('idle')
     setAppliedFuzzy(false)
+    setFuzzyGroups([])
     const reader = new FileReader()
     reader.onload = (e) => {
       const text = e.target?.result
@@ -163,81 +215,176 @@ export default function UploadPage() {
     maxFiles: 1,
   })
 
-  // ── Run data quality checks ─────────────────────────────────────────────────
-  function runQualityChecks() {
-    setQualityRunning(true)
-    setTimeout(() => {
-      const customerCol = mapping.customer
-      if (customerCol && rawRows.length) {
-        const names = [...new Set(rawRows.map(r => r[customerCol]).filter(Boolean))]
-        setTotalCustomers(names.length)
-        const groups = findFuzzyGroups(names)
-        // Build group objects with canonical name (longest/most common)
-        const groupObjs = groups.map(grp => ({
-          names: grp,
-          canonical: grp.reduce((a, b) => a.length >= b.length ? a : b),
-        }))
-        setFuzzyGroups(groupObjs)
-        // Build initial resolution map
-        const res = {}
-        groupObjs.forEach(g => g.names.forEach(n => { res[n] = g.canonical }))
-        setResolvedNames(res)
+  // ── Six-layer fuzzy engine ──────────────────────────────────────────────────
+  async function runQualityChecks() {
+    const customerCol = mapping.customer
+    if (!customerCol || !rawRows.length) return
+    setQualityState('running')
+    setQualityProgress(0)
+    setFuzzyGroups([])
+    setAppliedFuzzy(false)
+    setExpandedIdx(null)
+    const myRun = ++runRef.current
+    await new Promise(r => setTimeout(r, 30))
+
+    // Extract unique names
+    setQualityMsg('Extracting customer names…')
+    setQualityProgress(10)
+    await new Promise(r => setTimeout(r, 20))
+    const nameSet = new Map()
+    for (const row of rawRows) {
+      const raw = String(row[customerCol] ?? '').trim()
+      if (raw) nameSet.set(raw, (nameSet.get(raw)||0)+1)
+    }
+    const names = Array.from(nameSet.keys())
+    setTotalCustomers(names.length)
+    if (runRef.current !== myRun) return
+
+    // Clean names
+    setQualityMsg(`Cleaning ${names.length.toLocaleString()} names…`)
+    setQualityProgress(20)
+    await new Promise(r => setTimeout(r, 20))
+    const objs = names
+      .map(raw => ({ raw, clean: getClean(raw), count: nameSet.get(raw)||1 }))
+      .filter(o => o.clean.length > 0)
+      .sort((a,b) => a.clean.length - b.clean.length)
+    if (runRef.current !== myRun) return
+
+    // Cluster
+    setQualityMsg('Running six-layer similarity engine…')
+    setQualityProgress(30)
+    await new Promise(r => setTimeout(r, 30))
+    const clusters = []
+    for (let i = 0; i < objs.length; i++) {
+      if (runRef.current !== myRun) return
+      const u = objs[i]
+      let bestCluster = null, bestScore = 0, bestMethod = 'none'
+      for (const c of clusters) {
+        const score = evalScore(u.clean, c.root.clean)
+        if (score.val > bestScore) { bestScore=score.val; bestCluster=c; bestMethod=score.meth; if(bestScore===100)break }
       }
-      setQualityRunning(false)
-      setQualityDone(true)
-    }, 800)
+      const thresh = u.raw.length < 8 ? 101 : u.raw.length <= 15 ? 80 : 75
+      if (bestCluster && bestScore >= thresh) {
+        bestCluster.members.push(u)
+        if (bestScore < bestCluster.confidence) { bestCluster.confidence=bestScore; bestCluster.method=bestMethod }
+      } else {
+        clusters.push({ root:u, members:[u], confidence:100, method:'exact' })
+      }
+      if (i % 100 === 0) {
+        setQualityProgress(30 + Math.floor(i/objs.length*55))
+        setQualityMsg(`Grouping ${i.toLocaleString()} / ${objs.length.toLocaleString()}…`)
+        await new Promise(r => setTimeout(r, 0))
+      }
+    }
+    if (runRef.current !== myRun) return
+
+    setQualityProgress(90)
+    setQualityMsg('Building review groups…')
+    await new Promise(r => setTimeout(r, 20))
+
+    const groups = clusters
+      .filter(c => c.members.length > 1)
+      .sort((a,b) => a.confidence - b.confidence)
+      .map(c => {
+        const canonical = c.members.reduce((best,m) =>
+          m.clean.split(' ').length > best.clean.split(' ').length ? m : best
+        ).raw
+        return {
+          canonical,
+          editedCanonical: null,
+          members: c.members.map(m => m.raw),
+          confidence: c.confidence,
+          method: c.method,
+          status: c.confidence >= 90 ? 'approved' : 'pending',
+        }
+      })
+
+    setQualityProgress(100)
+    setQualityMsg('Done')
+    setFuzzyGroups(groups)
+    setQualityState('done')
   }
 
-  // ── Apply fuzzy corrections to rawRows ──────────────────────────────────────
+  // ── Apply approved mappings to rawRows ──────────────────────────────────────
   function applyFuzzyMapping() {
     const customerCol = mapping.customer
     if (!customerCol) return
+    const mappingMap = new Map()
+    for (const gr of fuzzyGroups) {
+      if (gr.status === 'approved') {
+        const target = gr.editedCanonical || gr.canonical
+        for (const m of gr.members) { if (m !== target) mappingMap.set(m, target) }
+      }
+    }
     setRawRows(prev => prev.map(row => ({
       ...row,
-      [customerCol]: resolvedNames[row[customerCol]] || row[customerCol],
+      [customerCol]: mappingMap.get(row[customerCol]) || row[customerCol],
     })))
     setAppliedFuzzy(true)
-    // Rebuild unique count
     setTotalCustomers(new Set(
-      rawRows.map(r => resolvedNames[r[customerCol]] || r[customerCol]).filter(Boolean)
+      rawRows.map(r => mappingMap.get(r[customerCol]) || r[customerCol]).filter(Boolean)
     ).size)
+  }
+
+  // ── Group helpers ───────────────────────────────────────────────────────────
+  function toggleStatus(idx) {
+    setFuzzyGroups(g => g.map((gr,i) => i!==idx?gr:{...gr,
+      status: gr.status==='approved'?'rejected':gr.status==='rejected'?'pending':'approved'
+    }))
+  }
+  function approveAll() { setFuzzyGroups(g => g.map(gr=>({...gr,status:'approved'}))) }
+  function rejectAll()  { setFuzzyGroups(g => g.map(gr=>({...gr,status:'rejected'}))) }
+  function startEdit(idx) { setEditingIdx(idx); setEditValue(fuzzyGroups[idx].editedCanonical||fuzzyGroups[idx].canonical) }
+  function saveEdit(idx)  {
+    setFuzzyGroups(g => g.map((gr,i)=>i!==idx?gr:{...gr,editedCanonical:editValue.trim()||gr.canonical}))
+    setEditingIdx(null)
   }
 
   // ── Launch ──────────────────────────────────────────────────────────────────
   function launchAnalytics() {
     if (!file || !rawRows.length) return
-
-    // Build transforms list
-    const transforms: string[] = []
+    const transforms = []
     if (appliedFuzzy) transforms.push('customer_consolidation')
-
-    // Build full cleaned CSV from current rawRows (may have fuzzy corrections applied)
     const csvText = dataCubeStore.buildCsv(columns, rawRows)
-
-    // Save data cube to sessionStorage
     dataCubeStore.save({
-      meta: {
-        fileName:    file.name,
-        datasetType: datasetType,
-        rowCount:    rawRows.length,
-        columns:     columns,
-        mapping:     mapping,
-        transforms,
-        createdAt:   new Date().toISOString(),
-      },
+      meta: { fileName:file.name, datasetType, rowCount:rawRows.length, columns, mapping, transforms, createdAt:new Date().toISOString() },
       csvText,
     })
-
     router.push('/app/command-center')
   }
+
   // ── Styles ──────────────────────────────────────────────────────────────────
   const S = {
-    card:    { background:'#fff', border:'1px solid #E5E7EB', borderRadius:10, padding:'20px 24px' },
-    label:   { fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'#9CA3AF' },
-    chip:    { fontSize:10, padding:'2px 8px', borderRadius:20, border:'1px solid #E5E7EB', background:'#F9FAFB', color:'#374151', fontWeight:500 },
-    btnPrimary: { display:'flex', alignItems:'center', gap:6, padding:'9px 20px', background:'#2563EB', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' },
+    card:         { background:'#fff', border:'1px solid #E5E7EB', borderRadius:10, padding:'20px 24px' },
+    label:        { fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'#9CA3AF' },
+    chip:         { fontSize:10, padding:'2px 8px', borderRadius:20, border:'1px solid #E5E7EB', background:'#F9FAFB', color:'#374151', fontWeight:500 },
+    btnPrimary:   { display:'flex', alignItems:'center', gap:6, padding:'9px 20px', background:'#2563EB', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' },
     btnSecondary: { display:'flex', alignItems:'center', gap:6, padding:'9px 20px', background:'#fff', color:'#374151', border:'1px solid #E5E7EB', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' },
-    input:   { width:'100%', padding:'7px 10px', border:'1px solid #E5E7EB', borderRadius:6, fontSize:13, outline:'none', color:'#111827' },
+    input:        { width:'100%', padding:'7px 10px', border:'1px solid #E5E7EB', borderRadius:6, fontSize:13, outline:'none', color:'#111827' },
+  }
+
+  // Confidence colour helpers
+  const confColor = (c) => c>=90?'#10B981':c>=75?'#F59E0B':'#EF4444'
+  const statusColor = {approved:'#10B981',pending:'#F59E0B',rejected:'#EF4444'}
+  const statusBg    = {approved:'#ECFDF5',pending:'#FFFBEB',rejected:'#FEF2F2'}
+
+  // Filtered groups for the review table
+  const filteredGroups = fuzzyGroups.filter(gr => {
+    if (filterStatus !== 'all' && gr.status !== filterStatus) return false
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      return (gr.editedCanonical||gr.canonical).toLowerCase().includes(q) ||
+             gr.members.some(m => m.toLowerCase().includes(q))
+    }
+    return true
+  })
+
+  const stats = {
+    total:    fuzzyGroups.length,
+    approved: fuzzyGroups.filter(g=>g.status==='approved').length,
+    pending:  fuzzyGroups.filter(g=>g.status==='pending').length,
+    rejected: fuzzyGroups.filter(g=>g.status==='rejected').length,
+    entities: fuzzyGroups.reduce((s,g)=>s+g.members.length,0),
   }
 
   return (
@@ -252,17 +399,17 @@ export default function UploadPage() {
                 <div style={{
                   width:28, height:28, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
                   fontSize:12, fontWeight:700, flexShrink:0,
-                  background: i < stepIdx ? '#2563EB' : i === stepIdx ? '#2563EB' : '#F3F4F6',
+                  background: i <= stepIdx ? '#2563EB' : '#F3F4F6',
                   color: i <= stepIdx ? '#fff' : '#9CA3AF',
                 }}>
                   {i < stepIdx ? '✓' : i + 1}
                 </div>
-                <span style={{ fontSize:13, fontWeight: i === stepIdx ? 600 : 400, color: i === stepIdx ? '#111827' : i < stepIdx ? '#2563EB' : '#9CA3AF' }}>
+                <span style={{ fontSize:13, fontWeight: i===stepIdx?600:400, color: i===stepIdx?'#111827':i<stepIdx?'#2563EB':'#9CA3AF' }}>
                   {s.label}
                 </span>
               </div>
               {i < STEPS.length - 1 && (
-                <div style={{ width:48, height:1, background: i < stepIdx ? '#2563EB' : '#E5E7EB', margin:'0 12px' }}/>
+                <div style={{ width:48, height:1, background: i<stepIdx?'#2563EB':'#E5E7EB', margin:'0 12px' }}/>
               )}
             </div>
           ))}
@@ -274,7 +421,6 @@ export default function UploadPage() {
             <div style={{ fontSize:22, fontWeight:700, color:'#111827', marginBottom:6, letterSpacing:'-0.02em' }}>Add your data</div>
             <div style={{ fontSize:13, color:'#6B7280', marginBottom:24 }}>Choose how to bring your data into RevenueLens.</div>
 
-            {/* Dataset type */}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:24 }}>
               {DATASET_TYPES.map(t => (
                 <button key={t.id} onClick={() => setDatasetType(t.id)} style={{
@@ -287,28 +433,16 @@ export default function UploadPage() {
               ))}
             </div>
 
-            {/* Source tabs */}
             <div style={{ display:'flex', gap:2, marginBottom:0, background:'#F3F4F6', padding:4, borderRadius:10, width:'fit-content' }}>
-              {[
-                { id:'file',     label:'File' },
-                { id:'folder',   label:'Folder' },
-                { id:'database', label:'Database' },
-                { id:'cloud',    label:'Cloud Storage' },
-                { id:'api',      label:'API / Webhook' },
-              ].map(tab => (
+              {[{id:'file',label:'File'},{id:'folder',label:'Folder'},{id:'database',label:'Database'},{id:'cloud',label:'Cloud Storage'},{id:'api',label:'API / Webhook'}].map(tab => (
                 <button key={tab.id} onClick={() => { setSourceTab(tab.id); setConnectionStatus('') }} style={{
                   padding:'6px 14px', borderRadius:7, border:'none', cursor:'pointer', fontSize:12, fontWeight:sourceTab===tab.id?600:400,
-                  background: sourceTab===tab.id?'#fff':'transparent',
-                  color: sourceTab===tab.id?'#111827':'#6B7280',
-                  boxShadow: sourceTab===tab.id?'0 1px 3px rgba(0,0,0,0.08)':'none',
-                  transition:'all 150ms',
-                }}>
-                  {tab.label}
-                </button>
+                  background: sourceTab===tab.id?'#fff':'transparent', color: sourceTab===tab.id?'#111827':'#6B7280',
+                  boxShadow: sourceTab===tab.id?'0 1px 3px rgba(0,0,0,0.08)':'none', transition:'all 150ms',
+                }}>{tab.label}</button>
               ))}
             </div>
 
-            {/* ── TAB: Single file ── */}
             {sourceTab === 'file' && (
               <div style={{ marginTop:12 }}>
                 <div {...getRootProps()} style={{
@@ -335,7 +469,6 @@ export default function UploadPage() {
               </div>
             )}
 
-            {/* ── TAB: Folder ── */}
             {sourceTab === 'folder' && (
               <div style={{ marginTop:12 }}>
                 <input ref={folderInputRef} type="file" webkitdirectory="" multiple style={{ display:'none' }}
@@ -345,8 +478,7 @@ export default function UploadPage() {
                     setFolderFiles(csvXlsx)
                     if (!csvXlsx.length) return
                     setFolderMerging(true)
-                    let mergedRows = []
-                    let mergedCols = []
+                    let mergedRows = [], mergedCols = []
                     for (const f of csvXlsx) {
                       try {
                         const text = await readFileAsText(f)
@@ -396,7 +528,6 @@ export default function UploadPage() {
               </div>
             )}
 
-            {/* ── TAB: Database ── */}
             {sourceTab === 'database' && (
               <div style={{ marginTop:12, ...S.card }}>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:20 }}>
@@ -408,44 +539,25 @@ export default function UploadPage() {
                   ))}
                 </div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
-                  <div>
-                    <div style={{ ...S.label, marginBottom:4 }}>Host</div>
-                    <input style={S.input} placeholder="db.example.com" value={dbConfig.host} onChange={e => setDbConfig(p => ({...p, host:e.target.value}))}/>
-                  </div>
-                  <div>
-                    <div style={{ ...S.label, marginBottom:4 }}>Port</div>
-                    <input style={S.input} placeholder="5432" value={dbConfig.port} onChange={e => setDbConfig(p => ({...p, port:e.target.value}))}/>
-                  </div>
-                  <div>
-                    <div style={{ ...S.label, marginBottom:4 }}>Database name</div>
-                    <input style={S.input} placeholder="analytics_db" value={dbConfig.db} onChange={e => setDbConfig(p => ({...p, db:e.target.value}))}/>
-                  </div>
-                  <div>
-                    <div style={{ ...S.label, marginBottom:4 }}>Username</div>
-                    <input style={S.input} placeholder="readonly_user" value={dbConfig.user} onChange={e => setDbConfig(p => ({...p, user:e.target.value}))}/>
-                  </div>
-                  <div style={{ gridColumn:'1/-1' }}>
-                    <div style={{ ...S.label, marginBottom:4 }}>Password</div>
-                    <input style={S.input} type="password" placeholder="••••••••" value={dbConfig.pass} onChange={e => setDbConfig(p => ({...p, pass:e.target.value}))}/>
-                  </div>
-                  <div style={{ gridColumn:'1/-1' }}>
-                    <div style={{ ...S.label, marginBottom:4 }}>SQL Query</div>
+                  <div><div style={{ ...S.label, marginBottom:4 }}>Host</div><input style={S.input} placeholder="db.example.com" value={dbConfig.host} onChange={e => setDbConfig(p => ({...p, host:e.target.value}))}/></div>
+                  <div><div style={{ ...S.label, marginBottom:4 }}>Port</div><input style={S.input} placeholder="5432" value={dbConfig.port} onChange={e => setDbConfig(p => ({...p, port:e.target.value}))}/></div>
+                  <div><div style={{ ...S.label, marginBottom:4 }}>Database name</div><input style={S.input} placeholder="analytics_db" value={dbConfig.db} onChange={e => setDbConfig(p => ({...p, db:e.target.value}))}/></div>
+                  <div><div style={{ ...S.label, marginBottom:4 }}>Username</div><input style={S.input} placeholder="readonly_user" value={dbConfig.user} onChange={e => setDbConfig(p => ({...p, user:e.target.value}))}/></div>
+                  <div style={{ gridColumn:'1/-1' }}><div style={{ ...S.label, marginBottom:4 }}>Password</div><input style={S.input} type="password" placeholder="••••••••" value={dbConfig.pass} onChange={e => setDbConfig(p => ({...p, pass:e.target.value}))}/></div>
+                  <div style={{ gridColumn:'1/-1' }}><div style={{ ...S.label, marginBottom:4 }}>SQL Query</div>
                     <textarea style={{ ...S.input, height:80, fontFamily:'monospace', fontSize:12, resize:'vertical' }}
-                      placeholder="SELECT customer_name, date, arr FROM subscriptions WHERE date >= '2024-01-01'"
-                      value={dbConfig.query} onChange={e => setDbConfig(p => ({...p, query:e.target.value}))}/>
+                      placeholder="SELECT customer_name, date, arr FROM subscriptions" value={dbConfig.query} onChange={e => setDbConfig(p => ({...p, query:e.target.value}))}/>
                   </div>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                  <button onClick={() => { setConnectionTesting(true); setTimeout(() => { setConnectionTesting(false); setConnectionStatus('Coming Soon') }, 800) }}
-                    style={{ ...S.btnSecondary, fontSize:12 }}>
+                  <button onClick={() => { setConnectionTesting(true); setTimeout(() => { setConnectionTesting(false); setConnectionStatus('Coming Soon') }, 800) }} style={{ ...S.btnSecondary, fontSize:12 }}>
                     {connectionTesting ? <><Loader2 size={12} style={{ animation:'spin 1s linear infinite' }}/> Testing…</> : 'Test connection'}
                   </button>
-                  {connectionStatus && <span style={{ fontSize:12, color: connectionStatus==='ok'?'#16A34A':'#6B7280', fontWeight:500 }}>{connectionStatus}</span>}
+                  {connectionStatus && <span style={{ fontSize:12, color:'#6B7280', fontWeight:500 }}>{connectionStatus}</span>}
                 </div>
               </div>
             )}
 
-            {/* ── TAB: Cloud Storage ── */}
             {sourceTab === 'cloud' && (
               <div style={{ marginTop:12, ...S.card }}>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:20 }}>
@@ -456,41 +568,22 @@ export default function UploadPage() {
                     }}>{cl.label}</button>
                   ))}
                 </div>
-                <div style={{ marginBottom:12 }}>
-                  <div style={{ ...S.label, marginBottom:4 }}>File URL or path</div>
-                  <input style={S.input} placeholder="gs://my-bucket/data/revenue.csv  or  https://drive.google.com/…"
-                    value={cloudConfig.url} onChange={e => setCloudConfig(p => ({...p, url:e.target.value}))}/>
-                </div>
-                <div style={{ marginBottom:16 }}>
-                  <div style={{ ...S.label, marginBottom:4 }}>Access token / API key</div>
-                  <input style={S.input} type="password" placeholder="••••••••" value={cloudConfig.token} onChange={e => setCloudConfig(p => ({...p, token:e.target.value}))}/>
-                </div>
-                <div style={{ padding:'10px 14px', background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, fontSize:12, color:'#92400E' }}>
-                  Cloud storage connections are coming soon — use file upload in the meantime.
-                </div>
+                <div style={{ marginBottom:12 }}><div style={{ ...S.label, marginBottom:4 }}>File URL or path</div><input style={S.input} placeholder="gs://my-bucket/data/revenue.csv" value={cloudConfig.url} onChange={e => setCloudConfig(p => ({...p, url:e.target.value}))}/></div>
+                <div style={{ marginBottom:16 }}><div style={{ ...S.label, marginBottom:4 }}>Access token / API key</div><input style={S.input} type="password" placeholder="••••••••" value={cloudConfig.token} onChange={e => setCloudConfig(p => ({...p, token:e.target.value}))}/></div>
+                <div style={{ padding:'10px 14px', background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, fontSize:12, color:'#92400E' }}>Cloud storage connections are coming soon.</div>
               </div>
             )}
 
-            {/* ── TAB: API / Webhook ── */}
             {sourceTab === 'api' && (
               <div style={{ marginTop:12, ...S.card }}>
                 <div style={{ display:'grid', gridTemplateColumns:'120px 1fr', gap:12, marginBottom:12 }}>
-                  <div>
-                    <div style={{ ...S.label, marginBottom:4 }}>Method</div>
-                    <select style={{ ...S.input, background:'#fff' }} value={apiConfig.method} onChange={e => setApiConfig(p => ({...p, method:e.target.value}))}>
-                      <option>GET</option><option>POST</option>
-                    </select>
+                  <div><div style={{ ...S.label, marginBottom:4 }}>Method</div>
+                    <select style={{ ...S.input, background:'#fff' }} value={apiConfig.method} onChange={e => setApiConfig(p => ({...p, method:e.target.value}))}><option>GET</option><option>POST</option></select>
                   </div>
-                  <div>
-                    <div style={{ ...S.label, marginBottom:4 }}>Endpoint URL</div>
-                    <input style={S.input} placeholder="https://api.example.com/v2/revenue" value={apiConfig.url} onChange={e => setApiConfig(p => ({...p, url:e.target.value}))}/>
-                  </div>
+                  <div><div style={{ ...S.label, marginBottom:4 }}>Endpoint URL</div><input style={S.input} placeholder="https://api.example.com/v2/revenue" value={apiConfig.url} onChange={e => setApiConfig(p => ({...p, url:e.target.value}))}/></div>
                 </div>
-                <div style={{ marginBottom:12 }}>
-                  <div style={{ ...S.label, marginBottom:4 }}>Headers (JSON)</div>
-                  <textarea style={{ ...S.input, height:64, fontFamily:'monospace', fontSize:12, resize:'vertical' }}
-                    placeholder={'{ "Authorization": "Bearer your-token", "Content-Type": "application/json" }'}
-                    value={apiConfig.headers} onChange={e => setApiConfig(p => ({...p, headers:e.target.value}))}/>
+                <div style={{ marginBottom:12 }}><div style={{ ...S.label, marginBottom:4 }}>Headers (JSON)</div>
+                  <textarea style={{ ...S.input, height:64, fontFamily:'monospace', fontSize:12, resize:'vertical' }} placeholder={'{ "Authorization": "Bearer token" }'} value={apiConfig.headers} onChange={e => setApiConfig(p => ({...p, headers:e.target.value}))}/>
                 </div>
                 <div style={{ marginBottom:16 }}>
                   <div style={{ ...S.label, marginBottom:6 }}>Refresh schedule</div>
@@ -498,20 +591,18 @@ export default function UploadPage() {
                     {[{id:'manual',label:'Manual only'},{id:'daily',label:'Daily'},{id:'weekly',label:'Weekly'},{id:'monthly',label:'Monthly'}].map(s => (
                       <button key={s.id} onClick={() => setApiConfig(p => ({...p, schedule:s.id}))} style={{
                         padding:'5px 14px', borderRadius:6, border:`1.5px solid ${apiConfig.schedule===s.id?'#2563EB':'#E5E7EB'}`,
-                        background:apiConfig.schedule===s.id?'#EFF6FF':'#fff', cursor:'pointer', fontSize:12, fontWeight:apiConfig.schedule===s.id?600:400,
-                        color:apiConfig.schedule===s.id?'#2563EB':'#6B7280',
+                        background:apiConfig.schedule===s.id?'#EFF6FF':'#fff', cursor:'pointer', fontSize:12,
+                        fontWeight:apiConfig.schedule===s.id?600:400, color:apiConfig.schedule===s.id?'#2563EB':'#6B7280',
                       }}>{s.label}</button>
                     ))}
                   </div>
                 </div>
-                <div style={{ padding:'10px 14px', background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, fontSize:12, color:'#92400E' }}>
-                  API connections are coming soon — use file upload in the meantime.
-                </div>
+                <div style={{ padding:'10px 14px', background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, fontSize:12, color:'#92400E' }}>API connections are coming soon.</div>
               </div>
             )}
 
             <div style={{ display:'flex', justifyContent:'flex-end', marginTop:24 }}>
-              <button onClick={() => setStep('map')} disabled={!file} style={{ ...S.btnPrimary, opacity: file?1:0.4, cursor:file?'pointer':'default' }}>
+              <button onClick={() => setStep('map')} disabled={!file} style={{ ...S.btnPrimary, opacity:file?1:0.4, cursor:file?'pointer':'default' }}>
                 Continue to field mapping <ArrowRight size={14}/>
               </button>
             </div>
@@ -536,9 +627,7 @@ export default function UploadPage() {
                       }
                     </div>
                   </div>
-                  <select
-                    value={mapping[field.key] || ''}
-                    onChange={e => setMapping(m => ({ ...m, [field.key]: e.target.value }))}
+                  <select value={mapping[field.key] || ''} onChange={e => setMapping(m => ({ ...m, [field.key]: e.target.value }))}
                     style={{ width:200, padding:'7px 10px', border:'1px solid #E5E7EB', borderRadius:6, fontSize:13, outline:'none', color:'#111827', background:'#fff' }}>
                     <option value="">— Select column —</option>
                     {columns.map(c => <option key={c} value={c}>{c}</option>)}
@@ -557,13 +646,8 @@ export default function UploadPage() {
               <button onClick={() => setStep('upload')} style={S.btnSecondary}>← Back</button>
               <button onClick={() => {
                 if (!mapping.customer || !mapping.date || !mapping.revenue) { setError('Please map Customer, Date, and Revenue fields.'); return }
-                setError('')
-                setQualityDone(false)
-                setAppliedFuzzy(false)
-                setStep('quality')
-              }} style={S.btnPrimary}>
-                Data Quality Checks <ArrowRight size={14}/>
-              </button>
+                setError(''); setQualityState('idle'); setAppliedFuzzy(false); setStep('quality')
+              }} style={S.btnPrimary}>Data Quality Checks <ArrowRight size={14}/></button>
             </div>
           </div>
         )}
@@ -574,105 +658,231 @@ export default function UploadPage() {
             <div style={{ fontSize:22, fontWeight:700, color:'#111827', marginBottom:6, letterSpacing:'-0.02em' }}>Data Quality</div>
             <div style={{ fontSize:13, color:'#6B7280', marginBottom:28 }}>Run automated checks and fix issues before analysis.</div>
 
-            {/* Fuzzy customer matching card */}
-            <div style={{ ...S.card, marginBottom:16 }}>
-              <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16 }}>
-                <div style={{ flex:1 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                    <Users size={16} color="#2563EB"/>
-                    <div style={{ fontSize:14, fontWeight:700, color:'#111827' }}>Customer Name Consolidation</div>
-                    {qualityDone && (
-                      <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:20,
-                        background: fuzzyGroups.length>0?'#FEF3C7':'#F0FDF4',
-                        color: fuzzyGroups.length>0?'#92400E':'#166534',
-                        border: fuzzyGroups.length>0?'1px solid #FCD34D':'1px solid #BBF7D0',
-                      }}>
-                        {fuzzyGroups.length > 0 ? `${fuzzyGroups.length} issues found` : 'All clean'}
-                      </span>
-                    )}
+            {/* ── Customer Name Consolidation card ─────────────────────────── */}
+            <div style={{ border:'1px solid #E5E7EB', borderRadius:12, overflow:'hidden', background:'#fff', marginBottom:12 }}>
+
+              {/* Card header */}
+              <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'20px 24px', borderBottom: qualityState==='idle'?'none':'1px solid #F3F4F6' }}>
+                <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
+                  <div style={{ width:36, height:36, borderRadius:10, background:'#EEF2FF', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <Users size={16} color="#4F46E5"/>
                   </div>
-                  <div style={{ fontSize:12, color:'#6B7280', lineHeight:1.6 }}>
-                    Detects variations of the same customer name — e.g. <em>"Acme Inc"</em>, <em>"ACME"</em>, <em>"Acme Corp"</em> — and consolidates them into a single canonical name. This prevents the same customer appearing as multiple entities in your analytics.
-                  </div>
-                  {qualityDone && (
-                    <div style={{ marginTop:10, display:'flex', gap:20 }}>
-                      <div>
-                        <div style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', color:'#9CA3AF', marginBottom:2 }}>Total Customers</div>
-                        <div style={{ fontSize:22, fontWeight:700, color:'#111827' }}>{totalCustomers.toLocaleString()}</div>
-                      </div>
-                      {fuzzyGroups.length > 0 && (
-                        <div>
-                          <div style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', color:'#9CA3AF', marginBottom:2 }}>Need Consolidation</div>
-                          <div style={{ fontSize:22, fontWeight:700, color:'#D97706' }}>{fuzzyGroups.reduce((s,g)=>s+g.names.length,0)}</div>
-                        </div>
+                  <div>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                      <div style={{ fontSize:14, fontWeight:700, color:'#111827' }}>Customer Name Consolidation</div>
+                      {qualityState === 'done' && (
+                        <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:20,
+                          background: fuzzyGroups.length>0?'#FFFBEB':'#F0FDF4',
+                          color: fuzzyGroups.length>0?'#92400E':'#166534',
+                          border: fuzzyGroups.length>0?'1px solid #FCD34D':'1px solid #BBF7D0',
+                        }}>
+                          {fuzzyGroups.length > 0 ? `${fuzzyGroups.length} groups found` : 'All clean'}
+                        </span>
                       )}
-                      {appliedFuzzy && (
-                        <div>
-                          <div style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', color:'#9CA3AF', marginBottom:2 }}>After Consolidation</div>
-                          <div style={{ fontSize:22, fontWeight:700, color:'#16A34A' }}>{totalCustomers.toLocaleString()}</div>
-                        </div>
+                    </div>
+                    <div style={{ fontSize:12, color:'#6B7280', lineHeight:1.6 }}>
+                      Detects variations of the same customer — e.g. <em>"Acme Inc"</em>, <em>"ACME"</em>, <em>"Acme Corp"</em> — and consolidates them using a six-layer similarity engine (Levenshtein, Jaro-Winkler, Soundex, Token Set Ratio, TF-IDF, phonetic).
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ flexShrink:0, marginLeft:16 }}>
+                  {qualityState === 'idle' && (
+                    <button onClick={runQualityChecks} disabled={!rawRows.length || !mapping.customer}
+                      style={{ ...S.btnPrimary, opacity:(!rawRows.length||!mapping.customer)?0.4:1 }}>
+                      Run Check
+                    </button>
+                  )}
+                  {qualityState === 'running' && (
+                    <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:'#6B7280' }}>
+                      <Loader2 size={14} style={{ animation:'spin 1s linear infinite' }}/> Analyzing…
+                    </div>
+                  )}
+                  {qualityState === 'done' && !appliedFuzzy && (
+                    <div style={{ display:'flex', gap:8 }}>
+                      <button onClick={runQualityChecks} style={{ ...S.btnSecondary, fontSize:12, padding:'7px 14px' }}>Re-run</button>
+                      {stats.approved > 0 && (
+                        <button onClick={applyFuzzyMapping}
+                          style={{ ...S.btnPrimary, background:'#059669' }}>
+                          <Check size={13}/> Apply ({stats.approved})
+                        </button>
                       )}
                     </div>
                   )}
-                </div>
-                <div style={{ flexShrink:0 }}>
-                  {!qualityDone
-                    ? <button onClick={runQualityChecks} disabled={qualityRunning} style={{ ...S.btnPrimary, opacity:qualityRunning?0.7:1 }}>
-                        {qualityRunning ? <><Loader2 size={13} style={{animation:'spin 1s linear infinite'}}/> Running…</> : <>Run Check</>}
-                      </button>
-                    : !appliedFuzzy && fuzzyGroups.length > 0
-                    ? <button onClick={applyFuzzyMapping} style={{ ...S.btnPrimary, background:'#059669' }}>
-                        <CheckCircle size={13}/> Apply Fixes
-                      </button>
-                    : <div style={{ display:'flex', alignItems:'center', gap:6, color:'#16A34A', fontSize:13, fontWeight:600 }}>
-                        <CheckCircle size={14}/> {appliedFuzzy ? 'Applied' : 'No issues'}
-                      </div>
-                  }
+                  {appliedFuzzy && (
+                    <div style={{ display:'flex', alignItems:'center', gap:6, color:'#16A34A', fontSize:13, fontWeight:600 }}>
+                      <CheckCircle size={14}/> Applied
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Fuzzy groups detail */}
-              {qualityDone && fuzzyGroups.length > 0 && !appliedFuzzy && (
-                <div style={{ marginTop:16, borderTop:'1px solid #F3F4F6', paddingTop:16 }}>
-                  <div style={{ fontSize:11, fontWeight:600, color:'#374151', marginBottom:10 }}>
-                    Review suggested consolidations — edit canonical names if needed:
+              {/* Progress bar */}
+              {qualityState === 'running' && (
+                <div style={{ padding:'14px 24px', background:'#F9FAFB', borderBottom:'1px solid #F3F4F6' }}>
+                  <div style={{ height:4, background:'#E5E7EB', borderRadius:2, overflow:'hidden', marginBottom:6 }}>
+                    <div style={{ height:'100%', background:'#4F46E5', borderRadius:2, width:`${qualityProgress}%`, transition:'width 0.3s ease' }}/>
                   </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:10, maxHeight:280, overflowY:'auto' }}>
-                    {fuzzyGroups.map((grp, gi) => (
-                      <div key={gi} style={{ background:'#FFFBEB', border:'1px solid #FCD34D', borderRadius:8, padding:'10px 14px' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                          <AlertTriangle size={11} color="#D97706"/>
-                          <span style={{ fontSize:11, fontWeight:600, color:'#92400E' }}>These {grp.names.length} names appear to be the same customer</span>
-                        </div>
-                        <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:8 }}>
-                          {grp.names.map(n => (
-                            <span key={n} style={{ ...S.chip, background:'#FEF3C7', border:'1px solid #FCD34D', color:'#92400E' }}>{n}</span>
-                          ))}
-                        </div>
-                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                          <span style={{ fontSize:11, color:'#6B7280', flexShrink:0 }}>Consolidate as:</span>
-                          <input
-                            value={resolvedNames[grp.names[0]] || grp.canonical}
-                            onChange={e => {
-                              const newName = e.target.value
-                              setResolvedNames(prev => {
-                                const next = {...prev}
-                                grp.names.forEach(n => { next[n] = newName })
-                                return next
-                              })
-                              setFuzzyGroups(prev => prev.map((g,i) => i===gi?{...g,canonical:newName}:g))
-                            }}
-                            style={{ ...S.input, fontSize:12, padding:'5px 8px', flex:1 }}
-                          />
-                        </div>
+                  <div style={{ fontSize:11, color:'#9CA3AF' }}>{qualityMsg}</div>
+                </div>
+              )}
+
+              {/* Results */}
+              {qualityState === 'done' && (
+                <>
+                  {/* Stats strip */}
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', borderBottom:'1px solid #F3F4F6' }}>
+                    {[
+                      { label:'Groups Found',    value:stats.total,    color:'#4F46E5' },
+                      { label:'Approved',        value:stats.approved, color:'#10B981' },
+                      { label:'Needs Review',    value:stats.pending,  color:'#F59E0B' },
+                      { label:'Entities Merged', value:stats.entities, color:'#6B7280' },
+                    ].map(s => (
+                      <div key={s.label} style={{ padding:'12px 16px', borderRight:'1px solid #F3F4F6' }}>
+                        <div style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', color:'#9CA3AF', marginBottom:3 }}>{s.label}</div>
+                        <div style={{ fontSize:20, fontWeight:700, color:s.color }}>{s.value}</div>
                       </div>
                     ))}
                   </div>
-                </div>
+
+                  {fuzzyGroups.length === 0 ? (
+                    <div style={{ padding:'28px', textAlign:'center', color:'#6B7280', fontSize:13 }}>
+                      <CheckCircle size={22} color="#10B981" style={{ margin:'0 auto 8px', display:'block' }}/>
+                      No duplicate customer names detected. Your data looks clean!
+                    </div>
+                  ) : (
+                    <>
+                      {/* Toolbar */}
+                      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 16px', borderBottom:'1px solid #F3F4F6', background:'#F9FAFB', flexWrap:'wrap' }}>
+                        <div style={{ position:'relative', flex:1, minWidth:160 }}>
+                          <Search size={11} style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:'#9CA3AF' }}/>
+                          <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Search names…"
+                            style={{ width:'100%', padding:'6px 9px 6px 28px', borderRadius:6, border:'1px solid #E5E7EB', fontSize:12, outline:'none', background:'#fff' }}/>
+                        </div>
+                        <div style={{ display:'flex', gap:4 }}>
+                          {(['all','pending','approved','rejected']).map(s => (
+                            <button key={s} onClick={()=>setFilterStatus(s)} style={{
+                              padding:'4px 10px', borderRadius:20, fontSize:11, fontWeight:600, border:'1px solid', cursor:'pointer',
+                              borderColor:filterStatus===s?'#4F46E5':'#E5E7EB',
+                              background:filterStatus===s?'#4F46E5':'transparent',
+                              color:filterStatus===s?'#fff':'#6B7280',
+                              textTransform:'capitalize',
+                            }}>{s}</button>
+                          ))}
+                        </div>
+                        <div style={{ display:'flex', gap:6, marginLeft:'auto' }}>
+                          <button onClick={approveAll} style={{ padding:'4px 10px', borderRadius:6, border:'1px solid #D1FAE5', background:'#ECFDF5', color:'#10B981', fontSize:11, fontWeight:600, cursor:'pointer' }}>Approve All</button>
+                          <button onClick={rejectAll}  style={{ padding:'4px 10px', borderRadius:6, border:'1px solid #FECACA', background:'#FEF2F2', color:'#EF4444', fontSize:11, fontWeight:600, cursor:'pointer' }}>Reject All</button>
+                        </div>
+                      </div>
+
+                      {/* Group list */}
+                      <div style={{ maxHeight:400, overflowY:'auto' }}>
+                        {filteredGroups.map((gr) => {
+                          const idx = fuzzyGroups.indexOf(gr)
+                          const isExpanded = expandedIdx === idx
+                          const isEditing  = editingIdx === idx
+                          const canonical  = gr.editedCanonical || gr.canonical
+                          return (
+                            <div key={idx} style={{ borderBottom:'1px solid #F3F4F6' }}>
+                              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'11px 16px', cursor:'pointer', background:isExpanded?'#FAFAFA':'#fff' }}
+                                onClick={()=>setExpandedIdx(isExpanded?null:idx)}>
+
+                                {/* Status pill */}
+                                <button onClick={e=>{e.stopPropagation();toggleStatus(idx)}}
+                                  style={{ flexShrink:0, padding:'2px 8px', borderRadius:20, border:'none', cursor:'pointer', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', background:statusBg[gr.status], color:statusColor[gr.status] }}>
+                                  {gr.status}
+                                </button>
+
+                                {/* Name / edit */}
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  {isEditing ? (
+                                    <div style={{ display:'flex', gap:5 }} onClick={e=>e.stopPropagation()}>
+                                      <input value={editValue} onChange={e=>setEditValue(e.target.value)} autoFocus
+                                        onKeyDown={e=>{if(e.key==='Enter')saveEdit(idx);if(e.key==='Escape')setEditingIdx(null)}}
+                                        style={{ flex:1, padding:'4px 8px', borderRadius:5, border:'1px solid #4F46E5', fontSize:13, fontWeight:500, outline:'none' }}/>
+                                      <button onClick={()=>saveEdit(idx)} style={{ padding:'4px 8px', borderRadius:5, background:'#10B981', border:'none', color:'#fff', cursor:'pointer' }}><Check size={11}/></button>
+                                      <button onClick={()=>setEditingIdx(null)} style={{ padding:'4px 8px', borderRadius:5, background:'#F3F4F6', border:'none', color:'#6B7280', cursor:'pointer' }}><X size={11}/></button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                                      <span style={{ fontSize:13, fontWeight:600, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{canonical}</span>
+                                      {gr.editedCanonical && <span style={{ fontSize:10, color:'#4F46E5', background:'#EEF2FF', padding:'1px 5px', borderRadius:4, flexShrink:0 }}>edited</span>}
+                                      <button onClick={e=>{e.stopPropagation();startEdit(idx)}}
+                                        style={{ padding:'2px 5px', borderRadius:4, border:'1px solid #E5E7EB', background:'transparent', color:'#9CA3AF', cursor:'pointer', flexShrink:0 }}>
+                                        <Edit2 size={9}/>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <span style={{ fontSize:11, color:'#9CA3AF', flexShrink:0 }}>{gr.members.length} variants</span>
+
+                                {/* Confidence bar */}
+                                <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                                  <div style={{ width:40, height:4, background:'#E5E7EB', borderRadius:2, overflow:'hidden' }}>
+                                    <div style={{ height:'100%', background:confColor(gr.confidence), width:`${gr.confidence}%`, borderRadius:2 }}/>
+                                  </div>
+                                  <span style={{ fontSize:11, fontWeight:700, color:confColor(gr.confidence), minWidth:30 }}>{gr.confidence}%</span>
+                                </div>
+
+                                <span style={{ fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:4, background:'#F3F4F6', color:'#6B7280', flexShrink:0, textTransform:'capitalize' }}>{gr.method}</span>
+
+                                {isExpanded ? <ChevronUp size={13} color="#9CA3AF"/> : <ChevronDown size={13} color="#9CA3AF"/>}
+                              </div>
+
+                              {/* Expanded variants */}
+                              {isExpanded && (
+                                <div style={{ padding:'0 16px 12px 48px', background:'#FAFAFA' }}>
+                                  <div style={{ fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', color:'#9CA3AF', marginBottom:7 }}>
+                                    All variants → mapped to <strong style={{ color:'#4F46E5' }}>{canonical}</strong>
+                                  </div>
+                                  <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                                    {gr.members.map(m => (
+                                      <div key={m} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', borderRadius:6,
+                                        background: m===canonical?'#EEF2FF':'#fff',
+                                        border: `1px solid ${m===canonical?'#C7D2FE':'#F3F4F6'}` }}>
+                                        {m===canonical
+                                          ? <CheckCircle size={11} color="#4F46E5" style={{ flexShrink:0 }}/>
+                                          : <div style={{ width:11, height:11, borderRadius:'50%', border:'1px solid #D1D5DB', flexShrink:0 }}/>
+                                        }
+                                        <span style={{ fontSize:12, color:'#374151' }}>{m}</span>
+                                        {m===canonical && <span style={{ fontSize:10, color:'#4F46E5', marginLeft:'auto', fontWeight:600 }}>canonical</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                        {filteredGroups.length === 0 && (
+                          <div style={{ padding:'28px', textAlign:'center', color:'#9CA3AF', fontSize:13 }}>No groups match your filter.</div>
+                        )}
+                      </div>
+
+                      {/* Footer */}
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', borderTop:'1px solid #F3F4F6', background:'#F9FAFB' }}>
+                        <div style={{ fontSize:12, color:'#6B7280' }}>{stats.approved} approved · {stats.pending} pending · {stats.rejected} rejected</div>
+                        {!appliedFuzzy && stats.approved > 0 && (
+                          <button onClick={applyFuzzyMapping}
+                            style={{ ...S.btnPrimary, background:'#4F46E5', padding:'7px 16px', fontSize:12 }}>
+                            <Check size={12}/> Approve & Apply ({stats.approved} groups)
+                          </button>
+                        )}
+                        {appliedFuzzy && (
+                          <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#10B981', fontWeight:600 }}>
+                            <CheckCircle size={13}/> Mappings applied to dataset
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </>
               )}
             </div>
 
-            {/* More checks — coming soon */}
+            {/* ── Coming soon checks ─────────────────────────────────────────── */}
             {[
               { title:'Duplicate Row Detection', desc:'Identifies exact or near-duplicate records within the same period for the same customer.' },
               { title:'Date Gap Analysis', desc:'Finds missing periods in subscription timelines that could cause incorrect churn classification.' },
@@ -692,9 +902,7 @@ export default function UploadPage() {
 
             <div style={{ display:'flex', gap:10, marginTop:24 }}>
               <button onClick={() => setStep('map')} style={S.btnSecondary}>← Back</button>
-              <button onClick={() => setStep('review')} style={S.btnPrimary}>
-                Review & Confirm <ArrowRight size={14}/>
-              </button>
+              <button onClick={() => setStep('review')} style={S.btnPrimary}>Review & Confirm <ArrowRight size={14}/></button>
             </div>
           </div>
         )}
@@ -718,42 +926,37 @@ export default function UploadPage() {
               </div>
             </div>
 
-            {/* Quality summary */}
             <div style={{ ...S.card, marginBottom:24, background:'#F0FDF4', border:'1px solid #BBF7D0' }}>
               <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'#9CA3AF', marginBottom:10 }}>Data Quality</div>
-              <div style={{ display:'flex', gap:24 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                  {qualityDone ? <CheckCircle size={14} color="#16A34A"/> : <AlertCircle size={14} color="#D97706"/>}
-                  <span style={{ fontSize:13, color:'#374151' }}>
-                    {qualityDone
-                      ? appliedFuzzy
-                        ? `Customer names consolidated · ${totalCustomers} unique customers`
-                        : fuzzyGroups.length === 0
-                        ? `No issues found · ${totalCustomers} unique customers`
-                        : `${fuzzyGroups.length} consolidation suggestions skipped`
-                      : 'Quality checks not run'
-                    }
-                  </span>
-                </div>
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                {qualityState === 'done' ? <CheckCircle size={14} color="#16A34A"/> : <AlertCircle size={14} color="#D97706"/>}
+                <span style={{ fontSize:13, color:'#374151' }}>
+                  {qualityState === 'done'
+                    ? appliedFuzzy
+                      ? `${stats.approved} customer groups consolidated · ${totalCustomers} unique customers`
+                      : fuzzyGroups.length === 0
+                      ? `No issues found · ${totalCustomers} unique customers`
+                      : `${fuzzyGroups.length} groups found · ${stats.approved} approved, ${stats.pending} pending`
+                    : 'Quality checks not run'
+                  }
+                </span>
               </div>
             </div>
 
             <div style={{ display:'flex', gap:10 }}>
               <button onClick={() => setStep('quality')} style={S.btnSecondary}>← Back</button>
               <button onClick={() => {
-                    if (!file || !rawRows.length) return
-                    const csvText = dataCubeStore.buildCsv(columns, rawRows)
-                    const blob = new Blob([csvText], { type: 'text/csv' })
-                    const url  = URL.createObjectURL(blob)
-                    const a    = document.createElement('a')
-                    a.href     = url
-                    a.download = file.name.replace('.csv','').replace('.xlsx','').replace('.xls','') + '_cleaned.csv'
-                    a.click()
-                    URL.revokeObjectURL(url)
-                  }} style={{ ...S.btnSecondary, padding:'11px 24px', fontSize:14, marginRight:8 }}>
-                  Download data cube
-                </button>
-                <button onClick={launchAnalytics} style={{ ...S.btnPrimary, padding:'11px 24px', fontSize:14 }}>
+                if (!file || !rawRows.length) return
+                const csvText = dataCubeStore.buildCsv(columns, rawRows)
+                const blob = new Blob([csvText], { type:'text/csv' })
+                const url  = URL.createObjectURL(blob)
+                const a    = document.createElement('a')
+                a.href=url; a.download=file.name.replace(/\.(csv|xlsx|xls)$/,'')+'_cleaned.csv'; a.click()
+                URL.revokeObjectURL(url)
+              }} style={{ ...S.btnSecondary, padding:'11px 24px', fontSize:14 }}>
+                Download data cube
+              </button>
+              <button onClick={launchAnalytics} style={{ ...S.btnPrimary, padding:'11px 24px', fontSize:14 }}>
                 <CheckCircle size={14}/> Launch Analytics Engine
               </button>
             </div>
@@ -761,6 +964,7 @@ export default function UploadPage() {
         )}
 
       </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </DashboardLayout>
   )
 }
