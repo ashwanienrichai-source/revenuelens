@@ -1,16 +1,19 @@
+// frontend/pages/dashboard/upgrade.tsx
+// @ts-nocheck
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import axios from 'axios'
-import { CheckCircle, Loader2, Crown, ArrowRight } from 'lucide-react'
-import Link from 'next/link'
+import { CheckCircle, Loader2, Crown, ArrowRight, Sparkles } from 'lucide-react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
-import { supabase, UserProfile } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import { PLANS } from '../../lib/stripe'
 
 export default function UpgradePage() {
   const router = useRouter()
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const { upgraded, cancelled } = router.query
+  const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState<string | null>(null)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -22,60 +25,172 @@ export default function UpgradePage() {
 
   async function handleSubscribe(planId: string) {
     const plan = PLANS[planId as keyof typeof PLANS]
-    if (!plan?.priceId) { router.push('/consulting'); return }
+
+    // Enterprise → mailto
+    if (!plan?.priceId) {
+      window.location.href = 'mailto:ashwani.enrichai@gmail.com?subject=RevenueLens Enterprise Enquiry'
+      return
+    }
+
     setLoading(planId)
+    setError('')
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const { data } = await axios.post('/api/stripe/create-checkout', { priceId: plan.priceId, userId: session?.user.id, email: session?.user.email })
+      const { data } = await axios.post('/api/stripe/create-checkout', {
+        priceId: plan.priceId,
+        userId:  session?.user.id,
+        email:   session?.user.email,
+      })
       window.location.href = data.url
-    } catch { setLoading(null) }
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Payment failed. Please try again.')
+      setLoading(null)
+    }
   }
 
   const current = profile?.subscription_status || 'free'
+  const isPro   = current === 'pro' || current === 'starter'
 
   return (
     <DashboardLayout profile={profile} title="Upgrade Plan">
-      <div className="p-6 max-w-4xl mx-auto">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-700 mb-4">
-            <Crown size={12} className="text-amber-500" /> Upgrade your plan
+      <div style={{ padding: '32px 24px', maxWidth: 900, margin: '0 auto' }}>
+
+        {/* Success banner */}
+        {upgraded === 'true' && (
+          <div style={{ marginBottom: 28, padding: '14px 20px', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <CheckCircle size={18} color="#10B981" />
+            <div>
+              <div style={{ fontWeight: 700, color: '#065F46', fontSize: 14 }}>Payment successful! You now have full access.</div>
+              <div style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>All features are unlocked. Go run your first analysis.</div>
+            </div>
+            <button onClick={() => router.push('/app/command-center')} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#10B981', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+              Open Analytics <ArrowRight size={13} />
+            </button>
           </div>
-          <h2 className="font-display text-3xl font-800 text-ink-900 mb-3">Unlock the full platform</h2>
-          <p className="text-ink-500">Free users can run any analysis. Paid users can download output and export reports.</p>
+        )}
+
+        {/* Cancelled banner */}
+        {cancelled === 'true' && (
+          <div style={{ marginBottom: 28, padding: '12px 18px', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 10, fontSize: 13, color: '#92400E' }}>
+            Payment cancelled — no charge was made.
+          </div>
+        )}
+
+        {/* Already pro */}
+        {isPro && (
+          <div style={{ marginBottom: 28, padding: '14px 20px', background: '#F3E8FF', border: '1px solid #DDD6FE', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Sparkles size={16} color="#7C3AED" />
+            <span style={{ fontWeight: 600, color: '#5B21B6', fontSize: 14 }}>You're on Pro — all features unlocked.</span>
+            <button onClick={() => router.push('/app/command-center')} style={{ marginLeft: 'auto', padding: '7px 14px', borderRadius: 8, background: '#7C3AED', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              Go to Analytics →
+            </button>
+          </div>
+        )}
+
+        {/* Hero */}
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 20, background: '#FEF3C7', border: '1px solid #FCD34D', fontSize: 11, fontWeight: 700, color: '#92400E', marginBottom: 14 }}>
+            <Crown size={10} color="#F59E0B" /> Upgrade your plan
+          </div>
+          <h2 style={{ fontSize: 32, fontWeight: 800, color: '#111827', letterSpacing: '-0.02em', marginBottom: 10 }}>Unlock the full platform</h2>
+          <p style={{ color: '#6B7280', fontSize: 14, maxWidth: 460, margin: '0 auto' }}>
+            Free users can run any analysis. Paid users can download output and export reports.
+          </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        {/* Error */}
+        {error && (
+          <div style={{ marginBottom: 20, padding: '12px 16px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, fontSize: 13, color: '#DC2626', textAlign: 'center' }}>
+            {error}
+          </div>
+        )}
+
+        {/* Plans */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, maxWidth: 720, margin: '0 auto' }}>
           {Object.values(PLANS).map(plan => {
-            const isCurrent = current === plan.id
-            const isHot = plan.id === 'pro'
+            const isCurrent = isPro && plan.id === 'pro'
+            const isHot = plan.highlighted
+
             return (
-              <div key={plan.id} className={`relative rounded-2xl border p-7 flex flex-col ${isHot ? 'bg-brand-600 border-brand-600 shadow-glow' : 'bg-white border-ink-200'}`}>
-                {isHot && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-ink-900 text-[10px] font-700 px-3 py-1 rounded-full uppercase">Most popular</div>}
-                {isCurrent && <div className="absolute -top-3 right-4 bg-green-400 text-white text-[10px] font-700 px-3 py-1 rounded-full uppercase">Current</div>}
-                <div className={`text-xs font-700 uppercase tracking-wide mb-1 ${isHot ? 'text-blue-200' : 'text-ink-500'}`}>{plan.name}</div>
-                <div className={`font-display text-3xl font-800 mb-4 ${isHot ? 'text-white' : 'text-ink-900'}`}>
-                  {plan.price != null ? `$${plan.price}` : 'Custom'}
-                  {plan.price != null && <span className={`text-sm font-400 ${isHot ? 'text-blue-200' : 'text-ink-400'}`}>/{plan.interval}</span>}
+              <div key={plan.id} style={{
+                position: 'relative',
+                borderRadius: 20,
+                border: isHot ? '2px solid #6366F1' : '1px solid #E5E7EB',
+                padding: '28px 24px',
+                display: 'flex',
+                flexDirection: 'column',
+                background: isHot ? '#4F46E5' : '#FFFFFF',
+                boxShadow: isHot ? '0 8px 32px rgba(79,70,229,0.25)' : '0 1px 4px rgba(0,0,0,0.04)',
+              }}>
+                {isHot && (
+                  <div style={{ position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)', background: '#F59E0B', color: '#111827', fontSize: 10, fontWeight: 700, padding: '3px 12px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                    Most Popular
+                  </div>
+                )}
+                {isCurrent && (
+                  <div style={{ position: 'absolute', top: -13, right: 16, background: '#10B981', color: '#fff', fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, textTransform: 'uppercase' }}>
+                    Current
+                  </div>
+                )}
+
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: isHot ? '#A5B4FC' : '#6B7280', marginBottom: 8 }}>
+                  {plan.name}
                 </div>
-                <ul className="space-y-2.5 mb-7 flex-1">
+
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, marginBottom: 6 }}>
+                  <span style={{ fontSize: 38, fontWeight: 800, color: isHot ? '#fff' : '#111827', letterSpacing: '-0.03em' }}>
+                    {plan.price != null ? `$${plan.price}` : 'Custom'}
+                  </span>
+                  {plan.price != null && (
+                    <span style={{ fontSize: 13, color: isHot ? '#A5B4FC' : '#9CA3AF' }}>/{plan.interval}</span>
+                  )}
+                </div>
+
+                <ul style={{ listStyle: 'none', padding: 0, margin: '16px 0 24px', display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
                   {plan.features.map(f => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm">
-                      <CheckCircle size={13} className={`flex-shrink-0 mt-0.5 ${isHot ? 'text-blue-200' : 'text-brand-500'}`}/>
-                      <span className={isHot ? 'text-blue-100' : 'text-ink-600'}>{f}</span>
+                    <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13 }}>
+                      <CheckCircle size={13} color={isHot ? '#A5B4FC' : '#6366F1'} style={{ flexShrink: 0, marginTop: 2 }} />
+                      <span style={{ color: isHot ? '#C7D2FE' : '#4B5563' }}>{f}</span>
                     </li>
                   ))}
                 </ul>
-                <button onClick={() => !isCurrent && handleSubscribe(plan.id)} disabled={isCurrent || loading === plan.id}
-                  className={`w-full py-2.5 rounded-xl text-sm font-700 flex items-center justify-center gap-2 transition-all ${isCurrent ? 'bg-green-100 text-green-700 cursor-default' : isHot ? 'bg-white text-brand-600 hover:bg-blue-50' : 'bg-brand-600 text-white hover:bg-brand-700'}`}>
-                  {loading === plan.id && <Loader2 size={14} className="animate-spin"/>}
-                  {isCurrent ? '✓ Current plan' : plan.price != null ? `Subscribe` : 'Contact us'}
-                  {!isCurrent && loading !== plan.id && <ArrowRight size={13}/>}
+
+                <button
+                  onClick={() => !isCurrent && handleSubscribe(plan.id)}
+                  disabled={isCurrent || !!loading}
+                  style={{
+                    width: '100%',
+                    padding: '12px 0',
+                    borderRadius: 12,
+                    border: 'none',
+                    cursor: isCurrent || loading ? 'not-allowed' : 'pointer',
+                    background: isCurrent ? '#D1FAE5' : isHot ? '#fff' : '#4F46E5',
+                    color: isCurrent ? '#065F46' : isHot ? '#4F46E5' : '#fff',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    opacity: loading && loading !== plan.id ? 0.5 : 1,
+                    transition: 'all 0.15s',
+                  }}>
+                  {loading === plan.id && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+                  {isCurrent ? '✓ Current plan' : plan.price != null ? 'Subscribe' : 'Contact us'}
+                  {!isCurrent && loading !== plan.id && <ArrowRight size={13} />}
                 </button>
               </div>
             )
           })}
         </div>
+
+        {/* Trust footer */}
+        <div style={{ textAlign: 'center', marginTop: 36, fontSize: 12, color: '#9CA3AF', lineHeight: 1.8 }}>
+          Secure payments powered by Stripe · Cancel anytime via email · Test card: 4242 4242 4242 4242
+        </div>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </DashboardLayout>
   )
 }
