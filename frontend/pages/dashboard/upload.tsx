@@ -129,6 +129,121 @@ function readFileAsText(f) {
   return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=e=>resolve(e.target?.result||'');r.onerror=reject;r.readAsText(f)})
 }
 
+
+// ── Trends Tab Component ──────────────────────────────────────────────────────
+function TrendsTab({ matches, hasRevenue }) {
+  const validM   = matches.filter(m=>!m.userRemoved&&m.method!=='low-revenue')
+  const matchedM = validM.filter(m=>m.method!=='alone')
+  const total    = validM.length
+  const matchRate= total?Math.round(matchedM.length/total*100):0
+
+  const methodCounts = {}
+  validM.forEach(m=>{const k=m.method||'none';methodCounts[k]=(methodCounts[k]||0)+1})
+  const methodMax=Math.max(1,...Object.values(methodCounts))
+
+  const confBuckets={'100':0,'90-99':0,'80-89':0,'70-79':0,'<70':0}
+  matchedM.forEach(m=>{const c=m.confidence;if(c===100)confBuckets['100']++;else if(c>=90)confBuckets['90-99']++;else if(c>=80)confBuckets['80-89']++;else if(c>=70)confBuckets['70-79']++;else confBuckets['<70']++})
+  const confMax=Math.max(1,...Object.values(confBuckets))
+  const confColors={'100':'#10B981','90-99':'#34D399','80-89':'#FBBF24','70-79':'#FB923C','<70':'#EF4444'}
+
+  const masterFreq=new Map()
+  matchedM.forEach(m=>{if(!masterFreq.has(m.canonical))masterFreq.set(m.canonical,{name:m.canonical,count:0,revenue:0,sources:new Set()});const o=masterFreq.get(m.canonical);o.count+=m.count;o.revenue+=m.revenue;o.sources.add(m.source)})
+  const topGroups=[...masterFreq.values()].filter(x=>x.sources.size>=2).sort((a,b)=>b.sources.size-a.sources.size).slice(0,20)
+  const groupMax=Math.max(1,...topGroups.map(x=>x.sources.size),1)
+
+  const aloneM=matches.filter(m=>m.method==='alone')
+  const tokenMap=new Map()
+  aloneM.forEach(m=>{cleanEntity(m.source).split(/\s+/).forEach(t=>{if(t.length>3)tokenMap.set(t,(tokenMap.get(t)||0)+1)})})
+  const topTokens=[...tokenMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12)
+  const tokenMax=Math.max(1,...topTokens.map(x=>x[1]),1)
+  const totalRev=hasRevenue?validM.reduce((s,m)=>s+m.revenue,0):0
+
+  const methodLabel=(m)=>({'exact':'Exact','exact-part':'Exact Pt','substring':'Substr','proper-name':'Proper','fuzzy':'Fuzzy','jaro-winkler':'Jaro-W','levenshtein':'Levenshtein','canonical':'Canon','alone':'Unique','manual':'Manual','low-revenue':'Skipped'}[m]||m)
+  const methodColor=(m)=>({'exact':'#1D4ED8','exact-part':'#1D4ED8','substring':'#065F46','proper-name':'#065F46','fuzzy':'#5B21B6','jaro-winkler':'#5B21B6','levenshtein':'#5B21B6','canonical':'#92400E','alone':'#991B1B','manual':'#0E7490','low-revenue':'#6B7280'}[m]||'#6B7280')
+
+  return (
+    <div style={{padding:'20px 22px'}}>
+      <div style={{display:'grid',gridTemplateColumns:`repeat(${hasRevenue?4:3},1fr)`,gap:12,marginBottom:24}}>
+        {([
+          {label:'Match rate',    value:`${matchRate}%`,               color:'#10B981'},
+          {label:'Unique sources',value:total.toLocaleString(),         color:'#111827'},
+          {label:'Master names',  value:masterFreq.size.toLocaleString(),color:'#4F46E5'},
+          hasRevenue?{label:'Total value',value:'$'+totalRev.toLocaleString(),color:'#111827'}:null,
+        ].filter(Boolean)).map(s=>(
+          <div key={s.label} style={{padding:'14px 16px',background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:8}}>
+            <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',color:'#9CA3AF',marginBottom:4}}>{s.label}</div>
+            <div style={{fontSize:22,fontWeight:700,color:s.color}}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
+        <div style={{background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10,padding:'16px 18px'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:14}}>Match method breakdown</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {Object.entries(methodCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
+              <div key={k} style={{display:'flex',alignItems:'center',gap:10,fontSize:12}}>
+                <div style={{width:90,flexShrink:0,textAlign:'right',color:'#374151',fontWeight:500}}>{methodLabel(k)}</div>
+                <div style={{flex:1,height:20,background:'#E5E7EB',borderRadius:4,overflow:'hidden',position:'relative'}}>
+                  <div style={{height:'100%',borderRadius:4,background:methodColor(k),width:`${v/methodMax*100}%`}}/>
+                  <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',fontSize:11,fontWeight:600,color:'#374151'}}>{v.toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10,padding:'16px 18px'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:14}}>Confidence distribution</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {Object.entries(confBuckets).map(([k,v])=>(
+              <div key={k} style={{display:'flex',alignItems:'center',gap:10,fontSize:12}}>
+                <div style={{width:55,flexShrink:0,textAlign:'right',color:'#374151',fontWeight:500}}>{k}%</div>
+                <div style={{flex:1,height:20,background:'#E5E7EB',borderRadius:4,overflow:'hidden',position:'relative'}}>
+                  <div style={{height:'100%',borderRadius:4,background:confColors[k],width:`${v/confMax*100}%`}}/>
+                  <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',fontSize:11,fontWeight:600,color:'#374151'}}>{v.toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+        <div style={{background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10,padding:'16px 18px'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:4}}>Top grouped entities</div>
+          <div style={{fontSize:11,color:'#6B7280',marginBottom:12}}>Names with 2+ source variants merged</div>
+          <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {topGroups.slice(0,12).map(x=>(
+              <div key={x.name} style={{display:'flex',alignItems:'center',gap:10,fontSize:12}}>
+                <div style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#111827',fontWeight:600,maxWidth:160}} title={x.name}>{x.name}</div>
+                <div style={{width:100,height:18,background:'#E5E7EB',borderRadius:4,overflow:'hidden',position:'relative',flexShrink:0}}>
+                  <div style={{height:'100%',borderRadius:4,background:'#4F46E5',width:`${x.sources.size/groupMax*100}%`}}/>
+                  <span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:10,fontWeight:600,color:'#374151'}}>{x.sources.size} variants</span>
+                </div>
+              </div>
+            ))}
+            {topGroups.length===0&&<div style={{fontSize:12,color:'#9CA3AF',textAlign:'center',padding:'16px 0'}}>No groups with 2+ variants found.</div>}
+          </div>
+        </div>
+        <div style={{background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10,padding:'16px 18px'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:4}}>Common unmatched words</div>
+          <div style={{fontSize:11,color:'#6B7280',marginBottom:12}}>Frequent tokens in standalone names</div>
+          <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {topTokens.map(([t,c])=>(
+              <div key={t} style={{display:'flex',alignItems:'center',gap:10,fontSize:12}}>
+                <div style={{width:80,flexShrink:0,textAlign:'right',color:'#374151',fontWeight:500}}>{t.toLowerCase()}</div>
+                <div style={{flex:1,height:18,background:'#E5E7EB',borderRadius:4,overflow:'hidden',position:'relative'}}>
+                  <div style={{height:'100%',borderRadius:4,background:'#EF4444',width:`${c/tokenMax*100}%`}}/>
+                  <span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:10,fontWeight:600,color:'#374151'}}>{c}</span>
+                </div>
+              </div>
+            ))}
+            {topTokens.length===0&&<div style={{fontSize:12,color:'#9CA3AF',textAlign:'center',padding:'16px 0'}}>No standalone names to analyze.</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function UploadPage() {
   const router = useRouter()
@@ -819,122 +934,7 @@ export default function UploadPage() {
                   )}
 
                   {/* ── TRENDS TAB ── */}
-                  {reviewTab==='trends'&&(()=>{
-                    const validM=matches.filter(m=>!m.userRemoved&&m.method!=='low-revenue')
-                    const matchedM=validM.filter(m=>m.method!=='alone')
-                    const total=validM.length
-                    const matchRate=total?Math.round(matchedM.length/total*100):0
-                    // Method breakdown
-                    const methodCounts={}
-                    validM.forEach(m=>{const k=m.method||'none';methodCounts[k]=(methodCounts[k]||0)+1})
-                    const methodMax=Math.max(1,...Object.values(methodCounts))
-                    // Confidence distribution
-                    const confBuckets={'100':0,'90-99':0,'80-89':0,'70-79':0,'<70':0}
-                    matchedM.forEach(m=>{const c=m.confidence;if(c===100)confBuckets['100']++;else if(c>=90)confBuckets['90-99']++;else if(c>=80)confBuckets['80-89']++;else if(c>=70)confBuckets['70-79']++;else confBuckets['<70']++})
-                    const confMax=Math.max(1,...Object.values(confBuckets))
-                    const confColors={'100':'#10B981','90-99':'#34D399','80-89':'#FBBF24','70-79':'#FB923C','<70':'#EF4444'}
-                    // Top grouped entities
-                    const masterFreq=new Map()
-                    matchedM.forEach(m=>{if(!masterFreq.has(m.canonical))masterFreq.set(m.canonical,{name:m.canonical,count:0,revenue:0,sources:new Set()});const o=masterFreq.get(m.canonical);o.count+=m.count;o.revenue+=m.revenue;o.sources.add(m.source)})
-                    const topGroups=[...masterFreq.values()].filter(x=>x.sources.size>=2).sort((a,b)=>b.sources.size-a.sources.size).slice(0,20)
-                    const groupMax=Math.max(1,...topGroups.map(x=>x.sources.size))
-                    // Unmatched tokens
-                    const aloneM=matches.filter(m=>m.method==='alone')
-                    const tokenMap=new Map()
-                    aloneM.forEach(m=>{cleanEntity(m.source).split(/\s+/).forEach(t=>{if(t.length>3)tokenMap.set(t,(tokenMap.get(t)||0)+1)})})
-                    const topTokens=[...tokenMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12)
-                    const tokenMax=Math.max(1,...topTokens.map(x=>x[1]))
-                    const totalRev=hasRevenue?validM.reduce((s,m)=>s+m.revenue,0):0
-
-                    return(
-                      <div style={{padding:'20px 22px'}}>
-                        {/* Summary stats */}
-                        <div style={{display:'grid',gridTemplateColumns:`repeat(${hasRevenue?4:3},1fr)`,gap:12,marginBottom:24}}>
-                          {[
-                            {label:'Match rate',value:`${matchRate}%`,color:'#10B981'},
-                            {label:'Unique sources',value:total.toLocaleString(),color:'#111827'},
-                            {label:'Master names used',value:masterFreq.size.toLocaleString(),color:'#4F46E5'},
-                            hasRevenue&&{label:'Total value mapped',value:'$'+totalRev.toLocaleString(),color:'#111827'},
-                          ].filter(Boolean).map(s=>(
-                            <div key={s.label} style={{padding:'14px 16px',background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:8}}>
-                              <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',color:'#9CA3AF',marginBottom:4}}>{s.label}</div>
-                              <div style={{fontSize:22,fontWeight:700,color:s.color}}>{s.value}</div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
-                          {/* Method breakdown */}
-                          <div style={{background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10,padding:'16px 18px'}}>
-                            <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:14}}>Match method breakdown</div>
-                            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                              {Object.entries(methodCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
-                                <div key={k} style={{display:'flex',alignItems:'center',gap:10,fontSize:12}}>
-                                  <div style={{width:90,flexShrink:0,textAlign:'right',color:'#374151',fontWeight:500,textTransform:'capitalize'}}>{methodLabel(k)}</div>
-                                  <div style={{flex:1,height:20,background:'#E5E7EB',borderRadius:4,overflow:'hidden',position:'relative'}}>
-                                    <div style={{height:'100%',borderRadius:4,background:methodColor(k),width:`${v/methodMax*100}%`}}/>
-                                    <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',fontSize:11,fontWeight:600,color:'#374151'}}>{v.toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          {/* Confidence distribution */}
-                          <div style={{background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10,padding:'16px 18px'}}>
-                            <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:14}}>Confidence distribution</div>
-                            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                              {Object.entries(confBuckets).map(([k,v])=>(
-                                <div key={k} style={{display:'flex',alignItems:'center',gap:10,fontSize:12}}>
-                                  <div style={{width:55,flexShrink:0,textAlign:'right',color:'#374151',fontWeight:500}}>{k}%</div>
-                                  <div style={{flex:1,height:20,background:'#E5E7EB',borderRadius:4,overflow:'hidden',position:'relative'}}>
-                                    <div style={{height:'100%',borderRadius:4,background:confColors[k],width:`${v/confMax*100}%`}}/>
-                                    <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',fontSize:11,fontWeight:600,color:'#374151'}}>{v.toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
-                          {/* Top grouped entities */}
-                          <div style={{background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10,padding:'16px 18px'}}>
-                            <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:4}}>Top grouped entities</div>
-                            <div style={{fontSize:11,color:'#6B7280',marginBottom:12}}>Names with 2+ source variants merged</div>
-                            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                              {topGroups.slice(0,12).map(x=>(
-                                <div key={x.name} style={{display:'flex',alignItems:'center',gap:10,fontSize:12}}>
-                                  <div style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#111827',fontWeight:600,maxWidth:160}} title={x.name}>{x.name}</div>
-                                  <div style={{width:100,height:18,background:'#E5E7EB',borderRadius:4,overflow:'hidden',position:'relative',flexShrink:0}}>
-                                    <div style={{height:'100%',borderRadius:4,background:'#4F46E5',width:`${x.sources.size/groupMax*100}%`}}/>
-                                    <span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:10,fontWeight:600,color:'#374151'}}>{x.sources.size} variants</span>
-                                  </div>
-                                </div>
-                              ))}
-                              {topGroups.length===0&&<div style={{fontSize:12,color:'#9CA3AF',textAlign:'center',padding:'16px 0'}}>No groups with 2+ variants found.</div>}
-                            </div>
-                          </div>
-                          {/* Unmatched tokens */}
-                          <div style={{background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10,padding:'16px 18px'}}>
-                            <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:4}}>Common unmatched words</div>
-                            <div style={{fontSize:11,color:'#6B7280',marginBottom:12}}>Frequent tokens in standalone names — may indicate missing canonical entries</div>
-                            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                              {topTokens.map(([t,c])=>(
-                                <div key={t} style={{display:'flex',alignItems:'center',gap:10,fontSize:12}}>
-                                  <div style={{width:80,flexShrink:0,textAlign:'right',color:'#374151',fontWeight:500,textTransform:'capitalize'}}>{t.toLowerCase()}</div>
-                                  <div style={{flex:1,height:18,background:'#E5E7EB',borderRadius:4,overflow:'hidden',position:'relative'}}>
-                                    <div style={{height:'100%',borderRadius:4,background:'#EF4444',width:`${c/tokenMax*100}%`}}/>
-                                    <span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:10,fontWeight:600,color:'#374151'}}>{c}</span>
-                                  </div>
-                                </div>
-                              ))}
-                              {topTokens.length===0&&<div style={{fontSize:12,color:'#9CA3AF',textAlign:'center',padding:'16px 0'}}>No standalone names to analyze.</div>}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })()}
+                  {reviewTab==='trends'&&<TrendsTab matches={matches} hasRevenue={hasRevenue}/>}
                 </>
               )}
             </div>
@@ -958,4 +958,87 @@ export default function UploadPage() {
               </div>
             ))}
 
-            <div style={{display:'flex',gap:10,marginT
+            <div style={{display:'flex',gap:10,marginTop:24}}>
+              <button onClick={()=>setStep('map')} style={S.btnSecondary}>← Back</button>
+              <button onClick={()=>setStep('review')} style={S.btnPrimary}>Review & Confirm <ArrowRight size={14}/></button>
+            </div>
+          </div>
+        )}
+
+        {/* ══ STEP 4: REVIEW ══════════════════════════════════════════════════ */}
+        {step==='review'&&(
+          <div>
+            <div style={{fontSize:22,fontWeight:700,color:'#111827',marginBottom:6,letterSpacing:'-0.02em'}}>Review & Launch</div>
+            <div style={{fontSize:13,color:'#6B7280',marginBottom:28}}>Confirm your configuration before running analytics.</div>
+            <div style={{...S.card,marginBottom:16}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#9CA3AF',marginBottom:16}}>Configuration</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                <div><div style={{fontSize:11,color:'#9CA3AF',marginBottom:2}}>File</div><div style={{fontSize:13,fontWeight:600,color:'#111827'}}>{file?.name}</div></div>
+                <div><div style={{fontSize:11,color:'#9CA3AF',marginBottom:2}}>Dataset Type</div><div style={{fontSize:13,fontWeight:600,color:'#111827',textTransform:'capitalize'}}>{datasetType}</div></div>
+                <div><div style={{fontSize:11,color:'#9CA3AF',marginBottom:2}}>Rows</div><div style={{fontSize:13,fontWeight:600,color:'#111827'}}>{rawRows.length.toLocaleString()}</div></div>
+                <div><div style={{fontSize:11,color:'#9CA3AF',marginBottom:2}}>Columns</div><div style={{fontSize:13,fontWeight:600,color:'#111827'}}>{columns.length}</div></div>
+                {Object.entries(mapping).filter(([,v])=>v&&v!=='None').map(([k,v])=>(
+                  <div key={k}><div style={{fontSize:11,color:'#9CA3AF',marginBottom:2,textTransform:'capitalize'}}>{k}</div><div style={{fontSize:13,fontWeight:600,color:'#111827'}}>{v}</div></div>
+                ))}
+              </div>
+            </div>
+            <div style={{...S.card,marginBottom:24,background:appliedFuzzy?'#F0FDF4':'#FFFBEB',border:`1px solid ${appliedFuzzy?'#BBF7D0':'#FDE68A'}`}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#9CA3AF',marginBottom:10}}>Data Quality</div>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                {qState==='done'?<CheckCircle size={14} color={appliedFuzzy?'#16A34A':'#D97706'}/>:<AlertCircle size={14} color="#D97706"/>}
+                <span style={{fontSize:13,color:'#374151'}}>
+                  {qState==='done'
+                    ?appliedFuzzy
+                      ?`Consolidation applied · ${stats?.matched} matches across ${matches.length} unique names`
+                      :`${matches.length} unique names analyzed · ${stats?.matched} matched · consolidation not applied`
+                    :'Quality checks not run'}
+                </span>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>setStep('quality')} style={S.btnSecondary}>← Back</button>
+              <button onClick={()=>{if(!file||!rawRows.length) return;const csvText=dataCubeStore.buildCsv(columns,rawRows);const blob=new Blob([csvText],{type:'text/csv'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=file.name.replace(/\.(csv|xlsx|xls)$/,'')+'_cleaned.csv';a.click();URL.revokeObjectURL(url)}} style={{...S.btnSecondary,padding:'11px 24px',fontSize:14}}>Download data cube</button>
+              <button onClick={launchAnalytics} style={{...S.btnPrimary,padding:'11px 24px',fontSize:14}}><CheckCircle size={14}/> Launch Analytics Engine</button>
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* ── Edit / Assign Modal ─────────────────────────────────────────────── */}
+      {editModalMatch&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(15,23,42,0.55)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}
+          onClick={()=>setEditModalMatch(null)}>
+          <div style={{background:'#fff',borderRadius:16,width:'100%',maxWidth:520,padding:28,boxShadow:'0 20px 40px rgba(0,0,0,0.15)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:16,fontWeight:700,color:'#111827',marginBottom:16}}>Change Match Assignment</div>
+            <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#9CA3AF',marginBottom:6}}>Source Name</div>
+            <div style={{padding:'12px 16px',background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:8,fontSize:14,fontWeight:600,color:'#111827',marginBottom:20}}>{editModalMatch.source}</div>
+            <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'#9CA3AF',marginBottom:6}}>Search canonical names</div>
+            <input value={editSearch} onChange={e=>setEditSearch(e.target.value)} placeholder="Type to find a canonical name…"
+              autoFocus style={{width:'100%',padding:'10px 14px',border:'1px solid #E5E7EB',borderRadius:8,fontSize:13,outline:'none',color:'#111827',marginBottom:8}}/>
+            <div style={{maxHeight:240,overflowY:'auto',border:'1px solid #E5E7EB',borderRadius:8,background:'#fff'}}>
+              {editResults.length===0?(
+                <div style={{padding:'16px',textAlign:'center',color:'#9CA3AF',fontSize:12}}>
+                  {editSearch?'No results found':'Type to search, or review suggestions above'}
+                </div>
+              ):editResults.map(name=>(
+                <div key={name} onClick={()=>assignMatch(editModalMatch.id,name)}
+                  style={{padding:'10px 16px',cursor:'pointer',borderBottom:'1px solid #F3F4F6',fontSize:13,color:'#111827',fontWeight:500}}
+                  onMouseEnter={e=>e.currentTarget.style.background='#F9FAFB'}
+                  onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                  {name}
+                </div>
+              ))}
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:20,paddingTop:16,borderTop:'1px solid #F3F4F6'}}>
+              <button onClick={()=>clearMatch(editModalMatch.id)} style={{padding:'8px 14px',borderRadius:8,border:'1px solid #FECACA',background:'#FEF2F2',color:'#DC2626',fontSize:12,fontWeight:600,cursor:'pointer'}}>Clear Match</button>
+              <button onClick={()=>setEditModalMatch(null)} style={{padding:'8px 14px',borderRadius:8,border:'1px solid #E5E7EB',background:'#fff',color:'#374151',fontSize:12,fontWeight:600,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </DashboardLayout>
+  )
+}
