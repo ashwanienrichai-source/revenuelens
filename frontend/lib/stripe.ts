@@ -24,7 +24,7 @@ export const PLANS = {
     name: 'Pro',
     price: 299,
     interval: 'month',
-    priceId: process.env.STRIPE_PRO_PRICE_ID!,
+    priceId: 'price_1TbvtKCSdUH6lVcAjtjgnWum',
     highlighted: true,
     features: [
       'Unlimited revenue bridge analysis',
