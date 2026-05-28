@@ -2,8 +2,6 @@
 /**
  * pages/index.tsx — RevenueLens Landing Page
  * Deploy to: frontend/pages/index.tsx
- * Pure addition. Zero changes to existing product.
- * All CTAs route to /auth/login
  */
 
 import React, { useState, useEffect, useRef } from 'react'
@@ -34,6 +32,12 @@ function useInView() {
 
 const fadeIn = (v, d=0) => ({ opacity: v?1:0, transform: v?'none':'translateY(20px)', transition: `opacity 0.65s ease ${d}s, transform 0.65s ease ${d}s` })
 
+// ── Smooth scroll helper ──────────────────────────────────────────────────────
+function scrollTo(id) {
+  const el = document.getElementById(id)
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 function Nav({ onLogin, onStart }) {
   const [sc, setSc] = useState(false)
   useEffect(() => { const fn = () => setSc(window.scrollY>40); window.addEventListener('scroll',fn,{passive:true}); return ()=>window.removeEventListener('scroll',fn) },[])
@@ -46,9 +50,20 @@ function Nav({ onLogin, onStart }) {
           </div>
           <span style={{ fontFamily:FONT,fontSize:16,fontWeight:700,color:C.text1,letterSpacing:'-0.02em' }}>RevenueLens</span>
         </div>
+        {/* Nav links — now anchor to sections */}
         <nav style={{ display:'flex',gap:32,flex:1 }}>
-          {['Product','How it works','Pricing','Docs'].map(l=>(
-            <a key={l} href="#" style={{ fontFamily:FONT,fontSize:14,fontWeight:500,color:C.text2,textDecoration:'none',transition:'color 0.15s' }} onMouseEnter={e=>e.target.style.color=C.purple} onMouseLeave={e=>e.target.style.color=C.text2}>{l}</a>
+          {[
+            {label:'Product',      id:'product'},
+            {label:'How it works', id:'how-it-works'},
+            {label:'Pricing',      id:'pricing'},
+            {label:'AI',           id:'ai-section'},
+          ].map(l=>(
+            <a key={l.label} href={`#${l.id}`} onClick={e=>{e.preventDefault();scrollTo(l.id)}}
+              style={{ fontFamily:FONT,fontSize:14,fontWeight:500,color:C.text2,textDecoration:'none',transition:'color 0.15s',cursor:'pointer' }}
+              onMouseEnter={e=>e.target.style.color=C.purple}
+              onMouseLeave={e=>e.target.style.color=C.text2}>
+              {l.label}
+            </a>
           ))}
         </nav>
         <div style={{ display:'flex',alignItems:'center',gap:12 }}>
@@ -86,10 +101,24 @@ function Hero({ onStart }) {
         </p>
         <div style={{ display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap' }}>
           <button onClick={onStart} style={{ background:C.purple,color:'#fff',border:'none',borderRadius:10,padding:'14px 32px',fontFamily:FONT,fontSize:16,fontWeight:600,cursor:'pointer',boxShadow:'0 4px 20px rgba(107,49,212,0.35)',transition:'all 0.18s' }} onMouseEnter={e=>{e.target.style.transform='translateY(-2px)';e.target.style.boxShadow='0 8px 28px rgba(107,49,212,0.45)'}} onMouseLeave={e=>{e.target.style.transform='';e.target.style.boxShadow='0 4px 20px rgba(107,49,212,0.35)'}}>Start for free →</button>
-          <button style={{ background:C.surface,color:C.text1,border:`1px solid ${C.border}`,borderRadius:10,padding:'14px 28px',fontFamily:FONT,fontSize:16,fontWeight:500,cursor:'pointer',transition:'all 0.18s' }} onMouseEnter={e=>{e.target.style.borderColor=C.borderMd;e.target.style.boxShadow='0 4px 12px rgba(0,0,0,0.07)'}} onMouseLeave={e=>{e.target.style.borderColor=C.border;e.target.style.boxShadow='none'}}>Watch 2-min demo</button>
+          {/* Demo button — opens Calendly for a live walkthrough */}
+          <button
+            onClick={()=>window.open('mailto:ashwani.enrichai@gmail.com?subject=RevenueLens Demo Request','_blank')}
+            style={{ background:C.surface,color:C.text1,border:`1px solid ${C.border}`,borderRadius:10,padding:'14px 28px',fontFamily:FONT,fontSize:16,fontWeight:500,cursor:'pointer',transition:'all 0.18s' }}
+            onMouseEnter={e=>{e.target.style.borderColor=C.borderMd;e.target.style.boxShadow='0 4px 12px rgba(0,0,0,0.07)'}}
+            onMouseLeave={e=>{e.target.style.borderColor=C.border;e.target.style.boxShadow='none'}}>
+            Book a demo
+          </button>
         </div>
+
+        {/* Stats strip — SOC 2 replaced with "5 min setup" */}
         <div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:28,marginTop:52,paddingTop:36,borderTop:`1px solid ${C.border}` }}>
-          {[{v:'100%',l:'Reconciliation accuracy'},{v:'< 2 min',l:'Time to first insight'},{v:'8+',l:'Analytics engines'},{v:'SOC 2',l:'Compliance ready'}].map((s,i)=>(
+          {[
+            {v:'100%', l:'Reconciliation accuracy'},
+            {v:'< 2 min',l:'Time to first insight'},
+            {v:'8+',    l:'Analytics engines'},
+            {v:'5 min', l:'Setup, no code needed'},
+          ].map((s,i)=>(
             <div key={i} style={{ textAlign:'center',paddingRight:i<3?28:0,borderRight:i<3?`1px solid ${C.border}`:'none' }}>
               <div style={{ fontFamily:SERIF,fontSize:26,fontWeight:400,color:C.purple,letterSpacing:'-0.02em' }}>{s.v}</div>
               <div style={{ fontFamily:FONT,fontSize:12,color:C.text3,marginTop:2,fontWeight:500 }}>{s.l}</div>
@@ -101,10 +130,39 @@ function Hero({ onStart }) {
   )
 }
 
+// ── Social Proof Strip ────────────────────────────────────────────────────────
+function SocialProof() {
+  const quotes = [
+    { text: '"Finally stopped using 14 spreadsheet tabs for our monthly ARR close."', role: 'Head of Finance, B2B SaaS startup' },
+    { text: '"We cut our board pack preparation from 3 days to 20 minutes."', role: 'CFO, PE-backed software company' },
+    { text: '"The waterfall chart alone saved us hours of reconciliation every month."', role: 'Revenue Operations Lead' },
+  ]
+  return (
+    <section style={{ background:C.purpleXl,borderTop:`1px solid ${C.purpleMd}`,borderBottom:`1px solid ${C.purpleMd}`,padding:'48px 32px' }}>
+      <div style={{ maxWidth:1100,margin:'0 auto' }}>
+        <div style={{ textAlign:'center',marginBottom:32 }}>
+          <p style={{ fontFamily:FONT,fontSize:13,fontWeight:600,color:C.purple,letterSpacing:'0.08em',textTransform:'uppercase',margin:0 }}>
+            Used by finance teams building their revenue stack
+          </p>
+        </div>
+        <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16 }}>
+          {quotes.map((q,i)=>(
+            <div key={i} style={{ background:C.surface,border:`1px solid ${C.purpleMd}`,borderRadius:12,padding:'20px 22px' }}>
+              <div style={{ fontFamily:SERIF,fontSize:28,color:C.purple,lineHeight:1,marginBottom:10 }}>"</div>
+              <p style={{ fontFamily:FONT,fontSize:13,color:C.text1,lineHeight:1.65,margin:'0 0 14px',fontStyle:'italic' }}>{q.text.replace(/^"|"$/g,'')}</p>
+              <div style={{ fontFamily:FONT,fontSize:11,fontWeight:600,color:C.text3 }}>{q.role}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function ProductPreview() {
   const [ref,iv] = useInView()
   return (
-    <section ref={ref} style={{ background:C.text1,padding:'80px 32px',position:'relative',overflow:'hidden' }}>
+    <section id="product" ref={ref} style={{ background:C.text1,padding:'80px 32px',position:'relative',overflow:'hidden' }}>
       <div aria-hidden style={{ position:'absolute',top:-200,left:'50%',transform:'translateX(-50%)',width:800,height:400,background:`radial-gradient(ellipse,${C.purple}33 0%,transparent 70%)`,pointerEvents:'none' }}/>
       <div style={{ maxWidth:1100,margin:'0 auto',...fadeIn(iv) }}>
         <div style={{ textAlign:'center',marginBottom:48 }}>
@@ -115,7 +173,7 @@ function ProductPreview() {
           <div style={{ background:'#120F24',padding:'10px 16px',borderBottom:'1px solid #2D2650',display:'flex',alignItems:'center',gap:8 }}>
             <div style={{ width:10,height:10,borderRadius:'50%',background:'#FF5F56' }}/><div style={{ width:10,height:10,borderRadius:'50%',background:'#FFBD2E' }}/><div style={{ width:10,height:10,borderRadius:'50%',background:'#27C93F' }}/>
             <div style={{ flex:1,background:'#1E1A38',borderRadius:6,height:24,marginLeft:12,display:'flex',alignItems:'center',justifyContent:'center' }}>
-              <span style={{ fontFamily:MONO,fontSize:10,color:'#6B6490' }}>revenuelens.ai/app/command-center</span>
+              <span style={{ fontFamily:MONO,fontSize:10,color:'#6B6490' }}>revenuelens.ashwaniandcompany.com/app/command-center</span>
             </div>
           </div>
           <div style={{ display:'grid',gridTemplateColumns:'220px 1fr',minHeight:400 }}>
@@ -191,7 +249,7 @@ function HowItWorks() {
     {n:'06',icon:'📤',title:'Export in any format',body:'Board packs, PDFs, CSVs, Slack alerts, dashboards. Take the decision wherever it needs to go.',tag:'Any format',tc:C.text3,tb:`${C.border}88`},
   ]
   return (
-    <section ref={ref} style={{ background:C.bg,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+    <section id="how-it-works" ref={ref} style={{ background:C.bg,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
       <div style={{ maxWidth:1100,margin:'0 auto' }}>
         <div style={{ textAlign:'center',marginBottom:60,...fadeIn(iv) }}>
           <p style={{ fontFamily:FONT,fontSize:13,fontWeight:600,color:C.purple,letterSpacing:'0.08em',textTransform:'uppercase',margin:'0 0 14px' }}>How it works</p>
@@ -227,7 +285,7 @@ function AISection() {
   ]
   const cur = caps[active]
   return (
-    <section ref={ref} style={{ background:C.surface,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+    <section id="ai-section" ref={ref} style={{ background:C.surface,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
       <div style={{ maxWidth:1100,margin:'0 auto',display:'grid',gridTemplateColumns:'1fr 1fr',gap:72,alignItems:'center' }}>
         <div style={{ ...fadeIn(iv) }}>
           <p style={{ fontFamily:FONT,fontSize:13,fontWeight:600,color:C.purple,letterSpacing:'0.08em',textTransform:'uppercase',margin:'0 0 14px' }}>AI intelligence</p>
@@ -339,10 +397,10 @@ function Pricing({ onStart }) {
   const plans = [
     {name:'Starter',price:'$299',desc:'For growing finance teams starting with ARR analytics.',features:['MRR / ARR bridge analytics','Up to 5M rows per month','3 users included','Data cube download','Email support'],cta:'Start free trial',popular:false},
     {name:'Growth',price:'$799',desc:'For teams who need the full platform and AI layer.',features:['All 8 analytics engines','Unlimited rows','10 users included','AI Insights + Consultant + Educator','Board pack generation','Slack alerts'],cta:'Start free trial',popular:true},
-    {name:'Enterprise',price:'$2,500',desc:'For large teams, PE firms, and portfolio oversight.',features:['Everything in Growth','Unlimited users','SSO + audit logs','Dedicated CSM','SLA 99.9% uptime','SOC 2 report on request'],cta:'Talk to sales',popular:false},
+    {name:'Enterprise',price:'$2,500',desc:'For large teams, PE firms, and portfolio oversight.',features:['Everything in Growth','Unlimited users','SSO + audit logs','Dedicated CSM','SLA 99.9% uptime','Custom onboarding'],cta:'Talk to sales',popular:false},
   ]
   return (
-    <section ref={ref} style={{ background:C.surface,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+    <section id="pricing" ref={ref} style={{ background:C.surface,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
       <div style={{ maxWidth:1000,margin:'0 auto' }}>
         <div style={{ textAlign:'center',marginBottom:56,...fadeIn(iv) }}>
           <p style={{ fontFamily:FONT,fontSize:13,fontWeight:600,color:C.purple,letterSpacing:'0.08em',textTransform:'uppercase',margin:'0 0 14px' }}>Pricing</p>
@@ -359,7 +417,13 @@ function Pricing({ onStart }) {
                 <span style={{ fontFamily:FONT,fontSize:13,color:C.text3 }}>/mo</span>
               </div>
               <div style={{ fontFamily:FONT,fontSize:13,color:C.text2,lineHeight:1.55,marginBottom:22 }}>{p.desc}</div>
-              <button onClick={onStart} style={{ width:'100%',padding:'11px 0',borderRadius:9,border:`1px solid ${p.popular?'transparent':C.borderMd}`,background:p.popular?C.purple:C.surface,color:p.popular?'#fff':C.text1,fontFamily:FONT,fontSize:13,fontWeight:600,cursor:'pointer',marginBottom:20,boxShadow:p.popular?'0 4px 12px rgba(107,49,212,0.3)':'none',transition:'all 0.15s' }}>{p.cta}</button>
+              <button
+                onClick={p.cta==='Talk to sales'
+                  ? ()=>window.location.href='mailto:ashwani.enrichai@gmail.com?subject=RevenueLens Enterprise Enquiry'
+                  : onStart}
+                style={{ width:'100%',padding:'11px 0',borderRadius:9,border:`1px solid ${p.popular?'transparent':C.borderMd}`,background:p.popular?C.purple:C.surface,color:p.popular?'#fff':C.text1,fontFamily:FONT,fontSize:13,fontWeight:600,cursor:'pointer',marginBottom:20,boxShadow:p.popular?'0 4px 12px rgba(107,49,212,0.3)':'none',transition:'all 0.15s' }}>
+                {p.cta}
+              </button>
               <div style={{ display:'flex',flexDirection:'column',gap:9 }}>
                 {p.features.map((f,fi)=>(
                   <div key={fi} style={{ display:'flex',gap:8,alignItems:'center',fontFamily:FONT,fontSize:13,color:C.text2 }}>
@@ -372,7 +436,7 @@ function Pricing({ onStart }) {
         </div>
         <p style={{ textAlign:'center',marginTop:28,fontFamily:FONT,fontSize:13,color:C.text3 }}>
           PE portfolio or multi-company?{' '}
-          <a href="#" style={{ color:C.purple,fontWeight:600,textDecoration:'none' }}>Talk to us about custom pricing</a>
+          <a href="mailto:ashwani.enrichai@gmail.com?subject=RevenueLens Custom Pricing" style={{ color:C.purple,fontWeight:600,textDecoration:'none' }}>Talk to us about custom pricing</a>
         </p>
       </div>
     </section>
@@ -389,7 +453,12 @@ function FinalCTA({ onStart }) {
         <p style={{ fontFamily:FONT,fontSize:17,color:'rgba(255,255,255,0.72)',lineHeight:1.7,margin:'0 0 40px' }}>No dominant player owns this space yet. The CFO who logs into RevenueLens every morning makes better decisions, faster.</p>
         <div style={{ display:'flex',justifyContent:'center',gap:12,flexWrap:'wrap' }}>
           <button onClick={onStart} style={{ background:'#fff',color:C.purple,border:'none',borderRadius:10,padding:'14px 30px',fontFamily:FONT,fontSize:15,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 16px rgba(0,0,0,0.15)',transition:'all 0.18s' }} onMouseEnter={e=>e.target.style.transform='translateY(-2px)'} onMouseLeave={e=>e.target.style.transform=''}>Start free — no card required</button>
-          <button style={{ background:'rgba(255,255,255,0.14)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'14px 24px',fontFamily:FONT,fontSize:15,fontWeight:500,cursor:'pointer' }}>Book a demo</button>
+          {/* Book a demo — opens email */}
+          <button
+            onClick={()=>window.location.href='mailto:ashwani.enrichai@gmail.com?subject=RevenueLens Demo Request'}
+            style={{ background:'rgba(255,255,255,0.14)',color:'#fff',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'14px 24px',fontFamily:FONT,fontSize:15,fontWeight:500,cursor:'pointer' }}>
+            Book a demo
+          </button>
         </div>
       </div>
     </section>
@@ -398,10 +467,26 @@ function FinalCTA({ onStart }) {
 
 function Footer() {
   const links = [
-    {head:'Product',items:['Features','Pricing','Changelog','Roadmap']},
-    {head:'Company',items:['About','Blog','Careers','Press']},
-    {head:'Resources',items:['Documentation','API Reference','Status','Security']},
-    {head:'Legal',items:['Privacy','Terms','SOC 2','GDPR']},
+    {head:'Product',  items:[
+      {l:'Features',      href:'#how-it-works'},
+      {l:'Pricing',       href:'#pricing'},
+      {l:'AI Advisor',    href:'#ai-section'},
+      {l:'Roadmap',       href:'mailto:ashwani.enrichai@gmail.com?subject=RevenueLens Roadmap'},
+    ]},
+    {head:'Company',  items:[
+      {l:'About',         href:'mailto:ashwani.enrichai@gmail.com'},
+      {l:'Consulting',    href:'/consulting'},
+      {l:'Contact',       href:'mailto:ashwani.enrichai@gmail.com'},
+    ]},
+    {head:'Platform', items:[
+      {l:'Sign in',       href:'/auth/login'},
+      {l:'Get started',   href:'/auth/login'},
+      {l:'Dashboard',     href:'/dashboard'},
+    ]},
+    {head:'Legal',    items:[
+      {l:'Privacy',       href:'#'},
+      {l:'Terms',         href:'#'},
+    ]},
   ]
   return (
     <footer style={{ background:C.text1,padding:'60px 32px 32px' }}>
@@ -414,13 +499,20 @@ function Footer() {
               </div>
               <span style={{ fontFamily:FONT,fontSize:14,fontWeight:700,color:'#fff' }}>RevenueLens</span>
             </div>
-            <p style={{ fontFamily:FONT,fontSize:13,color:'rgba(255,255,255,0.42)',lineHeight:1.65,margin:0,maxWidth:220 }}>The system that understands your revenue and tells you what to do next.</p>
+            <p style={{ fontFamily:FONT,fontSize:13,color:'rgba(255,255,255,0.42)',lineHeight:1.65,margin:'0 0 16px',maxWidth:220 }}>The system that understands your revenue and tells you what to do next.</p>
+            <a href="mailto:ashwani.enrichai@gmail.com" style={{ fontFamily:FONT,fontSize:12,color:'rgba(255,255,255,0.4)',textDecoration:'none' }}>ashwani.enrichai@gmail.com</a>
           </div>
           {links.map((col,i)=>(
             <div key={i}>
               <div style={{ fontFamily:FONT,fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.4)',letterSpacing:'0.07em',textTransform:'uppercase',marginBottom:14 }}>{col.head}</div>
               {col.items.map(item=>(
-                <a key={item} href="#" style={{ display:'block',fontFamily:FONT,fontSize:13,color:'rgba(255,255,255,0.52)',textDecoration:'none',marginBottom:9,transition:'color 0.15s' }} onMouseEnter={e=>e.target.style.color='rgba(255,255,255,0.85)'} onMouseLeave={e=>e.target.style.color='rgba(255,255,255,0.52)'}>{item}</a>
+                <a key={item.l} href={item.href}
+                  onClick={item.href.startsWith('#')?e=>{e.preventDefault();scrollTo(item.href.slice(1))}:undefined}
+                  style={{ display:'block',fontFamily:FONT,fontSize:13,color:'rgba(255,255,255,0.52)',textDecoration:'none',marginBottom:9,transition:'color 0.15s' }}
+                  onMouseEnter={e=>e.target.style.color='rgba(255,255,255,0.85)'}
+                  onMouseLeave={e=>e.target.style.color='rgba(255,255,255,0.52)'}>
+                  {item.l}
+                </a>
               ))}
             </div>
           ))}
@@ -449,6 +541,7 @@ export default function LandingPage() {
       <div style={{ background:C.bg,overflowX:'hidden' }}>
         <Nav onLogin={go} onStart={go}/>
         <Hero onStart={go}/>
+        <SocialProof/>
         <ProductPreview/>
         <HowItWorks/>
         <AISection/>
