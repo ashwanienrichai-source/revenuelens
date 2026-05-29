@@ -8,7 +8,20 @@ import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { supabase } from '../../lib/supabase'
 import { PLANS } from '../../lib/stripe'
 
+
+function useIsMobile() {
+  const [m, setM] = React.useState(false)
+  React.useEffect(() => {
+    const fn = () => setM(window.innerWidth < 768)
+    fn()
+    window.addEventListener('resize', fn, { passive:true })
+    return () => window.removeEventListener('resize', fn)
+  }, [])
+  return m
+}
+
 export default function UpgradePage() {
+  const isMobile = useIsMobile()
   const router = useRouter()
   const { upgraded, cancelled } = router.query
   const [profile, setProfile] = useState(null)
