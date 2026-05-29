@@ -63,7 +63,7 @@ function Nav({ onLogin, onStart }) {
           <span style={{ fontFamily:FONT,fontSize:16,fontWeight:700,color:C.text1,letterSpacing:'-.02em' }}>RevenueLens</span>
         </div>
         <nav style={{ display:'flex',gap:28,flex:1 }}>
-          {[['Product','product'],['Engines','engines'],['AI Studio','ai-studio'],['AI Layer','ai-section'],['Pricing','pricing']].map(([l,id]) => (
+          {[['Product','product'],['Solutions','solutions'],['AI Studio','ai-studio'],['AI Layer','ai-section'],['Pricing','pricing']].map(([l,id]) => (
             <a key={l} href={`#${id}`} onClick={e=>{e.preventDefault();scrollTo(id)}}
               style={{ fontFamily:FONT,fontSize:13,fontWeight:500,color:C.text2,textDecoration:'none',transition:'color .15s' }}
               onMouseEnter={e=>e.target.style.color=C.purple}
@@ -234,45 +234,54 @@ function ProductPreview() {
   )
 }
 
-// ── Engines (Product) ─────────────────────────────────────────────────────────
-function Engines() {
+// ── Solutions ─────────────────────────────────────────────────────────────────
+function Solutions() {
   const [ref,iv] = useInView()
-  const engines = [
-    { live:true,  icon:'📈', title:'MRR / ARR Bridge',      body:'Full waterfall: New Logo, Upsell, Downsell, Churn, Lapsed, Returning, Other In/Out. NRR, GRR, Top Movers, Historical comparison. YoY / MoM / QoQ.',         tag:'Live' },
-    { live:true,  icon:'📋', title:'ACV / Contract Analytics',body:'Contract bridge, renewal rates, expiry pool analysis, TCV analysis. Contract movement classification at deal level.',                                        tag:'Live' },
-    { live:true,  icon:'🔄', title:'Cohort Analytics',        body:'Retention heatmaps by cohort. Revenue cohorts. Size and percentile breakdowns. Vintage performance comparison across acquisition periods.',                  tag:'Live' },
-    { live:true,  icon:'📅', title:'Historical Performance',   body:'Multi-year YoY comparison, trend normalization, period-consistent benchmarking. LTM vs prior LTM. Full time-series view.',                                tag:'Live' },
-    { live:false, icon:'👥', title:'Customer Analytics',       body:'Customer LTV, expansion scoring, churn propensity, account health scores, segment analysis, and account-level drill-down.',                                tag:'Coming soon' },
-    { live:false, icon:'⚖️', title:'Price × Volume Decomp.',   body:'Separate price changes from volume changes in ARR movement. Clean attribution between rate changes and seat changes.',                                    tag:'Coming soon' },
-    { live:false, icon:'🏪', title:'4-Wall Analytics',         body:'Regional P&L and contribution margin by segment, geography, or channel. Operational performance decomposition.',                                         tag:'Coming soon' },
-    { live:false, icon:'📦', title:'Product Bundling',         body:'Bundle performance analysis, cross-sell attach rates, product mix evolution, SKU-level revenue attribution.',                                             tag:'Coming soon' },
+  const solutions = [
+    { slug:'growth',       icon:'📈', label:'Growth',       accent:'#6B31D4', desc:'Understand every driver of revenue growth, expansion, contraction, and churn.' },
+    { slug:'customers',    icon:'👥', label:'Customers',     accent:'#2E90FA', desc:'Understand customer health, retention risk, and expansion potential at account level.' },
+    { slug:'contracts',    icon:'📋', label:'Contracts',     accent:'#12B76A', desc:'Monitor renewals, commitments, and future revenue obligations across your book.' },
+    { slug:'pricing',      icon:'💲', label:'Pricing',       accent:'#F79009', desc:'Evaluate pricing performance and improve monetization across segments.' },
+    { slug:'products',     icon:'📦', label:'Products',      accent:'#7C3AED', desc:'Discover which products and bundles drive growth, adoption, and durable revenue.' },
+    { slug:'profitability',icon:'💹', label:'Profitability',  accent:'#059669', desc:'Analyze margins, contribution, and value creation across the entire business.' },
+    { slug:'retention',    icon:'🔄', label:'Retention',      accent:'#0EA5E9', desc:'Measure customer loyalty and the true sustainability of revenue growth.' },
   ]
   return (
-    <section id="engines" ref={ref} style={{ background:C.surface,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+    <section id="solutions" ref={ref} style={{ background:C.surface,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
       <div style={{ maxWidth:1100,margin:'0 auto' }}>
         <div style={{ marginBottom:56,...fadeIn(iv) }}>
-          <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Capabilities</p>
+          <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Solutions</p>
           <div style={{ display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:32,flexWrap:'wrap' }}>
-            <h2 style={{ fontFamily:SERIF,fontSize:42,fontWeight:400,color:C.text1,letterSpacing:'-.025em',margin:0,lineHeight:1.15 }}>8 analytics engines.<br/>One platform.</h2>
-            <p style={{ fontFamily:FONT,fontSize:15,color:C.text2,maxWidth:420,lineHeight:1.7,margin:0 }}>Every engine feeds from the same ground-truth data cube — fully consistent, fully reconciled. Upload once, run any analysis.</p>
+            <h2 style={{ fontFamily:SERIF,fontSize:42,fontWeight:400,color:C.text1,letterSpacing:'-.025em',margin:0,lineHeight:1.15,maxWidth:520 }}>Revenue intelligence built around business outcomes.</h2>
+            <p style={{ fontFamily:FONT,fontSize:15,color:C.text2,maxWidth:380,lineHeight:1.7,margin:0 }}>Solutions that help organizations accelerate growth, improve retention, optimize pricing, and maximize profitability.</p>
           </div>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16 }}>
-          {engines.map((e,i) => (
-            <div key={i} style={{ background:C.bg,border:`1px solid ${C.border}`,borderRadius:16,padding:'22px 20px',display:'flex',flexDirection:'column',gap:0,transition:'border-color .18s,box-shadow .18s,transform .18s',...fadeIn(iv,i*0.05) }}
-              onMouseEnter={ev=>{ev.currentTarget.style.borderColor=e.live?`${C.purple}55`:C.borderMd;ev.currentTarget.style.boxShadow=`0 6px 24px rgba(107,49,212,0.09)`;ev.currentTarget.style.transform='translateY(-2px)'}}
+        <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14 }}>
+          {solutions.slice(0,4).map((s,i) => (
+            <a key={s.slug} href={`/solutions/${s.slug}`}
+              style={{ display:'block',textDecoration:'none',background:C.bg,border:`1px solid ${C.border}`,borderRadius:16,padding:'24px 20px',transition:'border-color .18s,box-shadow .18s,transform .18s',...fadeIn(iv,i*0.06) }}
+              onMouseEnter={ev=>{ev.currentTarget.style.borderColor=`${s.accent}55`;ev.currentTarget.style.boxShadow=`0 6px 24px ${s.accent}18`;ev.currentTarget.style.transform='translateY(-3px)'}}
               onMouseLeave={ev=>{ev.currentTarget.style.borderColor=C.border;ev.currentTarget.style.boxShadow='none';ev.currentTarget.style.transform='none'}}>
-              {/* Top accent bar */}
-              <div style={{ height:3,borderRadius:2,background:e.live?C.purple:C.borderMd,marginBottom:18 }}/>
-              <div style={{ fontSize:22,marginBottom:10 }}>{e.icon}</div>
-              <div style={{ fontFamily:FONT,fontSize:14,fontWeight:700,color:C.text1,marginBottom:8,letterSpacing:'-.01em' }}>{e.title}</div>
-              <div style={{ fontFamily:FONT,fontSize:12,color:C.text2,lineHeight:1.65,flex:1 }}>{e.body}</div>
-              <div style={{ marginTop:14 }}>
-                <span style={{ fontFamily:FONT,fontSize:10,fontWeight:700,padding:'3px 10px',borderRadius:99,
-                  background: e.live ? C.greenBg : '#FFFBEB',
-                  color: e.live ? C.green : C.amber }}>{e.tag}</span>
-              </div>
-            </div>
+              <div style={{ height:3,borderRadius:2,background:s.accent,marginBottom:18 }}/>
+              <div style={{ fontSize:24,marginBottom:12 }}>{s.icon}</div>
+              <div style={{ fontFamily:FONT,fontSize:15,fontWeight:700,color:C.text1,marginBottom:8,letterSpacing:'-.01em' }}>{s.label}</div>
+              <div style={{ fontFamily:FONT,fontSize:12.5,color:C.text2,lineHeight:1.65,marginBottom:16 }}>{s.desc}</div>
+              <div style={{ fontFamily:FONT,fontSize:12,fontWeight:600,color:s.accent,display:'flex',alignItems:'center',gap:5 }}>Explore {s.label} <span>→</span></div>
+            </a>
+          ))}
+        </div>
+        <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginTop:14 }}>
+          {solutions.slice(4).map((s,i) => (
+            <a key={s.slug} href={`/solutions/${s.slug}`}
+              style={{ display:'block',textDecoration:'none',background:C.bg,border:`1px solid ${C.border}`,borderRadius:16,padding:'24px 20px',transition:'border-color .18s,box-shadow .18s,transform .18s',...fadeIn(iv,(i+4)*0.06) }}
+              onMouseEnter={ev=>{ev.currentTarget.style.borderColor=`${s.accent}55`;ev.currentTarget.style.boxShadow=`0 6px 24px ${s.accent}18`;ev.currentTarget.style.transform='translateY(-3px)'}}
+              onMouseLeave={ev=>{ev.currentTarget.style.borderColor=C.border;ev.currentTarget.style.boxShadow='none';ev.currentTarget.style.transform='none'}}>
+              <div style={{ height:3,borderRadius:2,background:s.accent,marginBottom:18 }}/>
+              <div style={{ fontSize:24,marginBottom:12 }}>{s.icon}</div>
+              <div style={{ fontFamily:FONT,fontSize:15,fontWeight:700,color:C.text1,marginBottom:8,letterSpacing:'-.01em' }}>{s.label}</div>
+              <div style={{ fontFamily:FONT,fontSize:12.5,color:C.text2,lineHeight:1.65,marginBottom:16 }}>{s.desc}</div>
+              <div style={{ fontFamily:FONT,fontSize:12,fontWeight:600,color:s.accent,display:'flex',alignItems:'center',gap:5 }}>Explore {s.label} <span>→</span></div>
+            </a>
           ))}
         </div>
       </div>
@@ -620,7 +629,7 @@ export default function LandingPage() {
         <Hero onStart={go}/>
         <SocialProof/>
         <ProductPreview/>
-        <Engines/>
+        <Solutions/>
         <AIStudio/>
         <AISection/>
         <ComparisonTable/>
