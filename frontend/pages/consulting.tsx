@@ -17,6 +17,18 @@ const C = {
 const FONT  = "'DM Sans','Helvetica Neue',Arial,sans-serif"
 const SERIF = "'DM Serif Display',Georgia,serif"
 
+
+function useIsMobile() {
+  const [m, setM] = useState(false)
+  useEffect(() => {
+    const fn = () => setM(window.innerWidth < 768)
+    fn()
+    window.addEventListener('resize', fn, { passive:true })
+    return () => window.removeEventListener('resize', fn)
+  }, [])
+  return m
+}
+
 const PACKAGES = [
   {
     id: 'strategy',
@@ -58,6 +70,7 @@ const EXPERTISE = [
 ]
 
 export default function ConsultingPage() {
+  const isMobile = useIsMobile()
   const router = useRouter()
   const [form, setForm] = useState({ name:'', email:'', company:'', message:'', pkg:'' })
   const [sent, setSent] = useState(false)
@@ -103,7 +116,7 @@ export default function ConsultingPage() {
 
         {/* ── NAV — identical to index.tsx ── */}
         <header style={{ position:'fixed',top:0,left:0,right:0,zIndex:1000,background:'rgba(248,247,252,0.92)',backdropFilter:'blur(16px)',borderBottom:`1px solid ${C.border}` }}>
-          <div style={{ maxWidth:1200,margin:'0 auto',padding:'0 32px',height:64,display:'flex',alignItems:'center',gap:40 }}>
+          <div style={{ maxWidth:1200,margin:'0 auto',padding:'0 20px',height:64,display:'flex',alignItems:'center',gap:40 }}>
             <a href="/" style={{ display:'flex',alignItems:'center',gap:10,textDecoration:'none',flexShrink:0 }}>
               <div style={{ width:32,height:32,borderRadius:10,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 2px 8px rgba(107,49,212,0.4)' }}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 13L8 3L14 13H2Z" fill="white" fillOpacity=".95"/><path d="M5.5 13L8 8.5L10.5 13H5.5Z" fill="white" fillOpacity=".5"/></svg>
@@ -127,7 +140,7 @@ export default function ConsultingPage() {
         <main style={{ paddingTop:64 }}>
 
           {/* ── HERO ── */}
-          <section style={{ background:C.dark,padding:'88px 32px 80px',textAlign:'center',position:'relative',overflow:'hidden' }}>
+          <section style={{ background:C.dark,padding:isMobile?'88px 20px 60px':'88px 32px 80px',textAlign:'center',position:'relative',overflow:'hidden' }}>
             <div aria-hidden style={{ position:'absolute',top:-120,left:'50%',transform:'translateX(-50%)',width:700,height:380,background:`radial-gradient(ellipse,${C.purple}35 0%,transparent 70%)`,pointerEvents:'none' }}/>
             <div aria-hidden style={{ position:'absolute',inset:0,pointerEvents:'none',backgroundImage:`linear-gradient(rgba(107,49,212,0.06) 1px,transparent 1px),linear-gradient(90deg,rgba(107,49,212,0.06) 1px,transparent 1px)`,backgroundSize:'60px 60px' }}/>
             <div style={{ maxWidth:680,margin:'0 auto',position:'relative' }}>
@@ -157,9 +170,9 @@ export default function ConsultingPage() {
           </section>
 
           {/* ── EXPERTISE CARDS ── */}
-          <section style={{ background:C.surface,padding:'56px 32px',borderBottom:`1px solid ${C.border}` }}>
+          <section style={{ background:C.surface,padding:isMobile?'40px 16px':'56px 32px',borderBottom:`1px solid ${C.border}` }}>
             <div style={{ maxWidth:1000,margin:'0 auto' }}>
-              <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16 }}>
+              <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'repeat(4,1fr)',gap:16 }}>
                 {EXPERTISE.map((e,i) => (
                   <div key={i} style={{ ...card(),padding:'22px 20px',textAlign:'center',transition:'border-color .18s,box-shadow .18s' }}
                     onMouseEnter={ev=>{ev.currentTarget.style.borderColor=`${C.purple}55`;ev.currentTarget.style.boxShadow='0 4px 16px rgba(107,49,212,0.08)'}}
@@ -174,13 +187,13 @@ export default function ConsultingPage() {
           </section>
 
           {/* ── PACKAGES ── */}
-          <section style={{ background:C.bg,padding:'88px 32px' }}>
+          <section style={{ background:C.bg,padding:isMobile?'56px 16px':'88px 32px' }}>
             <div style={{ maxWidth:1000,margin:'0 auto' }}>
               <div style={{ textAlign:'center',marginBottom:52 }}>
                 <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Consulting Packages</p>
                 <h2 style={{ fontFamily:SERIF,fontSize:40,fontWeight:400,color:C.text1,letterSpacing:'-.025em',margin:0 }}>Choose your session.</h2>
               </div>
-              <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:20 }}>
+              <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:20 }}>
                 {PACKAGES.map((pkg,i) => {
                   const hot = pkg.popular
                   return (
@@ -228,10 +241,10 @@ export default function ConsultingPage() {
           </section>
 
           {/* ── WHAT YOU GET strip ── */}
-          <section style={{ background:C.purpleXl,borderTop:`1px solid ${C.purpleMd}`,borderBottom:`1px solid ${C.purpleMd}`,padding:'48px 32px' }}>
+          <section style={{ background:C.purpleXl,borderTop:`1px solid ${C.purpleMd}`,borderBottom:`1px solid ${C.purpleMd}`,padding:isMobile?'40px 16px':'48px 32px' }}>
             <div style={{ maxWidth:900,margin:'0 auto',textAlign:'center' }}>
               <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 16px' }}>What you get</p>
-              <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:24 }}>
+              <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'repeat(4,1fr)',gap:24 }}>
                 {[
                   { icon:'📄', title:'Written summary', desc:'Notes and action items delivered within 24 hours.' },
                   { icon:'📊', title:'Live data work', desc:'We work in your actual data, not generic examples.' },
@@ -249,7 +262,7 @@ export default function ConsultingPage() {
           </section>
 
           {/* ── BOOKING FORM ── */}
-          <section id="book" style={{ background:C.bg,padding:'88px 32px' }}>
+          <section id="book" style={{ background:C.bg,padding:isMobile?'56px 16px':'88px 32px' }}>
             <div style={{ maxWidth:540,margin:'0 auto' }}>
               <div style={{ textAlign:'center',marginBottom:44 }}>
                 <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Book a Session</p>
@@ -277,7 +290,7 @@ export default function ConsultingPage() {
                     </div>
                   )}
 
-                  <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14 }}>
+                  <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:14,marginBottom:14 }}>
                     <div>
                       <label style={{ display:'block',fontFamily:FONT,fontSize:12,fontWeight:600,color:C.text2,marginBottom:6 }}>Your name</label>
                       <input required value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}
