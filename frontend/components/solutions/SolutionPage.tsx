@@ -1,7 +1,7 @@
 // @ts-nocheck
 // frontend/components/solutions/SolutionPage.tsx
 // Shared template for all 7 solution pages — receives a Solution config and renders everything
-//
+
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 
@@ -20,8 +20,21 @@ function fadeIn(delay = 0) {
   return { animation: `fadeUp 0.6s ease ${delay}s both` }
 }
 
+
+function useIsMobile() {
+  const [m, setM] = useState(false)
+  useEffect(() => {
+    const fn = () => setM(window.innerWidth < 768)
+    fn()
+    window.addEventListener('resize', fn, { passive:true })
+    return () => window.removeEventListener('resize', fn)
+  }, [])
+  return m
+}
+
 export default function SolutionPage({ solution: s }) {
   const router = useRouter()
+  const isMobile = useIsMobile()
 
   if (!s) return null
 
@@ -46,7 +59,7 @@ export default function SolutionPage({ solution: s }) {
 
         {/* ── NAV ── */}
         <header style={{ position:'fixed',top:0,left:0,right:0,zIndex:1000,background:'rgba(248,247,252,0.94)',backdropFilter:'blur(16px)',borderBottom:`1px solid ${C.border}` }}>
-          <div style={{ maxWidth:1200,margin:'0 auto',padding:'0 32px',height:64,display:'flex',alignItems:'center',gap:40 }}>
+          <div style={{ maxWidth:1200,margin:'0 auto',padding:'0 20px',height:64,display:'flex',alignItems:'center',gap:40 }}>
             <a href="/" style={{ display:'flex',alignItems:'center',gap:10,textDecoration:'none' }}>
               <div style={{ width:32,height:32,borderRadius:10,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 2px 8px rgba(107,49,212,0.4)' }}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 13L8 3L14 13H2Z" fill="white" fillOpacity=".95"/><path d="M5.5 13L8 8.5L10.5 13H5.5Z" fill="white" fillOpacity=".5"/></svg>
@@ -71,10 +84,10 @@ export default function SolutionPage({ solution: s }) {
         <main style={{ paddingTop:64 }}>
 
           {/* ══ 1. HERO ══════════════════════════════════════════════════════ */}
-          <section style={{ background:C.dark,padding:'96px 32px 88px',position:'relative',overflow:'hidden',textAlign:'center' }}>
+          <section style={{ background:C.dark,padding:isMobile?'80px 20px 60px':'96px 32px 88px',position:'relative',overflow:'hidden',textAlign:'center' }}>
             <div aria-hidden style={{ position:'absolute',top:-150,left:'50%',transform:'translateX(-50%)',width:800,height:500,background:`radial-gradient(ellipse,${A}40 0%,transparent 70%)`,pointerEvents:'none' }}/>
             <div aria-hidden style={{ position:'absolute',inset:0,backgroundImage:`linear-gradient(${A}08 1px,transparent 1px),linear-gradient(90deg,${A}08 1px,transparent 1px)`,backgroundSize:'60px 60px',pointerEvents:'none' }}/>
-            <div style={{ maxWidth:760,margin:'0 auto',position:'relative' }}>
+            <div style={{ maxWidth:760,margin:'0 auto',position:'relative',width:'100%' }}>
               {/* Breadcrumb */}
               <div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginBottom:28 }}>
                 <a href="/#solutions" style={{ fontFamily:FONT,fontSize:12,color:'rgba(255,255,255,0.35)',textDecoration:'none' }}>Solutions</a>
@@ -104,9 +117,9 @@ export default function SolutionPage({ solution: s }) {
 
           {/* ══ 2. METRICS PREVIEW ═══════════════════════════════════════════ */}
           <section style={{ background:C.dark2,padding:'40px 32px',borderBottom:`1px solid #2D2650` }}>
-            <div style={{ maxWidth:1000,margin:'0 auto',display:'flex',gap:0,justifyContent:'center' }}>
+            <div style={{ maxWidth:1000,margin:'0 auto',display:'flex',gap:0,justifyContent:'center',flexWrap:'wrap' }}>
               {s.previewMetrics.map((m,i) => (
-                <div key={i} style={{ flex:1,textAlign:'center',padding:'0 24px',borderRight:i<s.previewMetrics.length-1?'1px solid #2D2650':'none' }}>
+                <div key={i} style={{ textAlign:'center',padding:isMobile?'12px 16px':'0 24px',minWidth:isMobile?'45%':'auto',borderRight:isMobile?'none':i<s.previewMetrics.length-1?'1px solid #2D2650':'none' }}>
                   <div style={{ fontFamily:'DM Mono,monospace',fontSize:22,fontWeight:700,color:m.up===false?C.red:m.up===true?C.green:'#C4A8FF',letterSpacing:'-.02em' }}>{m.value}</div>
                   {m.delta && <div style={{ fontFamily:FONT,fontSize:11,fontWeight:600,color:m.up===false?`${C.red}99`:m.up===true?`${C.green}99`:A,marginTop:2 }}>{m.delta}</div>}
                   <div style={{ fontFamily:FONT,fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:4,fontWeight:500,textTransform:'uppercase',letterSpacing:'.06em' }}>{m.label}</div>
@@ -116,8 +129,8 @@ export default function SolutionPage({ solution: s }) {
           </section>
 
           {/* ══ 3. CHALLENGES ════════════════════════════════════════════════ */}
-          <section style={{ background:C.surface,padding:'88px 32px',borderBottom:`1px solid ${C.border}` }}>
-            <div style={{ maxWidth:1000,margin:'0 auto',display:'grid',gridTemplateColumns:'1fr 1fr',gap:64,alignItems:'center' }}>
+          <section style={{ background:C.surface,padding:isMobile?'56px 16px':'88px 32px',borderBottom:`1px solid ${C.border}` }}>
+            <div style={{ maxWidth:1000,margin:'0 auto',display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:isMobile?32:64,alignItems:'center' }}>
               <div>
                 <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:A,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Challenges We Solve</p>
                 <h2 style={{ fontFamily:SERIF,fontSize:36,fontWeight:400,color:C.text1,letterSpacing:'-.02em',margin:'0 0 20px',lineHeight:1.2 }}>The problems finance<br/>teams face every week.</h2>
@@ -135,14 +148,14 @@ export default function SolutionPage({ solution: s }) {
           </section>
 
           {/* ══ 4. CAPABILITIES ══════════════════════════════════════════════ */}
-          <section style={{ background:C.bg,padding:'88px 32px',borderBottom:`1px solid ${C.border}` }}>
+          <section style={{ background:C.bg,padding:isMobile?'56px 16px':'88px 32px',borderBottom:`1px solid ${C.border}` }}>
             <div style={{ maxWidth:1100,margin:'0 auto' }}>
               <div style={{ textAlign:'center',marginBottom:52 }}>
                 <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:A,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>What You'll Get</p>
                 <h2 style={{ fontFamily:SERIF,fontSize:38,fontWeight:400,color:C.text1,letterSpacing:'-.025em',margin:'0 0 14px' }}>Capabilities built for outcomes.</h2>
                 <p style={{ fontFamily:FONT,fontSize:15,color:C.text2,maxWidth:480,margin:'0 auto',lineHeight:1.7 }}>Every capability feeds from the same ground-truth data cube — fully consistent, fully reconciled.</p>
               </div>
-              <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16 }}>
+              <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:16 }}>
                 {s.capabilities.map((cap,i) => (
                   <div key={i} style={{ background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:'24px 22px',transition:'border-color .18s,box-shadow .18s,transform .18s' }}
                     onMouseEnter={ev=>{ev.currentTarget.style.borderColor=`${A}55`;ev.currentTarget.style.boxShadow=`0 6px 24px ${A}15`;ev.currentTarget.style.transform='translateY(-2px)'}}
@@ -158,14 +171,14 @@ export default function SolutionPage({ solution: s }) {
           </section>
 
           {/* ══ 5. WHY IT MATTERS ════════════════════════════════════════════ */}
-          <section style={{ background:C.dark,padding:'88px 32px',borderBottom:'none' }}>
+          <section style={{ background:C.dark,padding:isMobile?'56px 16px':'88px 32px',borderBottom:'none' }}>
             <div aria-hidden style={{ position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:600,height:300,background:`radial-gradient(ellipse,${A}20 0%,transparent 70%)`,pointerEvents:'none' }}/>
             <div style={{ maxWidth:900,margin:'0 auto',position:'relative' }}>
               <div style={{ textAlign:'center',marginBottom:52 }}>
                 <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:A,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Why It Matters</p>
                 <h2 style={{ fontFamily:SERIF,fontSize:38,fontWeight:400,color:'#fff',letterSpacing:'-.025em',margin:0,lineHeight:1.15 }}>Business outcomes, not just metrics.</h2>
               </div>
-              <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:20 }}>
+              <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:20 }}>
                 {s.whyMatters.map((w,i) => (
                   <div key={i} style={{ background:'#1A1530',border:`1px solid ${A}30`,borderRadius:16,padding:'28px 24px',textAlign:'center' }}>
                     <div style={{ width:48,height:48,borderRadius:14,background:`${A}20`,border:`1px solid ${A}30`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px',fontSize:22 }}>{w.icon}</div>
@@ -178,7 +191,7 @@ export default function SolutionPage({ solution: s }) {
           </section>
 
           {/* ══ 6. QUESTIONS ANSWERED ════════════════════════════════════════ */}
-          <section style={{ background:AL,borderTop:`1px solid ${A}22`,borderBottom:`1px solid ${A}22`,padding:'72px 32px' }}>
+          <section style={{ background:AL,borderTop:`1px solid ${A}22`,borderBottom:`1px solid ${A}22`,padding:isMobile?'48px 16px':'72px 32px' }}>
             <div style={{ maxWidth:800,margin:'0 auto' }}>
               <div style={{ textAlign:'center',marginBottom:40 }}>
                 <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:A,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Questions RevenueLens Answers</p>
@@ -197,7 +210,7 @@ export default function SolutionPage({ solution: s }) {
           </section>
 
           {/* ══ 7. INDUSTRIES ════════════════════════════════════════════════ */}
-          <section style={{ background:C.surface,padding:'72px 32px',borderBottom:`1px solid ${C.border}` }}>
+          <section style={{ background:C.surface,padding:isMobile?'48px 16px':'72px 32px',borderBottom:`1px solid ${C.border}` }}>
             <div style={{ maxWidth:900,margin:'0 auto',textAlign:'center' }}>
               <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:A,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Industries Served</p>
               <h2 style={{ fontFamily:SERIF,fontSize:32,fontWeight:400,color:C.text1,letterSpacing:'-.02em',margin:'0 0 40px' }}>Built for revenue-driven organizations.</h2>
@@ -218,7 +231,7 @@ export default function SolutionPage({ solution: s }) {
           </section>
 
           {/* ══ 8. FINAL CTA ═════════════════════════════════════════════════ */}
-          <section style={{ background:A,padding:'88px 32px',position:'relative',overflow:'hidden',textAlign:'center' }}>
+          <section style={{ background:A,padding:isMobile?'60px 20px':'88px 32px',position:'relative',overflow:'hidden',textAlign:'center' }}>
             <div aria-hidden style={{ position:'absolute',top:-80,left:'50%',transform:'translateX(-50%)',width:500,height:280,background:'radial-gradient(ellipse,rgba(255,255,255,0.15) 0%,transparent 70%)',pointerEvents:'none' }}/>
             <div style={{ maxWidth:560,margin:'0 auto',position:'relative' }}>
               <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.6)',letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>{s.label} Intelligence</p>
@@ -240,7 +253,7 @@ export default function SolutionPage({ solution: s }) {
 
         {/* ── FOOTER ── */}
         <footer style={{ background:C.dark,padding:'44px 32px 24px' }}>
-          <div style={{ maxWidth:1100,margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:16 }}>
+          <div style={{ maxWidth:1100,margin:'0 auto',display:'flex',alignItems:'center',justifyContent:isMobile?'center':'space-between',flexWrap:'wrap',gap:16,flexDirection:isMobile?'column':'row',textAlign:isMobile?'center':'left' }}>
             <a href="/" style={{ display:'flex',alignItems:'center',gap:10,textDecoration:'none' }}>
               <div style={{ width:28,height:28,borderRadius:8,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center' }}>
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 13L8 3L14 13H2Z" fill="white"/></svg>
