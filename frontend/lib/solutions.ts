@@ -1,5 +1,5 @@
 // lib/solutions.ts — all 7 solution configs
-
+//
 export interface Capability {
   icon: string
   title: string
