@@ -1,7 +1,7 @@
 // @ts-nocheck
 // frontend/components/solutions/SolutionPage.tsx
 // Shared template for all 7 solution pages — receives a Solution config and renders everything
-
+//
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 
