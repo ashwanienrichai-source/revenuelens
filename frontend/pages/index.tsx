@@ -3,7 +3,7 @@
  * pages/index.tsx — RevenueLens Landing Page v2
  * Deploy to: frontend/pages/index.tsx
  */
-
+//
 import React, { useState, useEffect, useRef } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
