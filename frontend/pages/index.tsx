@@ -3,7 +3,7 @@
  * pages/index.tsx — RevenueLens Landing Page v2
  * Deploy to: frontend/pages/index.tsx
  */
-//
+
 import React, { useState, useEffect, useRef } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
@@ -30,6 +30,18 @@ function useInView() {
   return [ref, v]
 }
 
+
+function useIsMobile() {
+  const [m, setM] = useState(false)
+  useEffect(() => {
+    const fn = () => setM(window.innerWidth < 768)
+    fn()
+    window.addEventListener('resize', fn, { passive:true })
+    return () => window.removeEventListener('resize', fn)
+  }, [])
+  return m
+}
+
 const fadeIn = (v, d=0) => ({
   opacity: v?1:0,
   transform: v?'none':'translateY(22px)',
@@ -44,6 +56,8 @@ function scrollTo(id) {
 // ── Nav ───────────────────────────────────────────────────────────────────────
 function Nav({ onLogin, onStart }) {
   const [sc, setSc] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const isMobile = useIsMobile()
   useEffect(() => {
     const fn = () => setSc(window.scrollY > 40)
     window.addEventListener('scroll', fn, { passive:true })
@@ -51,32 +65,53 @@ function Nav({ onLogin, onStart }) {
   }, [])
   return (
     <header style={{ position:'fixed',top:0,left:0,right:0,zIndex:1000,
-      background: sc ? 'rgba(248,247,252,0.92)' : 'transparent',
+      background: sc||menuOpen ? 'rgba(248,247,252,0.97)' : 'transparent',
       backdropFilter: sc ? 'blur(16px)' : 'none',
       borderBottom: sc ? `1px solid ${C.border}` : '1px solid transparent',
       transition: 'all 0.3s' }}>
-      <div style={{ maxWidth:1200,margin:'0 auto',padding:'0 32px',height:64,display:'flex',alignItems:'center',gap:40 }}>
+      <div style={{ maxWidth:1200,margin:'0 auto',padding:'0 20px',height:64,display:'flex',alignItems:'center',gap:isMobile?0:40 }}>
         <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
           <div style={{ width:32,height:32,borderRadius:10,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 2px 8px rgba(107,49,212,0.4)' }}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 13L8 3L14 13H2Z" fill="white" fillOpacity=".95"/><path d="M5.5 13L8 8.5L10.5 13H5.5Z" fill="white" fillOpacity=".5"/></svg>
           </div>
           <span style={{ fontFamily:FONT,fontSize:16,fontWeight:700,color:C.text1,letterSpacing:'-.02em' }}>RevenueLens</span>
         </div>
-        <nav style={{ display:'flex',gap:28,flex:1 }}>
-          {[['Product','product'],['Solutions','solutions'],['AI Studio','ai-studio'],['AI Layer','ai-section'],['Pricing','pricing']].map(([l,id]) => (
-            <a key={l} href={`#${id}`} onClick={e=>{e.preventDefault();scrollTo(id)}}
-              style={{ fontFamily:FONT,fontSize:13,fontWeight:500,color:C.text2,textDecoration:'none',transition:'color .15s' }}
-              onMouseEnter={e=>e.target.style.color=C.purple}
-              onMouseLeave={e=>e.target.style.color=C.text2}>{l}</a>
-          ))}
-        </nav>
-        <div style={{ display:'flex',alignItems:'center',gap:12 }}>
-          <button onClick={onLogin} style={{ background:'none',border:'none',cursor:'pointer',fontFamily:FONT,fontSize:13,fontWeight:500,color:C.text2,padding:'8px 12px' }}>Sign in</button>
-          <button onClick={onStart} style={{ background:C.purple,color:'#fff',border:'none',borderRadius:9,padding:'9px 20px',fontFamily:FONT,fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 1px 2px rgba(107,49,212,0.3)',transition:'all .18s' }}
-            onMouseEnter={e=>{e.target.style.background=C.purple2;e.target.style.boxShadow='0 4px 14px rgba(107,49,212,0.45)'}}
-            onMouseLeave={e=>{e.target.style.background=C.purple;e.target.style.boxShadow='0 1px 2px rgba(107,49,212,0.3)'}}>Get started free</button>
-        </div>
+        {!isMobile && (
+          <nav style={{ display:'flex',gap:28,flex:1 }}>
+            {[['Product','product'],['Solutions','solutions'],['AI Studio','ai-studio'],['AI Layer','ai-section'],['Pricing','pricing']].map(([l,id]) => (
+              <a key={l} href={`#${id}`} onClick={e=>{e.preventDefault();scrollTo(id)}}
+                style={{ fontFamily:FONT,fontSize:13,fontWeight:500,color:C.text2,textDecoration:'none',transition:'color .15s' }}
+                onMouseEnter={e=>e.target.style.color=C.purple}
+                onMouseLeave={e=>e.target.style.color=C.text2}>{l}</a>
+            ))}
+          </nav>
+        )}
+        {!isMobile && (
+          <div style={{ display:'flex',alignItems:'center',gap:12 }}>
+            <button onClick={onLogin} style={{ background:'none',border:'none',cursor:'pointer',fontFamily:FONT,fontSize:13,fontWeight:500,color:C.text2,padding:'8px 12px' }}>Sign in</button>
+            <button onClick={onStart} style={{ background:C.purple,color:'#fff',border:'none',borderRadius:9,padding:'9px 20px',fontFamily:FONT,fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 1px 2px rgba(107,49,212,0.3)',transition:'all .18s' }}
+              onMouseEnter={e=>{e.target.style.background=C.purple2;e.target.style.boxShadow='0 4px 14px rgba(107,49,212,0.45)'}}
+              onMouseLeave={e=>{e.target.style.background=C.purple;e.target.style.boxShadow='0 1px 2px rgba(107,49,212,0.3)'}}>Get started free</button>
+          </div>
+        )}
+        {isMobile && (
+          <div style={{ marginLeft:'auto',display:'flex',alignItems:'center',gap:10 }}>
+            <button onClick={onStart} style={{ background:C.purple,color:'#fff',border:'none',borderRadius:8,padding:'8px 14px',fontFamily:FONT,fontSize:12,fontWeight:600,cursor:'pointer' }}>Start free</button>
+            <button onClick={()=>setMenuOpen(o=>!o)} style={{ background:'none',border:`1px solid ${C.border}`,borderRadius:8,padding:'7px 10px',cursor:'pointer',fontSize:18,color:C.text1 }}>
+              {menuOpen ? '✕' : '☰'}
+            </button>
+          </div>
+        )}
       </div>
+      {isMobile && menuOpen && (
+        <div style={{ background:C.surface,borderTop:`1px solid ${C.border}`,padding:'16px 20px',display:'flex',flexDirection:'column',gap:4 }}>
+          {[['Product','product'],['Solutions','solutions'],['AI Studio','ai-studio'],['AI Layer','ai-section'],['Pricing','pricing']].map(([l,id]) => (
+            <a key={l} href={`#${id}`} onClick={e=>{e.preventDefault();scrollTo(id);setMenuOpen(false)}}
+              style={{ fontFamily:FONT,fontSize:15,fontWeight:500,color:C.text2,textDecoration:'none',padding:'10px 4px',borderBottom:`1px solid ${C.border}` }}>{l}</a>
+          ))}
+          <button onClick={()=>{onLogin();setMenuOpen(false)}} style={{ marginTop:8,background:'none',border:`1px solid ${C.border}`,borderRadius:8,padding:'10px',fontFamily:FONT,fontSize:14,fontWeight:500,color:C.text2,cursor:'pointer' }}>Sign in</button>
+        </div>
+      )}
     </header>
   )
 }
@@ -130,6 +165,7 @@ function Hero({ onStart }) {
 
 // ── Social Proof ──────────────────────────────────────────────────────────────
 function SocialProof() {
+  const isMobile = useIsMobile()
   const quotes = [
     { text:'Finally stopped using 14 spreadsheet tabs for our monthly ARR close.', role:'Head of Finance, B2B SaaS startup' },
     { text:'We cut board pack preparation from 3 days to 20 minutes.', role:'CFO, PE-backed software company' },
@@ -141,7 +177,7 @@ function SocialProof() {
         <div style={{ textAlign:'center',marginBottom:28 }}>
           <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:0 }}>Used by finance teams building their revenue stack</p>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16 }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobileAS?'1fr':'repeat(3,1fr)',gap:16 }}>
           {quotes.map((q,i) => (
             <div key={i} style={{ background:C.surface,border:`1px solid ${C.purpleMd}`,borderRadius:14,padding:'22px 24px' }}>
               <div style={{ fontFamily:SERIF,fontSize:32,color:C.purple,lineHeight:1,marginBottom:10 }}>"</div>
@@ -157,9 +193,10 @@ function SocialProof() {
 
 // ── Product Preview ───────────────────────────────────────────────────────────
 function ProductPreview() {
+  const isMobileP = useIsMobile()
   const [ref,iv] = useInView()
   return (
-    <section id="product" ref={ref} style={{ background:C.dark,padding:'88px 32px',position:'relative',overflow:'hidden' }}>
+    <section id="product" ref={ref} style={{ background:C.dark,padding:isMobileP?'56px 16px':'88px 32px',position:'relative',overflow:'hidden' }}>
       <div aria-hidden style={{ position:'absolute',top:-200,left:'50%',transform:'translateX(-50%)',width:800,height:400,background:`radial-gradient(ellipse,${C.purple}33 0%,transparent 70%)`,pointerEvents:'none' }}/>
       <div style={{ maxWidth:1100,margin:'0 auto',...fadeIn(iv) }}>
         <div style={{ textAlign:'center',marginBottom:48 }}>
@@ -173,7 +210,7 @@ function ProductPreview() {
               <span style={{ fontFamily:MONO,fontSize:10,color:'#6B6490' }}>revenuelens.ashwaniandcompany.com/app/command-center</span>
             </div>
           </div>
-          <div style={{ display:'grid',gridTemplateColumns:'220px 1fr',minHeight:380 }}>
+          <div style={{ display:'grid',gridTemplateColumns:isMobileP?'1fr':'220px 1fr',minHeight:isMobileP?'auto':380 }}>
             <div style={{ background:'#120F24',borderRight:'1px solid #2D2650',padding:16 }}>
               <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:24 }}>
                 <div style={{ width:26,height:26,borderRadius:8,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center' }}>
@@ -236,6 +273,7 @@ function ProductPreview() {
 
 // ── Solutions ─────────────────────────────────────────────────────────────────
 function Solutions() {
+  const isMobileS = useIsMobile()
   const [ref,iv] = useInView()
   const solutions = [
     { slug:'growth',       icon:'📈', label:'Growth',       accent:'#6B31D4', desc:'Understand every driver of revenue growth, expansion, contraction, and churn.' },
@@ -247,16 +285,16 @@ function Solutions() {
     { slug:'retention',    icon:'🔄', label:'Retention',      accent:'#0EA5E9', desc:'Measure customer loyalty and the true sustainability of revenue growth.' },
   ]
   return (
-    <section id="solutions" ref={ref} style={{ background:C.surface,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+    <section id="solutions" ref={ref} style={{ background:C.surface,padding:isMobileS?'56px 16px':'96px 32px',borderTop:`1px solid ${C.border}` }}>
       <div style={{ maxWidth:1100,margin:'0 auto' }}>
         <div style={{ marginBottom:56,...fadeIn(iv) }}>
           <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Solutions</p>
-          <div style={{ display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:32,flexWrap:'wrap' }}>
+          <div style={{ display:'flex',alignItems:'flex-end',justifyContent:isMobileS?'flex-start':'space-between',gap:isMobileS?16:32,flexDirection:isMobileS?'column':'row',flexWrap:'wrap' }}>
             <h2 style={{ fontFamily:SERIF,fontSize:42,fontWeight:400,color:C.text1,letterSpacing:'-.025em',margin:0,lineHeight:1.15,maxWidth:520 }}>Revenue intelligence built around business outcomes.</h2>
             <p style={{ fontFamily:FONT,fontSize:15,color:C.text2,maxWidth:380,lineHeight:1.7,margin:0 }}>Solutions that help organizations accelerate growth, improve retention, optimize pricing, and maximize profitability.</p>
           </div>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14 }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobileS?'1fr 1fr':'repeat(4,1fr)',gap:14 }}>
           {solutions.slice(0,4).map((s,i) => (
             <a key={s.slug} href={`/solutions/${s.slug}`}
               style={{ display:'block',textDecoration:'none',background:C.bg,border:`1px solid ${C.border}`,borderRadius:16,padding:'24px 20px',transition:'border-color .18s,box-shadow .18s,transform .18s',...fadeIn(iv,i*0.06) }}
@@ -270,7 +308,7 @@ function Solutions() {
             </a>
           ))}
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginTop:14 }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobileS?'1fr':'repeat(3,1fr)',gap:14,marginTop:14 }}>
           {solutions.slice(4).map((s,i) => (
             <a key={s.slug} href={`/solutions/${s.slug}`}
               style={{ display:'block',textDecoration:'none',background:C.bg,border:`1px solid ${C.border}`,borderRadius:16,padding:'24px 20px',transition:'border-color .18s,box-shadow .18s,transform .18s',...fadeIn(iv,(i+4)*0.06) }}
@@ -291,6 +329,7 @@ function Solutions() {
 
 // ── AI Studio ─────────────────────────────────────────────────────────────────
 function AIStudio() {
+  const isMobileAS = useIsMobile()
   const [ref,iv] = useInView()
   const checks = [
     { live:true,  accent:C.purple, icon:'🔗', title:'Customer Name Consolidation',
@@ -313,17 +352,17 @@ function AIStudio() {
       detail:'Every check is optional, additive, and non-destructive. The original data is never modified — transformations are tracked and reversible.', tag:'Planned' },
   ]
   return (
-    <section id="ai-studio" ref={ref} style={{ background:C.dark,padding:'96px 32px',borderTop:'none' }}>
+    <section id="ai-studio" ref={ref} style={{ background:C.dark,padding:isMobileAS?'56px 16px':'96px 32px',borderTop:'none' }}>
       <div aria-hidden style={{ position:'absolute',pointerEvents:'none',left:'-5%',top:'50%',width:'40%',height:'80%',background:`radial-gradient(ellipse,${C.purple}18 0%,transparent 70%)`,transform:'translateY(-50%)' }}/>
       <div style={{ maxWidth:1100,margin:'0 auto',position:'relative' }}>
         <div style={{ marginBottom:52,...fadeIn(iv) }}>
           <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:'#C4A8FF',letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>AI Studio Engine</p>
-          <div style={{ display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:32,flexWrap:'wrap' }}>
+          <div style={{ display:'flex',alignItems:'flex-end',justifyContent:isMobileS?'flex-start':'space-between',gap:isMobileS?16:32,flexDirection:isMobileS?'column':'row',flexWrap:'wrap' }}>
             <h2 style={{ fontFamily:SERIF,fontSize:42,fontWeight:400,color:'#fff',letterSpacing:'-.025em',margin:0,lineHeight:1.15 }}>Enterprise-grade data preparation<br/>before any analysis runs.</h2>
             <p style={{ fontFamily:FONT,fontSize:15,color:'rgba(255,255,255,0.5)',maxWidth:380,lineHeight:1.7,margin:0 }}>The output is only as good as the input. AI Studio runs a full intelligent quality suite before classification begins.</p>
           </div>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16 }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobileAS?'1fr':'repeat(3,1fr)',gap:16 }}>
           {checks.map((c,i) => (
             <div key={i} style={{ background:'#1A1530',border:`1px solid ${c.live?`${C.purple}55`:'#2D2650'}`,borderRadius:16,padding:'24px 22px',display:'flex',flexDirection:'column',transition:'border-color .18s,box-shadow .18s',...fadeIn(iv,i*0.06) }}
               onMouseEnter={ev=>{ev.currentTarget.style.borderColor=c.live?`${C.purple}88`:'#3D3660';ev.currentTarget.style.boxShadow=`0 8px 28px rgba(107,49,212,0.15)`}}
@@ -352,6 +391,7 @@ function AIStudio() {
 
 // ── AI Intelligence Layer ─────────────────────────────────────────────────────
 function AISection() {
+  const isMobileAI = useIsMobile()
   const [ref,iv] = useInView()
   const [active, setActive] = useState(0)
   const caps = [
@@ -370,14 +410,14 @@ function AISection() {
   ]
   const cur = caps[active]
   return (
-    <section id="ai-section" ref={ref} style={{ background:C.surface,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+    <section id="ai-section" ref={ref} style={{ background:C.surface,padding:isMobileS?'56px 16px':'96px 32px',borderTop:`1px solid ${C.border}` }}>
       <div style={{ maxWidth:1100,margin:'0 auto' }}>
         <div style={{ textAlign:'center',marginBottom:56,...fadeIn(iv) }}>
           <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>AI Intelligence Layer</p>
           <h2 style={{ fontFamily:SERIF,fontSize:42,fontWeight:400,color:C.text1,letterSpacing:'-.025em',margin:'0 0 14px',lineHeight:1.15 }}>Analyzes. Explains. Teaches. Advises.</h2>
           <p style={{ fontFamily:FONT,fontSize:16,color:C.text2,maxWidth:560,margin:'0 auto',lineHeight:1.7 }}>Most tools show charts. RevenueLens AI understands your revenue and tells you exactly what to do about it. Every answer is grounded in your actual verified data.</p>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:64,alignItems:'center' }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobileAI?'1fr':'1fr 1fr',gap:isMobileAI?32:64,alignItems:'center' }}>
           {/* Tabs */}
           <div style={{ ...fadeIn(iv,0.1) }}>
             <div style={{ display:'flex',flexDirection:'column',gap:10,marginBottom:24 }}>
@@ -445,6 +485,7 @@ function AISection() {
 
 // ── Comparison ────────────────────────────────────────────────────────────────
 function ComparisonTable() {
+  const isMobileCT = useIsMobile()
   const [ref,iv] = useInView()
   const rows = [
     { cap:'Analyzes your revenue data',             rl:true,  tb:true,  gpt:false,     con:false },
@@ -463,7 +504,7 @@ function ComparisonTable() {
     return <span style={{ fontFamily:FONT,fontSize:10,fontWeight:600,color:C.amber,background:'#FFFBEB',padding:'2px 8px',borderRadius:99 }}>partial</span>
   }
   return (
-    <section ref={ref} style={{ background:C.bg,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+    <section ref={ref} style={{ background:C.bg,padding:isMobileCT?'56px 16px':'96px 32px',borderTop:`1px solid ${C.border}` }}>
       <div style={{ maxWidth:900,margin:'0 auto' }}>
         <div style={{ textAlign:'center',marginBottom:52,...fadeIn(iv) }}>
           <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Why RevenueLens</p>
@@ -496,6 +537,7 @@ function ComparisonTable() {
 
 // ── Pricing ───────────────────────────────────────────────────────────────────
 function Pricing({ onStart }) {
+  const isMobilePR = useIsMobile()
   const [ref,iv] = useInView()
   const plans = [
     { name:'Starter', price:'$299', desc:'For growing finance teams starting with ARR analytics.', popular:false, cta:'Start free trial',
@@ -506,14 +548,14 @@ function Pricing({ onStart }) {
       features:['Everything in Growth','Unlimited users','SSO + audit logs','Dedicated CSM','SLA 99.9% uptime','Custom contract'] },
   ]
   return (
-    <section id="pricing" ref={ref} style={{ background:C.surface,padding:'96px 32px',borderTop:`1px solid ${C.border}` }}>
+    <section id="pricing" ref={ref} style={{ background:C.surface,padding:isMobileS?'56px 16px':'96px 32px',borderTop:`1px solid ${C.border}` }}>
       <div style={{ maxWidth:1000,margin:'0 auto' }}>
         <div style={{ textAlign:'center',marginBottom:56,...fadeIn(iv) }}>
           <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Pricing</p>
           <h2 style={{ fontFamily:SERIF,fontSize:40,fontWeight:400,color:C.text1,letterSpacing:'-.025em',margin:'0 0 12px' }}>Simple pricing. Serious value.</h2>
           <p style={{ fontFamily:FONT,fontSize:15,color:C.text2 }}>All plans include AI Studio, data cube, classification engine, and AI layer.</p>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16 }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobileAS?'1fr':'repeat(3,1fr)',gap:16 }}>
           {plans.map((p,i) => (
             <div key={i} style={{ background:C.bg,border:`${p.popular?'2px':'1px'} solid ${p.popular?C.purple:C.border}`,borderRadius:18,padding:'30px 26px',position:'relative',boxShadow:p.popular?'0 8px 36px rgba(107,49,212,0.15)':'0 1px 4px rgba(0,0,0,0.04)',...fadeIn(iv,i*0.1) }}>
               {p.popular && <div style={{ position:'absolute',top:-14,left:'50%',transform:'translateX(-50%)',background:C.purple,color:'#fff',borderRadius:99,padding:'4px 18px',fontFamily:FONT,fontSize:11,fontWeight:700,whiteSpace:'nowrap',letterSpacing:'.02em' }}>Most popular</div>}
@@ -569,6 +611,7 @@ function FinalCTA({ onStart }) {
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 function Footer() {
+  const isMobileF = useIsMobile()
   const links = [
     { head:'Product', items:[{l:'Engines',href:'#engines'},{l:'AI Studio',href:'#ai-studio'},{l:'AI Layer',href:'#ai-section'},{l:'Pricing',href:'#pricing'}] },
     { head:'Company', items:[{l:'About',href:'mailto:ashwani.enrichai@gmail.com'},{l:'Consulting',href:'/consulting'},{l:'Contact',href:'mailto:ashwani.enrichai@gmail.com'},{l:'Book a demo',href:'mailto:ashwani.enrichai@gmail.com?subject=RevenueLens Demo Request'}] },
@@ -578,7 +621,7 @@ function Footer() {
   return (
     <footer style={{ background:C.text1,padding:'60px 32px 28px' }}>
       <div style={{ maxWidth:1100,margin:'0 auto' }}>
-        <div style={{ display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr',gap:48,marginBottom:48 }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobileF?'1fr 1fr':'2fr 1fr 1fr 1fr 1fr',gap:isMobileF?24:48,marginBottom:48 }}>
           <div>
             <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:14 }}>
               <div style={{ width:28,height:28,borderRadius:8,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center' }}>
@@ -602,7 +645,7 @@ function Footer() {
             </div>
           ))}
         </div>
-        <div style={{ borderTop:'1px solid rgba(255,255,255,0.07)',paddingTop:22,display:'flex',justifyContent:'space-between',alignItems:'center' }}>
+        <div style={{ borderTop:'1px solid rgba(255,255,255,0.07)',paddingTop:22,display:'flex',justifyContent:'space-between',alignItems:'center',flexDirection:isMobileF?'column':'row',gap:isMobileF?12:0,textAlign:isMobileF?'center':'left' }}>
           <span style={{ fontFamily:FONT,fontSize:12,color:'rgba(255,255,255,0.22)' }}>© 2026 RevenueLens. All rights reserved.</span>
           <span style={{ fontFamily:FONT,fontSize:12,color:'rgba(255,255,255,0.22)' }}>Built for CFOs who want answers, not charts.</span>
         </div>
