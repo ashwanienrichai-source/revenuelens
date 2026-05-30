@@ -2,6 +2,7 @@
 // frontend/components/solutions/SolutionPage.tsx
 // Shared template for all 7 solution pages — receives a Solution config and renders everything
 
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 
