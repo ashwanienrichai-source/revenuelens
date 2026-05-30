@@ -10,8 +10,8 @@ import { PLANS } from '../../lib/stripe'
 
 
 function useIsMobile() {
-  const [m, setM] = React.useState(false)
-  React.useEffect(() => {
+  const [m, setM] = useState(false)
+  useEffect(() => {
     const fn = () => setM(window.innerWidth < 768)
     fn()
     window.addEventListener('resize', fn, { passive:true })
