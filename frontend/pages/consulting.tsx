@@ -137,7 +137,7 @@ export default function ConsultingPage() {
           </div>
         </header>
 
-        <main style={{ paddingTop:64 }}>
+        <main style={{ paddingTop:'calc(64px + env(safe-area-inset-top))' }}>
 
           {/* ── HERO ── */}
           <section style={{ background:C.dark,padding:isMobile?'88px 20px 60px':'88px 32px 80px',textAlign:'center',position:'relative',overflow:'hidden' }}>
