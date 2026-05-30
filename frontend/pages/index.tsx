@@ -172,12 +172,12 @@ function SocialProof() {
     { text:'The waterfall chart alone saved us hours of reconciliation every month.', role:'Revenue Operations Lead' },
   ]
   return (
-    <section style={{ background:C.purpleXl,borderTop:`1px solid ${C.purpleMd}`,borderBottom:`1px solid ${C.purpleMd}`,padding:'48px 32px' }}>
+    <section style={{ background:C.purpleXl,borderTop:`1px solid ${C.purpleMd}`,borderBottom:`1px solid ${C.purpleMd}`,padding:isMobile?'48px 16px':'48px 32px' }}>
       <div style={{ maxWidth:1100,margin:'0 auto' }}>
         <div style={{ textAlign:'center',marginBottom:28 }}>
           <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:0 }}>Used by finance teams building their revenue stack</p>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:isMobileAS?'1fr':'repeat(3,1fr)',gap:16 }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:16 }}>
           {quotes.map((q,i) => (
             <div key={i} style={{ background:C.surface,border:`1px solid ${C.purpleMd}`,borderRadius:14,padding:'22px 24px' }}>
               <div style={{ fontFamily:SERIF,fontSize:32,color:C.purple,lineHeight:1,marginBottom:10 }}>"</div>
@@ -357,7 +357,7 @@ function AIStudio() {
       <div style={{ maxWidth:1100,margin:'0 auto',position:'relative' }}>
         <div style={{ marginBottom:52,...fadeIn(iv) }}>
           <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:'#C4A8FF',letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>AI Studio Engine</p>
-          <div style={{ display:'flex',alignItems:'flex-end',justifyContent:isMobileS?'flex-start':'space-between',gap:isMobileS?16:32,flexDirection:isMobileS?'column':'row',flexWrap:'wrap' }}>
+          <div style={{ display:'flex',alignItems:'flex-end',justifyContent:isMobileAS?'flex-start':'space-between',gap:isMobileAS?16:32,flexDirection:isMobileAS?'column':'row',flexWrap:'wrap' }}>
             <h2 style={{ fontFamily:SERIF,fontSize:42,fontWeight:400,color:'#fff',letterSpacing:'-.025em',margin:0,lineHeight:1.15 }}>Enterprise-grade data preparation<br/>before any analysis runs.</h2>
             <p style={{ fontFamily:FONT,fontSize:15,color:'rgba(255,255,255,0.5)',maxWidth:380,lineHeight:1.7,margin:0 }}>The output is only as good as the input. AI Studio runs a full intelligent quality suite before classification begins.</p>
           </div>
@@ -410,7 +410,7 @@ function AISection() {
   ]
   const cur = caps[active]
   return (
-    <section id="ai-section" ref={ref} style={{ background:C.surface,padding:isMobileS?'56px 16px':'96px 32px',borderTop:`1px solid ${C.border}` }}>
+    <section id="ai-section" ref={ref} style={{ background:C.surface,padding:isMobileAI?'56px 16px':'96px 32px',borderTop:`1px solid ${C.border}` }}>
       <div style={{ maxWidth:1100,margin:'0 auto' }}>
         <div style={{ textAlign:'center',marginBottom:56,...fadeIn(iv) }}>
           <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>AI Intelligence Layer</p>
@@ -548,14 +548,14 @@ function Pricing({ onStart }) {
       features:['Everything in Growth','Unlimited users','SSO + audit logs','Dedicated CSM','SLA 99.9% uptime','Custom contract'] },
   ]
   return (
-    <section id="pricing" ref={ref} style={{ background:C.surface,padding:isMobileS?'56px 16px':'96px 32px',borderTop:`1px solid ${C.border}` }}>
+    <section id="pricing" ref={ref} style={{ background:C.surface,padding:isMobilePR?'56px 16px':'96px 32px',borderTop:`1px solid ${C.border}` }}>
       <div style={{ maxWidth:1000,margin:'0 auto' }}>
         <div style={{ textAlign:'center',marginBottom:56,...fadeIn(iv) }}>
           <p style={{ fontFamily:FONT,fontSize:12,fontWeight:700,color:C.purple,letterSpacing:'.1em',textTransform:'uppercase',margin:'0 0 14px' }}>Pricing</p>
           <h2 style={{ fontFamily:SERIF,fontSize:40,fontWeight:400,color:C.text1,letterSpacing:'-.025em',margin:'0 0 12px' }}>Simple pricing. Serious value.</h2>
           <p style={{ fontFamily:FONT,fontSize:15,color:C.text2 }}>All plans include AI Studio, data cube, classification engine, and AI layer.</p>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:isMobileAS?'1fr':'repeat(3,1fr)',gap:16 }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobilePR?'1fr':'repeat(3,1fr)',gap:16 }}>
           {plans.map((p,i) => (
             <div key={i} style={{ background:C.bg,border:`${p.popular?'2px':'1px'} solid ${p.popular?C.purple:C.border}`,borderRadius:18,padding:'30px 26px',position:'relative',boxShadow:p.popular?'0 8px 36px rgba(107,49,212,0.15)':'0 1px 4px rgba(0,0,0,0.04)',...fadeIn(iv,i*0.1) }}>
               {p.popular && <div style={{ position:'absolute',top:-14,left:'50%',transform:'translateX(-50%)',background:C.purple,color:'#fff',borderRadius:99,padding:'4px 18px',fontFamily:FONT,fontSize:11,fontWeight:700,whiteSpace:'nowrap',letterSpacing:'.02em' }}>Most popular</div>}
