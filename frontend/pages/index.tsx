@@ -68,7 +68,8 @@ function Nav({ onLogin, onStart }) {
       background: sc||menuOpen ? 'rgba(248,247,252,0.97)' : 'transparent',
       backdropFilter: sc ? 'blur(16px)' : 'none',
       borderBottom: sc ? `1px solid ${C.border}` : '1px solid transparent',
-      transition: 'all 0.3s' }}>
+      transition: 'all 0.3s',
+      paddingTop:'env(safe-area-inset-top)' }}>
       <div style={{ maxWidth:1200,margin:'0 auto',padding:'0 20px',height:64,display:'flex',alignItems:'center',gap:isMobile?0:40 }}>
         <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
           <div style={{ width:32,height:32,borderRadius:10,background:C.purple,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 2px 8px rgba(107,49,212,0.4)' }}>
@@ -227,15 +228,15 @@ function ProductPreview() {
               ))}
               <div style={{ marginTop:16,background:C.purple,borderRadius:8,padding:'10px 0',textAlign:'center',fontFamily:FONT,fontSize:12,fontWeight:600,color:'#fff',boxShadow:'0 4px 12px rgba(107,49,212,0.4)' }}>Run Analysis</div>
             </div>
-            <div style={{ padding:20 }}>
-              <div style={{ display:'flex',gap:0,borderBottom:'1px solid #2D2650',marginBottom:16 }}>
+            <div style={{ padding:isMobileP?'16px 12px':20 }}>
+              <div style={{ display:'flex',gap:0,borderBottom:'1px solid #2D2650',marginBottom:16,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none' }}>
                 {['Summary','Detailed Bridge','Historical','Top Movers','KPI Matrix'].map((t,i) => (
-                  <div key={i} style={{ padding:'8px 14px',fontFamily:FONT,fontSize:12,fontWeight:i===0?600:400,color:i===0?C.purple:'#6B6490',borderBottom:i===0?`2px solid ${C.purple}`:'2px solid transparent',marginBottom:-1 }}>{t}</div>
+                  <div key={i} style={{ padding:'8px 14px',fontFamily:FONT,fontSize:12,fontWeight:i===0?600:400,color:i===0?C.purple:'#6B6490',borderBottom:i===0?`2px solid ${C.purple}`:'2px solid transparent',marginBottom:-1,whiteSpace:'nowrap',flexShrink:0 }}>{t}</div>
                 ))}
               </div>
               <div style={{ display:'grid',gridTemplateColumns:isMobileP?'repeat(2,1fr)':'repeat(5,1fr)',gap:8,marginBottom:16 }}>
                 {[{l:'Beginning ARR',v:'$10.5M'},{l:'Ending ARR',v:'$11.1M',d:'+5.3%',up:true},{l:'Net Retention',v:'105.3%',d:'+2.1pp',up:true},{l:'Gross Retention',v:'94.7%'},{l:'New Logo ARR',v:'$1.1M',d:'+$1.1M',up:true}].map((k,i) => (
-                  <div key={i} style={{ background:'#1E1A38',borderRadius:8,padding:'10px 12px',border:'1px solid #2D2650' }}>
+                  <div key={i} style={{ background:'#1E1A38',borderRadius:8,padding:'10px 12px',border:'1px solid #2D2650',gridColumn:isMobileP&&i===4?'1 / -1':'auto' }}>
                     <div style={{ fontFamily:FONT,fontSize:9,color:'#6B6490',fontWeight:600,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4 }}>{k.l}</div>
                     <div style={{ fontFamily:MONO,fontSize:16,fontWeight:700,color:'#fff',letterSpacing:'-.02em' }}>{k.v}</div>
                     {k.d && <div style={{ fontFamily:FONT,fontSize:10,fontWeight:600,color:k.up?C.green:C.red,marginTop:2 }}>{k.d}</div>}
