@@ -207,7 +207,7 @@ function ProductPreview() {
           <div style={{ background:'#120F24',padding:'10px 16px',borderBottom:'1px solid #2D2650',display:'flex',alignItems:'center',gap:8 }}>
             <div style={{ width:10,height:10,borderRadius:'50%',background:'#FF5F56' }}/><div style={{ width:10,height:10,borderRadius:'50%',background:'#FFBD2E' }}/><div style={{ width:10,height:10,borderRadius:'50%',background:'#27C93F' }}/>
             <div style={{ flex:1,background:'#1E1A38',borderRadius:6,height:24,marginLeft:12,display:'flex',alignItems:'center',justifyContent:'center' }}>
-              <span style={{ fontFamily:MONO,fontSize:10,color:'#6B6490' }}>revenuelens.ashwaniandcompany.com/app/command-center</span>
+              <span style={{ fontFamily:MONO,fontSize:9,color:'#6B6490',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'100%',display:'block' }}>revenuelens.ashwaniandcompany.com/app/command-center</span>
             </div>
           </div>
           <div style={{ display:'grid',gridTemplateColumns:isMobileP?'1fr':'220px 1fr',minHeight:isMobileP?'auto':380 }}>
@@ -233,7 +233,7 @@ function ProductPreview() {
                   <div key={i} style={{ padding:'8px 14px',fontFamily:FONT,fontSize:12,fontWeight:i===0?600:400,color:i===0?C.purple:'#6B6490',borderBottom:i===0?`2px solid ${C.purple}`:'2px solid transparent',marginBottom:-1 }}>{t}</div>
                 ))}
               </div>
-              <div style={{ display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:16 }}>
+              <div style={{ display:'grid',gridTemplateColumns:isMobileP?'repeat(2,1fr)':'repeat(5,1fr)',gap:8,marginBottom:16 }}>
                 {[{l:'Beginning ARR',v:'$10.5M'},{l:'Ending ARR',v:'$11.1M',d:'+5.3%',up:true},{l:'Net Retention',v:'105.3%',d:'+2.1pp',up:true},{l:'Gross Retention',v:'94.7%'},{l:'New Logo ARR',v:'$1.1M',d:'+$1.1M',up:true}].map((k,i) => (
                   <div key={i} style={{ background:'#1E1A38',borderRadius:8,padding:'10px 12px',border:'1px solid #2D2650' }}>
                     <div style={{ fontFamily:FONT,fontSize:9,color:'#6B6490',fontWeight:600,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:4 }}>{k.l}</div>
@@ -242,7 +242,7 @@ function ProductPreview() {
                   </div>
                 ))}
               </div>
-              <div style={{ display:'grid',gridTemplateColumns:'1fr 280px',gap:12 }}>
+              <div style={{ display:'grid',gridTemplateColumns:isMobileP?'1fr':'1fr 280px',gap:12 }}>
                 <div style={{ background:'#1E1A38',borderRadius:8,padding:'12px 14px',border:'1px solid #2D2650' }}>
                   <div style={{ fontFamily:FONT,fontSize:11,fontWeight:600,color:'#9990B0',marginBottom:12 }}>ARR Bridge — YoY 12M Dec 2025</div>
                   <div style={{ display:'flex',alignItems:'flex-end',gap:5,height:72 }}>
