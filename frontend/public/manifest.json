@@ -22,5 +22,11 @@
     }
   ],
   "screenshots": [],
-  "categories": ["finance", "business", "productivity"]
+  "categories": [
+    "finance",
+    "business",
+    "productivity"
+  ],
+  "scope": "/",
+  "id": "/"
 }
