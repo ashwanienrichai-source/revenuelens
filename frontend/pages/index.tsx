@@ -226,7 +226,7 @@ function ProductPreview() {
                   <span style={{ fontFamily:FONT,fontSize:11,fontWeight:e.a?600:400,color:e.a?'#C4A8FF':'#6B6490' }}>{e.l}</span>
                 </div>
               ))}
-              <div style={{ marginTop:16,background:C.purple,borderRadius:8,padding:'10px 0',textAlign:'center',fontFamily:FONT,fontSize:12,fontWeight:600,color:'#fff',boxShadow:'0 4px 12px rgba(107,49,212,0.4)' }}>Run Analysis</div>
+              <div style={{ marginTop:16,background:C.purple,borderRadius:8,padding:'10px 0',textAlign:'center',fontFamily:FONT,fontSize:12,fontWeight:600,color:'#fff',boxShadow:'0 4px 12px rgba(107,49,212,0.4)',boxSizing:'border-box',width:'100%' }}>Run Analysis</div>
             </div>
             <div style={{ padding:isMobileP?'16px 12px':20 }}>
               <div style={{ display:'flex',gap:0,borderBottom:'1px solid #2D2650',marginBottom:16,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none' }}>
@@ -246,7 +246,7 @@ function ProductPreview() {
               <div style={{ display:'grid',gridTemplateColumns:isMobileP?'1fr':'1fr 280px',gap:12 }}>
                 <div style={{ background:'#1E1A38',borderRadius:8,padding:'12px 14px',border:'1px solid #2D2650' }}>
                   <div style={{ fontFamily:FONT,fontSize:11,fontWeight:600,color:'#9990B0',marginBottom:12 }}>ARR Bridge — YoY 12M Dec 2025</div>
-                  <div style={{ display:'flex',alignItems:'flex-end',gap:5,height:72 }}>
+                  <div style={{ display:'flex',alignItems:'flex-end',gap:5,height:72,overflow:'hidden',width:'100%' }}>
                     {[{h:100,c:'#6B6490',l:'Beg.'},{h:18,c:C.red,l:'Churn'},{h:10,c:C.red,l:'Down'},{h:40,c:C.green,l:'Up'},{h:28,c:C.green,l:'New'},{h:12,c:C.blue,l:'Ret.'},{h:110,c:C.purple,l:'End.'}].map((b,i) => (
                       <div key={i} style={{ flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4 }}>
                         <div style={{ width:'100%',height:b.h*0.65,background:b.c,borderRadius:'3px 3px 0 0',minHeight:4 }}/>
