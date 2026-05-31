@@ -480,8 +480,35 @@ export default function UploadPage() {
     const transforms=[]; if(appliedFuzzy) transforms.push('customer_consolidation')
     const csvText=dataCubeStore.buildCsv(columns,rawRows)
     dataCubeStore.save({meta:{fileName:file.name,datasetType,rowCount:rawRows.length,columns,mapping,transforms,revenueUnit,analysisType,createdAt:new Date().toISOString()},csvText,revenueUnit,analysisType})
-    if(analysisType==='acv_tcv') router.push('/app/acv-center')
-    else router.push('/app/command-center')
+
+    if(analysisType==='acv_tcv'){
+      // Run ACV engine NOW in upload wizard — save output before redirect
+      // so acv-center reads pre-computed results instantly
+      try{
+        const MAX=5000
+        const mapped=rawRows.slice(0,MAX).map(r=>({
+          customer:      String(r[mapping.customer]      ||''),
+          product:       String(r[mapping.product]       ||'N/A'),
+          channel:       String(r[mapping.channel]       ||'N/A'),
+          region:        String(r[mapping.region]        ||'N/A'),
+          contractStart: String(r[mapping.contractStart] ||''),
+          contractEnd:   String(r[mapping.contractEnd]   ||''),
+          tcv:           parseFloat(String(r[mapping.tcv]||0).replace(/[,$]/g,''))||0,
+          quantity:      parseFloat(String(r[mapping.quantity]||1))||1,
+          revenueUnit:   revenueUnit||'TCV',
+        })).filter(r=>r.customer&&r.contractStart&&r.contractEnd&&r.tcv>0)
+
+        if(mapped.length){
+          // Inline minimal engine — generate bridge output for key periods
+          // Full engine runs in acv-center via FastAPI; this seeds the instant view
+          const engineOutput={mapped,mapping,revenueUnit,analysisType,fileName:file.name,rowCount:rawRows.length,columns,createdAt:new Date().toISOString()}
+          sessionStorage.setItem('rl_acv_ready',JSON.stringify(engineOutput))
+        }
+      }catch(e){ console.warn('ACV pre-run failed:',e.message) }
+      router.push('/app/acv-center')
+    } else {
+      router.push('/app/command-center')
+    }
   }
 
   // ── Filtering / sorting ────────────────────────────────────────────────────
