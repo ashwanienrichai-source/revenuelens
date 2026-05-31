@@ -727,11 +727,13 @@ export default function ACVCenter() {
 
       const { data } = await axios.post(`${API}/api/acv/analyze`, fd, { timeout: 120000 })
       setApiResults(data)
-      // also run browser engine for full bridge table used by local charts
-      runBrowserEngine(cube.csvText, mapping, unit)
+      setRunning(false)
+      // Browser engine only if API succeeded — deferred so UI renders first
+      setTimeout(() => runBrowserEngine(cube.csvText, mapping, unit), 100)
     } catch(e) {
       console.warn('FastAPI ACV failed, running browser engine:', e.message)
-      runBrowserEngine(cube.csvText, mapping, unit)
+      // Defer browser engine so loading spinner renders first
+      setTimeout(() => runBrowserEngine(cube.csvText, mapping, unit), 50)
     }
   }
 
@@ -750,10 +752,14 @@ export default function ACVCenter() {
       }
       const lines   = csvText.split('\n').filter(l => l.trim())
       const headers = splitLine(lines[0])
-      const rawRows = lines.slice(1).map(line => {
+
+      // Only process first 5000 rows in browser — full dataset handled by FastAPI
+      const MAX_ROWS = 5000
+      const rawRows = lines.slice(1, MAX_ROWS + 1).map(line => {
         const vals = splitLine(line); const row = {}
         headers.forEach((h, i) => { row[h] = vals[i] || '' }); return row
       })
+
       const mapped = rawRows.map(r => ({
         customer:      String(r[mapping.customer]      || ''),
         product:       String(r[mapping.product]       || 'N/A'),
