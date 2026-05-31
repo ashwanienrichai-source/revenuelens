@@ -482,8 +482,7 @@ export default function UploadPage() {
     dataCubeStore.save({meta:{fileName:file.name,datasetType,rowCount:rawRows.length,columns,mapping,transforms,revenueUnit,analysisType,createdAt:new Date().toISOString()},csvText,revenueUnit,analysisType})
 
     if(analysisType==='acv_tcv'){
-      // Run ACV engine NOW in upload wizard — save output before redirect
-      // so acv-center reads pre-computed results instantly
+      // Save pre-mapped rows so acv-center can call FastAPI immediately
       try{
         const MAX=5000
         const mapped=rawRows.slice(0,MAX).map(r=>({
@@ -497,14 +496,9 @@ export default function UploadPage() {
           quantity:      parseFloat(String(r[mapping.quantity]||1))||1,
           revenueUnit:   revenueUnit||'TCV',
         })).filter(r=>r.customer&&r.contractStart&&r.contractEnd&&r.tcv>0)
-
-        if(mapped.length){
-          // Inline minimal engine — generate bridge output for key periods
-          // Full engine runs in acv-center via FastAPI; this seeds the instant view
-          const engineOutput={mapped,mapping,revenueUnit,analysisType,fileName:file.name,rowCount:rawRows.length,columns,createdAt:new Date().toISOString()}
-          sessionStorage.setItem('rl_acv_ready',JSON.stringify(engineOutput))
-        }
-      }catch(e){ console.warn('ACV pre-run failed:',e.message) }
+        const acvReady={mapped,mapping,revenueUnit,analysisType,fileName:file.name,rowCount:rawRows.length,columns,createdAt:new Date().toISOString()}
+        sessionStorage.setItem('rl_acv_ready',JSON.stringify(acvReady))
+      }catch(e){ console.warn('ACV context save failed:',e.message) }
       router.push('/app/acv-center')
     } else {
       router.push('/app/command-center')
