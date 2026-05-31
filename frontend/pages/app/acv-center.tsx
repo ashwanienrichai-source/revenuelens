@@ -19,8 +19,11 @@ import {
   Download, RefreshCw, ChevronDown, ChevronUp, ArrowUp, ArrowDown,
   Calendar, Shield, Zap, Layers, Target, DollarSign, Clock, Users
 } from 'lucide-react'
+import axios from 'axios'
 import { supabase } from '../../lib/supabase'
 import { dataCubeStore } from '../../lib/dataCubeStore'
+const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
+
 import {
   runACVEngine, calcACVKPIs, buildACVWaterfall, buildExpiryPool,
   buildRenewalRateTrend, ACV_WATERFALL_ORDER, ACV_BRIDGE_COLORS
@@ -672,6 +675,7 @@ export default function ACVCenter() {
   const [lb, setLb]         = useState(12)
   const [selPeriod, setSelPeriod] = useState('')
   const [revenueUnit, setRevenueUnit] = useState('TCV')
+  const [apiResults,  setApiResults]  = useState(null)
 
   // Auth check
   useEffect(() => {
@@ -682,57 +686,99 @@ export default function ACVCenter() {
     })
   }, [])
 
-  // Load and run engine on mount
+  // Load cube → try FastAPI → fallback to browser engine
   useEffect(() => {
     const cube = dataCubeStore.load()
-    if (!cube || !cube.rawRows || !cube.rawRows.length) return
+    if (!cube || !cube.csvText) return
 
-    // Check if this is ACV data
-    const mapping = cube.mapping || {}
-    const revenueUnitFromStore = cube.revenueUnit || 'TCV'
+    const mapping               = cube.meta?.mapping      || {}
+    const revenueUnitFromStore  = cube.meta?.revenueUnit  || cube.revenueUnit  || 'TCV'
+    const analysisTypeFromStore = cube.meta?.analysisType || cube.analysisType || ''
     setRevenueUnit(revenueUnitFromStore)
 
-    const rawRows = cube.rawRows
-    runEngine(rawRows, mapping, revenueUnitFromStore)
+    if (analysisTypeFromStore && analysisTypeFromStore !== 'acv_tcv') {
+      setError('This dataset was uploaded as MRR/ARR. Please re-upload with ACV / Contract Analysis selected.')
+      return
+    }
+
+    callFastAPI(cube, mapping, revenueUnitFromStore)
   }, [])
 
-  function runEngine(rawRows, mapping, unit) {
+  async function callFastAPI(cube, mapping, unit) {
     setRunning(true)
     setError('')
-
     try {
-      // Map raw rows to ACVInputRow shape
+      const blob = new Blob([cube.csvText], { type: 'text/csv' })
+      const file = new File([blob], cube.meta?.fileName || 'data.csv', { type: 'text/csv' })
+      const fd = new FormData()
+      fd.append('file',           file)
+      fd.append('customer_col',   mapping.customer      || '')
+      fd.append('order_date_col', mapping.date          || '')
+      fd.append('start_col',      mapping.contractStart || '')
+      fd.append('end_col',        mapping.contractEnd   || '')
+      fd.append('tcv_col',        mapping.tcv           || '')
+      fd.append('revenue_unit',   unit)
+      fd.append('lookbacks',      JSON.stringify([1, 3, 12]))
+      fd.append('n_movers',       '30')
+      if (mapping.product)  fd.append('product_col',  mapping.product)
+      if (mapping.channel)  fd.append('channel_col',  mapping.channel)
+      if (mapping.region)   fd.append('region_col',   mapping.region)
+      if (mapping.quantity) fd.append('quantity_col', mapping.quantity)
+
+      const { data } = await axios.post(`${API}/api/acv/analyze`, fd, { timeout: 120000 })
+      setApiResults(data)
+      // also run browser engine for full bridge table used by local charts
+      runBrowserEngine(cube.csvText, mapping, unit)
+    } catch(e) {
+      console.warn('FastAPI ACV failed, running browser engine:', e.message)
+      runBrowserEngine(cube.csvText, mapping, unit)
+    }
+  }
+
+  function runBrowserEngine(csvText, mapping, unit) {
+    try {
+      const splitLine = (line) => {
+        const vals = []; let cur = '', inQ = false
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i]
+          if (ch === '"') { inQ = !inQ }
+          else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = '' }
+          else { cur += ch }
+        }
+        vals.push(cur.trim())
+        return vals.map(v => v.replace(/^["']|["']$/g, ''))
+      }
+      const lines   = csvText.split('\n').filter(l => l.trim())
+      const headers = splitLine(lines[0])
+      const rawRows = lines.slice(1).map(line => {
+        const vals = splitLine(line); const row = {}
+        headers.forEach((h, i) => { row[h] = vals[i] || '' }); return row
+      })
       const mapped = rawRows.map(r => ({
-        customer:      String(r[mapping.customer] || r.customer || ''),
-        product:       String(r[mapping.product]  || r.product  || 'N/A'),
-        channel:       String(r[mapping.channel]  || r.channel  || 'N/A'),
-        region:        String(r[mapping.region]   || r.region   || 'N/A'),
-        contractStart: String(r[mapping.contractStart] || r.contract_start || r.start_date || ''),
-        contractEnd:   String(r[mapping.contractEnd]   || r.contract_end   || r.end_date   || ''),
-        tcv:           parseFloat(String(r[mapping.tcv] || r.tcv || r.acv || 0).replace(/[,$]/g, '')) || 0,
-        quantity:      parseFloat(String(r[mapping.quantity] || r.quantity || 1)) || 1,
+        customer:      String(r[mapping.customer]      || ''),
+        product:       String(r[mapping.product]       || 'N/A'),
+        channel:       String(r[mapping.channel]       || 'N/A'),
+        region:        String(r[mapping.region]        || 'N/A'),
+        contractStart: String(r[mapping.contractStart] || ''),
+        contractEnd:   String(r[mapping.contractEnd]   || ''),
+        tcv:           parseFloat(String(r[mapping.tcv] || 0).replace(/[,$]/g,'')) || 0,
+        quantity:      parseFloat(String(r[mapping.quantity] || 1)) || 1,
         revenueUnit:   unit,
       })).filter(r => r.customer && r.contractStart && r.contractEnd && r.tcv > 0)
 
       if (!mapped.length) {
-        setError('No valid contract rows found. Check that Customer, Contract Start, Contract End, and TCV columns are mapped.')
+        setError('No valid contract rows found. Check Customer, Contract Start, Contract End and TCV are mapped correctly.')
         setRunning(false)
         return
       }
-
       const output = runACVEngine(mapped)
       setEngineOutput(output)
-
-      // Set default period to latest
-      if (output.bridgeTable.length) {
-        const periods = [...new Set(
-          output.bridgeTable
-            .filter(r => r.monthLookback === 12)
-            .map(r => `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`)
-        )].sort()
-        setSelPeriod(periods[periods.length - 1] || '')
-      }
-    } catch (e) {
+      const allPeriods = [...new Set(
+        output.bridgeTable.filter(r => r.monthLookback === 12)
+          .map(r => `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`)
+      )].sort()
+      if (allPeriods.length) setSelPeriod(allPeriods[allPeriods.length - 1])
+    } catch(e) {
       setError(`Engine error: ${e.message}`)
     }
     setRunning(false)
