@@ -24,10 +24,11 @@ const FIELDS = [
   { key: 'quantity', label: 'Quantity Column',    required: false },
 ]
 const STEPS = [
-  { id: 'upload',  label: 'Upload' },
-  { id: 'map',     label: 'Map Fields' },
-  { id: 'quality', label: 'Data Quality' },
-  { id: 'review',  label: 'Review' },
+  { id: 'upload',   label: 'Upload' },
+  { id: 'analysis', label: 'Analysis Type' },
+  { id: 'map',      label: 'Map Fields' },
+  { id: 'quality',  label: 'Data Quality' },
+  { id: 'review',   label: 'Review' },
 ]
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -250,6 +251,8 @@ export default function UploadPage() {
   const [profile, setProfile]         = useState(null)
   const [step, setStep]               = useState('upload')
   const stepIdx = STEPS.findIndex(s => s.id === step)
+  const [analysisType, setAnalysisType] = useState('') // 'mrr_arr' | 'acv_tcv'
+  const [revenueUnit,  setRevenueUnit]  = useState('') // 'MRR' | 'ARR' | 'TCV' | 'ACV'
   const [file, setFile]               = useState(null)
   const [rawRows, setRawRows]         = useState([])
   const [columns, setColumns]         = useState([])
@@ -647,7 +650,111 @@ export default function UploadPage() {
               </div>
             )}
             <div style={{display:'flex',justifyContent:'flex-end',marginTop:24}}>
-              <button onClick={()=>setStep('map')} disabled={!file} style={{...S.btnPrimary,opacity:file?1:0.4,cursor:file?'pointer':'default'}}>Continue to field mapping <ArrowRight size={14}/></button>
+              <button onClick={()=>setStep('analysis')} disabled={!file} style={{...S.btnPrimary,opacity:file?1:0.4,cursor:file?'pointer':'default'}}>Continue <ArrowRight size={14}/></button>
+            </div>
+          </div>
+        )}
+
+
+        {/* ══ STEP: ANALYSIS TYPE ════════════════════════════════════════════ */}
+        {step==='analysis'&&(
+          <div>
+            <div style={{fontSize:22,fontWeight:700,color:'#111827',marginBottom:6,letterSpacing:'-0.02em'}}>Analysis Type</div>
+            <div style={{fontSize:13,color:'#6B7280',marginBottom:28}}>Tell us how your revenue is structured so we can run the right engine.</div>
+
+            {/* Level 1 — Analysis Type */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:12,fontWeight:700,color:'#374151',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:12}}>Select your analysis type</div>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {[
+                  { id:'mrr_arr', label:'MRR / ARR Analysis', sub:'Subscription & recurring revenue — monthly or annual amounts per customer' },
+                  { id:'acv_tcv', label:'ACV / Contract Analysis', sub:'Contract deals with start dates, end dates, and TCV or ACV values' },
+                ].map(opt=>(
+                  <button key={opt.id} onClick={()=>{setAnalysisType(opt.id);setRevenueUnit('')}}
+                    style={{display:'flex',alignItems:'flex-start',gap:14,padding:'16px 18px',borderRadius:10,border:`2px solid ${analysisType===opt.id?'#2563EB':'#E5E7EB'}`,background:analysisType===opt.id?'#EFF6FF':'#fff',cursor:'pointer',textAlign:'left',transition:'all 150ms',width:'100%'}}>
+                    <div style={{width:18,height:18,borderRadius:'50%',border:`2px solid ${analysisType===opt.id?'#2563EB':'#D1D5DB'}`,background:analysisType===opt.id?'#2563EB':'#fff',flexShrink:0,marginTop:2,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      {analysisType===opt.id&&<div style={{width:6,height:6,borderRadius:'50%',background:'#fff'}}/>}
+                    </div>
+                    <div>
+                      <div style={{fontSize:14,fontWeight:700,color:'#111827',marginBottom:3}}>{opt.label}</div>
+                      <div style={{fontSize:12,color:'#6B7280',lineHeight:1.5}}>{opt.sub}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Level 2 — Revenue Unit (inline reveal) */}
+            {analysisType==='mrr_arr'&&(
+              <div style={{marginBottom:20,padding:'18px 20px',background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#374151',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:12}}>What unit is your revenue figure in?</div>
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {[
+                    { id:'MRR', label:'MRR — Monthly Recurring Revenue', sub:"Monthly amount per customer — we'll multiply × 12 to get ARR" },
+                    { id:'ARR', label:'ARR — Annual Recurring Revenue',  sub:'Annual amount per customer — used as-is' },
+                  ].map(opt=>(
+                    <button key={opt.id} onClick={()=>setRevenueUnit(opt.id)}
+                      style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 14px',borderRadius:8,border:`2px solid ${revenueUnit===opt.id?'#2563EB':'#E5E7EB'}`,background:revenueUnit===opt.id?'#EFF6FF':'#fff',cursor:'pointer',textAlign:'left',transition:'all 150ms',width:'100%'}}>
+                      <div style={{width:16,height:16,borderRadius:'50%',border:`2px solid ${revenueUnit===opt.id?'#2563EB':'#D1D5DB'}`,background:revenueUnit===opt.id?'#2563EB':'#fff',flexShrink:0,marginTop:2,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        {revenueUnit===opt.id&&<div style={{width:5,height:5,borderRadius:'50%',background:'#fff'}}/>}
+                      </div>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:600,color:'#111827',marginBottom:2}}>{opt.label}</div>
+                        <div style={{fontSize:11,color:'#6B7280'}}>{opt.sub}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {analysisType==='acv_tcv'&&(
+              <div style={{marginBottom:20,padding:'18px 20px',background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#374151',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:12}}>What contract value is in your file?</div>
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {[
+                    { id:'TCV', label:'TCV — Total Contract Value', sub:"Total deal value — we'll divide by contract duration to get ACV" },
+                    { id:'ACV', label:'ACV — Annual Contract Value', sub:'Annual contract value — used as-is' },
+                  ].map(opt=>(
+                    <button key={opt.id} onClick={()=>setRevenueUnit(opt.id)}
+                      style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 14px',borderRadius:8,border:`2px solid ${revenueUnit===opt.id?'#2563EB':'#E5E7EB'}`,background:revenueUnit===opt.id?'#EFF6FF':'#fff',cursor:'pointer',textAlign:'left',transition:'all 150ms',width:'100%'}}>
+                      <div style={{width:16,height:16,borderRadius:'50%',border:`2px solid ${revenueUnit===opt.id?'#2563EB':'#D1D5DB'}`,background:revenueUnit===opt.id?'#2563EB':'#fff',flexShrink:0,marginTop:2,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        {revenueUnit===opt.id&&<div style={{width:5,height:5,borderRadius:'50%',background:'#fff'}}/>}
+                      </div>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:600,color:'#111827',marginBottom:2}}>{opt.label}</div>
+                        <div style={{fontSize:11,color:'#6B7280'}}>{opt.sub}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Coming Soon screen for ACV/TCV once unit is selected */}
+            {analysisType==='acv_tcv'&&revenueUnit&&(
+              <div style={{padding:'28px 24px',background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:12,marginBottom:20,textAlign:'center'}}>
+                <div style={{fontSize:28,marginBottom:10}}>🔧</div>
+                <div style={{fontSize:16,fontWeight:700,color:'#92400E',marginBottom:6}}>ACV / Contract Analytics — Coming Soon</div>
+                <div style={{fontSize:13,color:'#78350F',lineHeight:1.6,maxWidth:440,margin:'0 auto 16px'}}>
+                  We're building full ACV bridge analysis, expiry pool tracking, renewal rate intelligence, and the Bookings-to-ACV walk. It's next on our roadmap.
+                </div>
+                <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+                  <a href="mailto:ashwani.enrichai@gmail.com?subject=ACV Analytics Waitlist" style={{padding:'8px 18px',borderRadius:8,background:'#D97706',color:'#fff',fontSize:13,fontWeight:600,textDecoration:'none'}}>Join waitlist</a>
+                  <button onClick={()=>{setAnalysisType('mrr_arr');setRevenueUnit('')}} style={{padding:'8px 18px',borderRadius:8,background:'#fff',border:'1px solid #D97706',color:'#92400E',fontSize:13,fontWeight:600,cursor:'pointer'}}>Use MRR / ARR instead</button>
+                </div>
+              </div>
+            )}
+
+            {/* Nav buttons */}
+            <div style={{display:'flex',justifyContent:'space-between',marginTop:8}}>
+              <button onClick={()=>setStep('upload')} style={S.btnSecondary}>← Back</button>
+              <button
+                onClick={()=>setStep('map')}
+                disabled={!analysisType||!revenueUnit||analysisType==='acv_tcv'}
+                style={{...S.btnPrimary,opacity:(!analysisType||!revenueUnit||analysisType==='acv_tcv')?0.4:1,cursor:(!analysisType||!revenueUnit||analysisType==='acv_tcv')?'default':'pointer'}}>
+                Continue to field mapping <ArrowRight size={14}/>
+              </button>
             </div>
           </div>
         )}
@@ -678,7 +785,7 @@ export default function UploadPage() {
             </div>
             {error&&<div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 14px',background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:8,marginBottom:16,fontSize:13,color:'#DC2626'}}><AlertCircle size={14}/>{error}</div>}
             <div style={{display:'flex',gap:10}}>
-              <button onClick={()=>setStep('upload')} style={S.btnSecondary}>← Back</button>
+              <button onClick={()=>setStep('analysis')} style={S.btnSecondary}>← Back</button>
               <button onClick={()=>{if(!mapping.customer||!mapping.date||!mapping.revenue){setError('Please map Customer, Date, and Revenue fields.');return}setError('');setQState('idle');setAppliedFuzzy(false);setStep('quality')}} style={S.btnPrimary}>Data Quality Checks <ArrowRight size={14}/></button>
             </div>
           </div>
