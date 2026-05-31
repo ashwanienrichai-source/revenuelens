@@ -467,8 +467,9 @@ export default function UploadPage() {
     if(!file||!rawRows.length) return
     const transforms=[]; if(appliedFuzzy) transforms.push('customer_consolidation')
     const csvText=dataCubeStore.buildCsv(columns,rawRows)
-    dataCubeStore.save({meta:{fileName:file.name,datasetType,rowCount:rawRows.length,columns,mapping,transforms,createdAt:new Date().toISOString()},csvText})
-    router.push('/app/command-center')
+    dataCubeStore.save({meta:{fileName:file.name,datasetType,rowCount:rawRows.length,columns,mapping,transforms,revenueUnit,analysisType,createdAt:new Date().toISOString()},csvText,revenueUnit,analysisType})
+    if(analysisType==='acv_tcv') router.push('/app/acv-center')
+    else router.push('/app/command-center')
   }
 
   // ── Filtering / sorting ────────────────────────────────────────────────────
@@ -731,28 +732,15 @@ export default function UploadPage() {
               </div>
             )}
 
-            {/* Coming Soon screen for ACV/TCV once unit is selected */}
-            {analysisType==='acv_tcv'&&revenueUnit&&(
-              <div style={{padding:'28px 24px',background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:12,marginBottom:20,textAlign:'center'}}>
-                <div style={{fontSize:28,marginBottom:10}}>🔧</div>
-                <div style={{fontSize:16,fontWeight:700,color:'#92400E',marginBottom:6}}>ACV / Contract Analytics — Coming Soon</div>
-                <div style={{fontSize:13,color:'#78350F',lineHeight:1.6,maxWidth:440,margin:'0 auto 16px'}}>
-                  We're building full ACV bridge analysis, expiry pool tracking, renewal rate intelligence, and the Bookings-to-ACV walk. It's next on our roadmap.
-                </div>
-                <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-                  <a href="mailto:ashwani.enrichai@gmail.com?subject=ACV Analytics Waitlist" style={{padding:'8px 18px',borderRadius:8,background:'#D97706',color:'#fff',fontSize:13,fontWeight:600,textDecoration:'none'}}>Join waitlist</a>
-                  <button onClick={()=>{setAnalysisType('mrr_arr');setRevenueUnit('')}} style={{padding:'8px 18px',borderRadius:8,background:'#fff',border:'1px solid #D97706',color:'#92400E',fontSize:13,fontWeight:600,cursor:'pointer'}}>Use MRR / ARR instead</button>
-                </div>
-              </div>
-            )}
+
 
             {/* Nav buttons */}
             <div style={{display:'flex',justifyContent:'space-between',marginTop:8}}>
               <button onClick={()=>setStep('upload')} style={S.btnSecondary}>← Back</button>
               <button
                 onClick={()=>setStep('map')}
-                disabled={!analysisType||!revenueUnit||analysisType==='acv_tcv'}
-                style={{...S.btnPrimary,opacity:(!analysisType||!revenueUnit||analysisType==='acv_tcv')?0.4:1,cursor:(!analysisType||!revenueUnit||analysisType==='acv_tcv')?'default':'pointer'}}>
+                disabled={!analysisType||!revenueUnit}
+                style={{...S.btnPrimary,opacity:(!analysisType||!revenueUnit)?0.4:1,cursor:(!analysisType||!revenueUnit)?'default':'pointer'}}>
                 Continue to field mapping <ArrowRight size={14}/>
               </button>
             </div>
