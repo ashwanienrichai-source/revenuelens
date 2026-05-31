@@ -23,6 +23,18 @@ const FIELDS = [
   { key: 'fiscal',   label: 'Fiscal Year Column', required: false },
   { key: 'quantity', label: 'Quantity Column',    required: false },
 ]
+// ACV / Contract field structure — shown when analysisType === 'acv_tcv'
+const ACV_FIELDS = [
+  { key: 'customer',      label: 'Customer Column',          required: true  },
+  { key: 'contractStart', label: 'Contract Start Date',      required: true  },
+  { key: 'contractEnd',   label: 'Contract End Date',        required: true  },
+  { key: 'tcv',           label: 'TCV / ACV Amount',         required: true  },
+  { key: 'product',       label: 'Product Column',           required: false },
+  { key: 'channel',       label: 'Channel Column',           required: false },
+  { key: 'region',        label: 'Region Column',            required: false },
+  { key: 'quantity',      label: 'Quantity / Seats',         required: false },
+]
+
 const STEPS = [
   { id: 'upload',   label: 'Upload' },
   { id: 'analysis', label: 'Analysis Type' },
@@ -751,10 +763,20 @@ export default function UploadPage() {
         {step==='map'&&(
           <div>
             <div style={{fontSize:22,fontWeight:700,color:'#111827',marginBottom:6,letterSpacing:'-0.02em'}}>Map your columns</div>
-            <div style={{fontSize:13,color:'#6B7280',marginBottom:28}}>Tell us which column in your file corresponds to each field.</div>
+            <div style={{fontSize:13,color:'#6B7280',marginBottom:28}}>
+              {analysisType==='acv_tcv'
+                ? 'Map your contract columns — Customer, Start Date, End Date, and TCV/ACV are required.'
+                : 'Tell us which column in your file corresponds to each field.'}
+            </div>
+            {analysisType==='acv_tcv'&&(
+              <div style={{padding:'10px 14px',background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,marginBottom:16,fontSize:12,color:'#1D4ED8'}}>
+                <strong>ACV Mode:</strong> Map Contract Start + End dates and TCV/ACV value. We'll generate monthly periods automatically.
+                {revenueUnit==='TCV'?' TCV will be annualised (÷ duration × 365) to ACV.':' ACV will be used as-is.'}
+              </div>
+            )}
             <div style={{...S.card,padding:0,overflow:'hidden',marginBottom:20}}>
-              {FIELDS.map((field,i)=>(
-                <div key={field.key} style={{display:'flex',alignItems:'center',gap:16,padding:'14px 20px',borderBottom:i<FIELDS.length-1?'1px solid #F3F4F6':'none'}}>
+              {(analysisType==='acv_tcv'?ACV_FIELDS:FIELDS).map((field,i)=>{const activeFields=analysisType==='acv_tcv'?ACV_FIELDS:FIELDS;return(
+                <div key={field.key} style={{display:'flex',alignItems:'center',gap:16,padding:'14px 20px',borderBottom:i<activeFields.length-1?'1px solid #F3F4F6':'none'}}>
                   <div style={{flex:1}}>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
                       <span style={{fontSize:13,fontWeight:600,color:'#111827'}}>{field.label}</span>
@@ -769,12 +791,19 @@ export default function UploadPage() {
                     {columns.map(c=><option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-              ))}
+              )})}
             </div>
             {error&&<div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 14px',background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:8,marginBottom:16,fontSize:13,color:'#DC2626'}}><AlertCircle size={14}/>{error}</div>}
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setStep('analysis')} style={S.btnSecondary}>← Back</button>
-              <button onClick={()=>{if(!mapping.customer||!mapping.date||!mapping.revenue){setError('Please map Customer, Date, and Revenue fields.');return}setError('');setQState('idle');setAppliedFuzzy(false);setStep('quality')}} style={S.btnPrimary}>Data Quality Checks <ArrowRight size={14}/></button>
+              <button onClick={()=>{
+                if(analysisType==='acv_tcv'){
+                  if(!mapping.customer||!mapping.contractStart||!mapping.contractEnd||!mapping.tcv){setError('Please map Customer, Contract Start, Contract End, and TCV/ACV fields.');return}
+                }else{
+                  if(!mapping.customer||!mapping.date||!mapping.revenue){setError('Please map Customer, Date, and Revenue fields.');return}
+                }
+                setError('');setQState('idle');setAppliedFuzzy(false);setStep('quality')
+              }} style={S.btnPrimary}>Data Quality Checks <ArrowRight size={14}/></button>
             </div>
           </div>
         )}
