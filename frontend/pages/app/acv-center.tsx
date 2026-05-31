@@ -686,22 +686,42 @@ export default function ACVCenter() {
     })
   }, [])
 
-  // Load cube → try FastAPI → fallback to browser engine
+  // Load pre-computed context from upload wizard → call FastAPI → render
   useEffect(() => {
-    const cube = dataCubeStore.load()
-    if (!cube || !cube.csvText) return
+    // ── Try rl_acv_ready first (set by launchAnalytics in upload wizard) ──────
+    const ready = (() => { try { const r = sessionStorage.getItem('rl_acv_ready'); return r ? JSON.parse(r) : null } catch { return null } })()
+    const cube  = dataCubeStore.load()
 
-    const mapping               = cube.meta?.mapping      || {}
-    const revenueUnitFromStore  = cube.meta?.revenueUnit  || cube.revenueUnit  || 'TCV'
-    const analysisTypeFromStore = cube.meta?.analysisType || cube.analysisType || ''
+    if (!ready && !cube?.csvText) return  // nothing loaded at all — show empty state
+
+    const mapping              = ready?.mapping      || cube?.meta?.mapping      || {}
+    const revenueUnitFromStore = ready?.revenueUnit  || cube?.meta?.revenueUnit  || 'TCV'
+    const analysisType         = ready?.analysisType || cube?.meta?.analysisType || ''
     setRevenueUnit(revenueUnitFromStore)
 
-    if (analysisTypeFromStore && analysisTypeFromStore !== 'acv_tcv') {
+    if (analysisType && analysisType !== 'acv_tcv') {
       setError('This dataset was uploaded as MRR/ARR. Please re-upload with ACV / Contract Analysis selected.')
       return
     }
 
-    callFastAPI(cube, mapping, revenueUnitFromStore)
+    if (cube?.csvText) {
+      callFastAPI(cube, mapping, revenueUnitFromStore)
+    } else if (ready?.mapped?.length) {
+      // No csvText but we have pre-mapped rows — run browser engine directly
+      setRunning(true)
+      setTimeout(() => {
+        try {
+          const output = runACVEngine(ready.mapped.map(r => ({ ...r, revenueUnit: revenueUnitFromStore })))
+          setEngineOutput(output)
+          const allPeriods = [...new Set(
+            output.bridgeTable.filter(r => r.monthLookback === 12)
+              .map(r => `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`)
+          )].sort()
+          if (allPeriods.length) setSelPeriod(allPeriods[allPeriods.length - 1])
+        } catch(e) { setError(`Engine error: ${e.message}`) }
+        setRunning(false)
+      }, 50)
+    }
   }, [])
 
   async function callFastAPI(cube, mapping, unit) {
@@ -881,8 +901,8 @@ export default function ACVCenter() {
       {/* ── Main layout ─────────────────────────────────────────────────────── */}
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 24px' }}>
 
-        {/* Empty state */}
-        {!engineOutput && !running && !error && (
+        {/* Empty state — only when no data in store AND no pre-computed context */}
+        {!engineOutput && !running && !error && !apiResults && (typeof window==='undefined'||(!sessionStorage.getItem('rl_acv_ready')&&!sessionStorage.getItem('rl_data_cube'))) && (
           <div style={{ textAlign: 'center', padding: '80px 24px' }}>
             <div style={{ width: 56, height: 56, borderRadius: 16, background: T.brandSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
               <FileText size={24} color={T.brandPrimary} />
