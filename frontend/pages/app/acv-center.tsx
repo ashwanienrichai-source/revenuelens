@@ -676,6 +676,7 @@ export default function ACVCenter() {
   const [selPeriod, setSelPeriod] = useState('')
   const [revenueUnit, setRevenueUnit] = useState('TCV')
   const [apiResults,  setApiResults]  = useState(null)
+  const [hasStoredData, setHasStoredData] = useState(true) // optimistic — assume data exists until proven otherwise
 
   // Auth check
   useEffect(() => {
@@ -692,7 +693,7 @@ export default function ACVCenter() {
     const ready = (() => { try { const r = sessionStorage.getItem('rl_acv_ready'); return r ? JSON.parse(r) : null } catch { return null } })()
     const cube  = dataCubeStore.load()
 
-    if (!ready && !cube?.csvText) return  // nothing loaded at all — show empty state
+    if (!ready && !cube?.csvText) { setHasStoredData(false); return }  // nothing loaded — show empty state
 
     const mapping              = ready?.mapping      || cube?.meta?.mapping      || {}
     const revenueUnitFromStore = ready?.revenueUnit  || cube?.meta?.revenueUnit  || 'TCV'
@@ -902,7 +903,7 @@ export default function ACVCenter() {
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 24px' }}>
 
         {/* Empty state — only when no data in store AND no pre-computed context */}
-        {!engineOutput && !running && !error && !apiResults && (typeof window==='undefined'||(!sessionStorage.getItem('rl_acv_ready')&&!sessionStorage.getItem('rl_data_cube'))) && (
+        {!engineOutput && !running && !error && !apiResults && !hasStoredData && (
           <div style={{ textAlign: 'center', padding: '80px 24px' }}>
             <div style={{ width: 56, height: 56, borderRadius: 16, background: T.brandSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
               <FileText size={24} color={T.brandPrimary} />
