@@ -148,9 +148,46 @@ export const ACV_BRIDGE_COLORS: Record<string, string> = {
 // ── Date Utilities ────────────────────────────────────────────────────────────
 
 function parseDate(s: string): Date | null {
-  if (!s) return null
-  const d = new Date(s + 'T00:00:00')
-  return isNaN(d.getTime()) ? null : d
+  if (!s || !String(s).trim()) return null
+  const raw = String(s).trim()
+
+  // Try ISO first (most common in CSV exports)
+  const iso = new Date(raw + (raw.includes('T') ? '' : 'T00:00:00'))
+  if (!isNaN(iso.getTime())) return iso
+
+  // Multi-format fallback — try common date patterns
+  const fmts: Array<(s: string) => Date | null> = [
+    // YYYY/MM/DD
+    s => { const m = s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null },
+    // DD/MM/YYYY or MM/DD/YYYY — heuristic: if day > 12 it must be DD/MM
+    s => { const m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+           if (!m) return null
+           const [a, b] = [+m[1], +m[2]]
+           // if first part > 12, must be DD/MM/YYYY
+           if (a > 12) return new Date(+m[3], b-1, a)
+           // default to MM/DD/YYYY (US convention in most SaaS tools)
+           return new Date(+m[3], a-1, b) },
+    // YYYYMMDD
+    s => { const m = s.match(/^(\d{4})(\d{2})(\d{2})$/); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null },
+    // DD-Mon-YYYY or DD Mon YYYY
+    s => { const m = s.match(/^(\d{1,2})[\s-]([A-Za-z]{3})[\s-](\d{4})$/);
+           if (!m) return null
+           const mn = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[2].toLowerCase())
+           return mn >= 0 ? new Date(+m[3], mn, +m[1]) : null },
+    // Mon DD, YYYY or Mon-DD-YYYY
+    s => { const m = s.match(/^([A-Za-z]{3})[\s-](\d{1,2})[,\s-]+(\d{4})$/);
+           if (!m) return null
+           const mn = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[1].toLowerCase())
+           return mn >= 0 ? new Date(+m[3], mn, +m[2]) : null },
+  ]
+
+  for (const fn of fmts) {
+    try {
+      const d = fn(raw)
+      if (d && !isNaN(d.getTime()) && d.getFullYear() > 1900 && d.getFullYear() < 2100) return d
+    } catch { /* continue */ }
+  }
+  return null
 }
 
 // Last calendar day of the month containing d
