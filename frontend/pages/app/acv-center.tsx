@@ -116,11 +116,11 @@ const getACVBridgeColor = (T) => ({
   'New Logo':      T.chartExpansion,
   'Cross-sell':    T.chartExpansion,
   'Upsell':        T.chartExpansion,
-  'Add-on':        T.chartExpansion,
+  'Add on':        T.chartExpansion,
   'Returning':     T.chartExpansion,
   'Other In':      T.chartNeutral,
   'Churn':         T.chartContraction,
-  'Churn-Partial': T.chartContraction,
+  'Churn Partial': T.chartContraction,
   'Downsell':      T.chartContraction,
   'Lapsed':        T.chartContraction,
   'Other Out':     T.chartNeutral,
@@ -389,7 +389,7 @@ function BookingsWalk({ bookingsTable, bridgeTable, lb, period, T }) {
 // ─── Top Movers (ACV) ─────────────────────────────────────────────────────────
 function ACVTopMovers({ bridgeTable, lb, period, T }) {
   const [view, setView] = useState('Churn')
-  const VIEWS = ['New Logo', 'Upsell', 'Add-on', 'Churn', 'Downsell', 'Lapsed']
+  const VIEWS = ['New Logo', 'Upsell', 'Add on', 'Churn', 'Downsell', 'Lapsed']
   const isNeg = ['Churn', 'Downsell', 'Lapsed'].includes(view)
 
   const movers = useMemo(() => {
@@ -465,7 +465,7 @@ function HistoricalACV({ bridgeTable, T }) {
         newLogo:    sum('New Logo'),
         upsell:     sum('Upsell'),
         churn:      Math.abs(sum('Churn')),
-        addOn:      sum('Add-on'),
+        addOn:      sum('Add on'),
       }
     })
   }, [bridgeTable])
@@ -498,7 +498,7 @@ function HistoricalACV({ bridgeTable, T }) {
           <Tooltip formatter={v => [fmt(v)]} contentStyle={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 8, fontSize: 11, color: T.textPrimary }} />
           <Bar dataKey="newLogo" name="New Logo" stackId="pos" fill={T.chartExpansion} />
           <Bar dataKey="upsell"  name="Upsell"   stackId="pos" fill={`${T.chartExpansion}88`} />
-          <Bar dataKey="addOn"   name="Add-on"   stackId="pos" fill={`${T.chartExpansion}55`} />
+          <Bar dataKey="addOn"   name="Add on"   stackId="pos" fill={`${T.chartExpansion}55`} />
           <Bar dataKey="churn"   name="Churn"    stackId="neg" fill={T.chartContraction} />
           <Legend wrapperStyle={{ fontSize: 10, color: T.textSecondary }} />
         </BarChart>
@@ -982,7 +982,7 @@ export default function ACVCenter() {
                 {/* Second KPI row */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 10, marginBottom: 24 }}>
                   <KpiCard label="Upsell"      value={fmt(kpis.upsell)}    subGood={kpis.upsell > 0}    sub={kpis.upsell > 0 ? 'Expansion' : null} T={T} />
-                  <KpiCard label="Add-on"      value={fmt(kpis.addOn)}     subGood={kpis.addOn > 0}     sub="Mid-term" T={T} />
+                  <KpiCard label="Add on"      value={fmt(kpis.addOn)}     subGood={kpis.addOn > 0}     sub="Mid-term" T={T} />
                   <KpiCard label="Churn"       value={fmt(kpis.churn)}     subGood={kpis.churn === 0}   sub={kpis.churn < 0 ? 'Revenue lost' : null} T={T} />
                   <KpiCard label="Downsell"    value={fmt(kpis.downsell)}  subGood={kpis.downsell >= 0} T={T} />
                   <KpiCard label="Lapsed"      value={fmt(kpis.lapsed)}    subGood={kpis.lapsed === 0}  T={T} />
