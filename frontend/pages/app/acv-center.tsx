@@ -813,13 +813,13 @@ export default function ACVCenter() {
 
   // KPIs for selected period
   const kpis = useMemo(() => {
-    if (!engineOutput) return null
+    if (!engineOutput?.bridgeTable?.length) return null
     return calcACVKPIs(engineOutput.bridgeTable, lb, selPeriod)
   }, [engineOutput, lb, selPeriod])
 
   // All available periods
   const periods = useMemo(() => {
-    if (!engineOutput) return []
+    if (!engineOutput?.bridgeTable?.length) return []
     return [...new Set(
       engineOutput.bridgeTable
         .filter(r => r.monthLookback === lb)
