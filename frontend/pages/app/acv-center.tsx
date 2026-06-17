@@ -26,7 +26,8 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender
 
 import {
   runACVEngine, calcACVKPIs, buildACVWaterfall, buildExpiryPool,
-  buildRenewalRateTrend, ACV_WATERFALL_ORDER, ACV_BRIDGE_COLORS
+  buildRenewalRateTrend, buildCohortGrid, calcCustomerKPIs,
+  ACV_WATERFALL_ORDER, ACV_BRIDGE_COLORS, NOT_UP
 } from '../../lib/acvEngine'
 
 // ─── THEMES (identical token system as command-center) ────────────────────────
@@ -109,9 +110,10 @@ const THEMES = {
 
 // ACV Bridge color map — theme-aware
 const getACVBridgeColor = (T) => ({
-  'Prior ACV':     T.chartBaseline,
-  'Ending ACV':    T.chartBaseline,
-  'Expiry Pool':   T.chartNeutral,
+  'Prior ACV':          T.chartBaseline,
+  'Ending ACV':         T.chartBaseline,
+  'Expiry Pool':        T.chartNeutral,
+  'Not Up for Renewal': '#94A3B8',
   'RoB':           T.chartNeutral,
   'New Logo':      T.chartExpansion,
   'Cross-sell':    T.chartExpansion,
@@ -204,7 +206,7 @@ function ACVWaterfall({ bridgeTable, lb, period, T }) {
   const BC = getACVBridgeColor(T)
   const data = useMemo(() => {
     if (!bridgeTable.length || !period) return []
-    const dateStr = period // "YYYY-MM"
+    const dateStr = period
     const rows = bridgeTable.filter(r =>
       r.monthLookback === lb &&
       `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}` === dateStr
@@ -212,15 +214,30 @@ function ACVWaterfall({ bridgeTable, lb, period, T }) {
     const totals = {}
     for (const r of rows) totals[r.bridgeClassification] = (totals[r.bridgeClassification] || 0) + r.bridgeValue
 
+    // Compute NOT_UP = Expiry Pool - |Churn| - |Churn Partial| - |Lapsed|
+    const expiry    = totals['Expiry Pool']    || 0
+    const churn     = Math.abs(totals['Churn']          || 0)
+    const churnP    = Math.abs(totals['Churn Partial']  || 0)
+    const lapsed    = Math.abs(totals['Lapsed']         || 0)
+    totals['Not Up for Renewal'] = expiry - churn - churnP - lapsed
+
     let running = 0
     const wf = []
     for (const name of ACV_WATERFALL_ORDER) {
       const val = totals[name] || 0
       if (val === 0) continue
-      const isAnchor = name === 'Prior ACV' || name === 'Ending ACV'
-      const base = isAnchor ? 0 : running
-      wf.push({ name, base, value: isAnchor ? val : Math.abs(val), fill: BC[name] || T.chartNeutral, isNeg: !isAnchor && val < 0, rawVal: val })
-      if (!isAnchor) running += val
+      const isAnchor  = name === 'Prior ACV'  || name === 'Ending ACV'
+      const isInfoBar = name === 'Expiry Pool' || name === NOT_UP
+      const base = (isAnchor || isInfoBar) ? 0 : running
+      wf.push({
+        name, base,
+        value: (isAnchor || isInfoBar) ? Math.abs(val) : Math.abs(val),
+        fill:  BC[name] || T.chartNeutral,
+        isNeg: !isAnchor && !isInfoBar && val < 0,
+        rawVal: val,
+        isInfo: isInfoBar,
+      })
+      if (!isAnchor && !isInfoBar) running += val
     }
     return wf
   }, [bridgeTable, lb, period, T])
@@ -449,65 +466,470 @@ function ACVTopMovers({ bridgeTable, lb, period, T }) {
   )
 }
 
-// ─── Historical ACV Trend ─────────────────────────────────────────────────────
+// ─── Historical ACV — Bridge Table + Charts ──────────────────────────────────
+const BRIDGE_ROWS = [
+  { key: 'expiryPool',    cls: 'Expiry Pool',    label: 'Expiry Pool',         sign:  1, bold: false, indent: false },
+  { key: 'notUp',         cls: null,             label: 'Not Up for Renewal',  sign:  1, bold: false, indent: true  },
+  { key: 'priorACV',      cls: 'Prior ACV',      label: 'Prior ACV',           sign:  1, bold: true,  indent: false },
+  { key: 'churn',         cls: 'Churn',          label: 'Churn',               sign: -1, bold: false, indent: true  },
+  { key: 'churnPartial',  cls: 'Churn Partial',  label: 'Churn Partial',       sign: -1, bold: false, indent: true  },
+  { key: 'downsell',      cls: 'Downsell',       label: 'Downsell',            sign: -1, bold: false, indent: true  },
+  { key: 'upsell',        cls: 'Upsell',         label: 'Upsell',              sign:  1, bold: false, indent: true  },
+  { key: 'addOn',         cls: 'Add on',         label: 'Add on',              sign:  1, bold: false, indent: true  },
+  { key: 'crossSell',     cls: 'Cross-sell',     label: 'Cross-sell',          sign:  1, bold: false, indent: true  },
+  { key: 'newLogo',       cls: 'New Logo',       label: 'New Logo',            sign:  1, bold: false, indent: true  },
+  { key: 'lapsed',        cls: 'Lapsed',         label: 'Lapsed',              sign: -1, bold: false, indent: true  },
+  { key: 'returning',     cls: 'Returning',      label: 'Returning',           sign:  1, bold: false, indent: true  },
+  { key: 'otherIn',       cls: 'Other In',       label: 'Other In',            sign:  1, bold: false, indent: true  },
+  { key: 'otherOut',      cls: 'Other Out',      label: 'Other Out',           sign: -1, bold: false, indent: true  },
+  { key: 'endingACV',     cls: 'Ending ACV',     label: 'Ending ACV',          sign:  1, bold: true,  indent: false },
+]
+
+const METRIC_ROWS = [
+  { key: 'grr',  label: 'Gross Retention Rate', fmt: 'pct' },
+  { key: 'nrr',  label: 'Net Retention Rate',   fmt: 'pct' },
+  { key: 'gnr',  label: 'Gross Renewal Rate',   fmt: 'pct' },
+  { key: 'nnr',  label: 'Net Renewal Rate',      fmt: 'pct' },
+]
+
 function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
-  const data = useMemo(() => {
-    const allPeriods = [...new Set(bridgeTable.filter(r => r.monthLookback === 12).map(r =>
-      `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`)
-    )].sort()
-    const periods = allPeriods.filter(p => (!rangeStart || p >= rangeStart) && (!rangeEnd || p <= rangeEnd))
+  const [viewMode, setViewMode] = useState('annual')   // 'annual' | 'quarterly'
+  const [dispMode, setDispMode] = useState('dollar')   // 'dollar' | 'pct'
 
-    return periods.map(period => {
-      const rows = bridgeTable.filter(r => r.monthLookback === 12 &&
-        `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}` === period)
-      const sum = cls => rows.filter(r => r.bridgeClassification === cls).reduce((s,r) => s+r.bridgeValue, 0)
-      return {
-        period,
-        label: new Date(period + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-        endingACV:  sum('Ending ACV'),
-        priorACV:   sum('Prior ACV'),
-        expiryPool: sum('Expiry Pool'),
-        newLogo:    sum('New Logo'),
-        upsell:     sum('Upsell'),
-        churn:      Math.abs(sum('Churn')),
-        addOn:      sum('Add on'),
+  const { periods, byPeriod } = useMemo(() => {
+    const all = [...new Set(
+      bridgeTable.filter(r => r.monthLookback === 12)
+        .map(r => `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`)
+    )].sort().filter(p => (!rangeStart || p >= rangeStart) && (!rangeEnd || p <= rangeEnd))
+
+    const byPeriod = {}
+    for (const p of all) {
+      const rows  = bridgeTable.filter(r => r.monthLookback === 12 &&
+        `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}` === p)
+      const sum   = cls => rows.filter(r => r.bridgeClassification === cls).reduce((s,r) => s+r.bridgeValue, 0)
+      const ep    = sum('Expiry Pool')
+      const ch    = sum('Churn'); const cp = sum('Churn Partial'); const la = sum('Lapsed')
+      const up    = sum('Upsell'); const dn = sum('Downsell')
+      const prior = sum('Prior ACV'); const ending = sum('Ending ACV')
+      byPeriod[p] = {
+        expiryPool:   ep,
+        notUp:        ep + ch + cp + la,  // Expiry - |negatives|
+        priorACV:     prior,
+        churn:        ch, churnPartial: cp, downsell: dn,
+        upsell:       up, addOn: sum('Add on'),
+        crossSell:    sum('Cross-sell'), newLogo: sum('New Logo'),
+        lapsed:       la, returning: sum('Returning'),
+        otherIn:      sum('Other In'), otherOut: sum('Other Out'),
+        endingACV:    ending,
+        grr:  ep > 0 ? (ep + ch + cp) / ep       : null,
+        nrr:  ep > 0 ? (ep + ch + cp + up + dn) / ep : null,
+        gnr:  prior > 0 ? ending / prior           : null,
+        nnr:  prior > 0 ? (ending + Math.abs(ch) + Math.abs(cp)) / prior : null,
       }
-    })
-  }, [bridgeTable])
+    }
+    return { periods: all, byPeriod }
+  }, [bridgeTable, rangeStart, rangeEnd])
 
-  if (data.length < 2) return <div style={{ padding: 40, textAlign: 'center', color: T.textMuted, fontSize: 12 }}>Need multiple periods for historical view</div>
+  // Collapse to annual or quarterly display columns
+  const cols = useMemo(() => {
+    if (viewMode === 'annual') {
+      const years = [...new Set(periods.map(p => p.slice(0,4)))].sort()
+      return years.map(yr => {
+        // Use December of each year if available, else latest period for that year
+        const yrPeriods = periods.filter(p => p.startsWith(yr))
+        const dec = yrPeriods.find(p => p.endsWith('-12')) || yrPeriods[yrPeriods.length - 1]
+        return { label: `FY${yr.slice(2)}`, period: dec }
+      }).filter(c => c.period)
+    } else {
+      // Quarterly: keep every period, relabel as Q
+      return periods.map(p => {
+        const [yr, mo] = p.split('-').map(Number)
+        const q = Math.ceil(mo / 3)
+        return { label: `${yr.toString().slice(2)}Q${q}`, period: p }
+      })
+    }
+  }, [periods, viewMode])
+
+  const fmtCell = (val, key, priorACV) => {
+    if (val === null || val === undefined) return '—'
+    if (dispMode === 'pct') {
+      // % of Prior ACV
+      if (key === 'grr' || key === 'nrr' || key === 'gnr' || key === 'nnr') {
+        return val !== null ? `${(val * 100).toFixed(1)}%` : '—'
+      }
+      if (!priorACV) return '—'
+      return `${((val / priorACV) * 100).toFixed(1)}%`
+    }
+    return fmt(val)
+  }
+
+  const fmtMetric = (val) => val !== null && val !== undefined ? `${(val * 100).toFixed(1)}%` : '—'
+
+  const negColor = T.chartContraction
+  const posColor = T.chartExpansion
+  const neuColor = T.textTertiary
+
+  const cellColor = (key, val) => {
+    if (val === 0 || val === null) return neuColor
+    const row = BRIDGE_ROWS.find(r => r.key === key)
+    if (!row) return neuColor
+    if (row.bold) return T.textPrimary
+    return (row.sign * (val || 0)) < 0 ? negColor : posColor
+  }
+
+  if (!cols.length) return (
+    <div style={{ padding: 40, textAlign: 'center', color: T.textMuted, fontSize: 12 }}>
+      No data in selected range
+    </div>
+  )
+
+  // Chart data (always monthly from periods)
+  const chartData = periods.map(p => ({
+    label: new Date(p + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+    ...byPeriod[p],
+    churnAbs: Math.abs(byPeriod[p]?.churn || 0),
+  }))
+
+  const tdStyle = (bold=false, isNeg=false, isPos=false) => ({
+    padding: '4px 10px', fontSize: 11, fontWeight: bold ? 700 : 400,
+    color: isNeg ? negColor : isPos ? posColor : T.textPrimary,
+    textAlign: 'right', borderBottom: `1px solid ${T.borderSubtle}`,
+    fontFamily: T.mono, whiteSpace: 'nowrap',
+  })
+  const thStyle = { padding: '5px 10px', fontSize: 10, fontWeight: 700,
+    color: T.textMuted, textAlign: 'right', background: T.bgRaised,
+    borderBottom: `1px solid ${T.borderDefault}`, whiteSpace: 'nowrap', fontFamily: T.mono }
+  const labelStyle = (bold=false, indent=false) => ({
+    padding: '4px 12px', paddingLeft: indent ? 24 : 12,
+    fontSize: 11, fontWeight: bold ? 700 : 400, color: bold ? T.textPrimary : T.textSecondary,
+    borderBottom: `1px solid ${T.borderSubtle}`, whiteSpace: 'nowrap', textAlign: 'left',
+  })
 
   return (
     <div>
-      <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, marginBottom: 12 }}>Ending ACV Trend</div>
-      <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={data} margin={{ top: 10, right: 20, bottom: 40, left: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={T.chartGrid} />
-          <XAxis dataKey="label" tick={{ fill: T.chartAxis, fontSize: 9 }} angle={-35} textAnchor="end" />
-          <YAxis tick={{ fill: T.chartAxis, fontSize: 10 }} tickFormatter={v => fmt(v)} />
-          <Tooltip formatter={v => [fmt(v)]} contentStyle={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 8, fontSize: 11, color: T.textPrimary }} />
-          <Line type="monotone" dataKey="endingACV"  name="Ending ACV"  stroke={T.chartBaseline}    strokeWidth={2.5} dot={{ r: 3 }} />
-          <Line type="monotone" dataKey="expiryPool" name="Expiry Pool" stroke={T.chartNeutral}     strokeWidth={1.5} dot={{ r: 2 }} strokeDasharray="4 2" />
-          <Line type="monotone" dataKey="newLogo"    name="New Logo"    stroke={T.chartExpansion}   strokeWidth={1.5} dot={{ r: 2 }} />
-          <Line type="monotone" dataKey="churn"      name="Churn"       stroke={T.chartContraction} strokeWidth={1.5} dot={{ r: 2 }} />
-          <Legend wrapperStyle={{ fontSize: 10, color: T.textSecondary }} />
-        </LineChart>
-      </ResponsiveContainer>
+      {/* Controls */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 2, background: T.bgRaised, padding: 3, borderRadius: 7 }}>
+          {[['annual','Annual'],['quarterly','Quarterly']].map(([v,l]) => (
+            <button key={v} onClick={() => setViewMode(v)} style={{
+              padding: '3px 12px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 11,
+              background: viewMode === v ? T.brandPrimary : 'transparent',
+              color: viewMode === v ? '#fff' : T.textMuted, fontWeight: viewMode === v ? 700 : 400,
+            }}>{l}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 2, background: T.bgRaised, padding: 3, borderRadius: 7 }}>
+          {[['dollar','$ Bridge'],['pct','% of Prior ACV']].map(([v,l]) => (
+            <button key={v} onClick={() => setDispMode(v)} style={{
+              padding: '3px 12px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 11,
+              background: dispMode === v ? T.brandPrimary : 'transparent',
+              color: dispMode === v ? '#fff' : T.textMuted, fontWeight: dispMode === v ? 700 : 400,
+            }}>{l}</button>
+          ))}
+        </div>
+      </div>
 
-      <div style={{ fontSize: 12, fontWeight: 700, color: T.textSecondary, margin: '24px 0 12px' }}>Movement Mix (lb=12)</div>
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data} margin={{ top: 10, right: 20, bottom: 40, left: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={T.chartGrid} vertical={false} />
-          <XAxis dataKey="label" tick={{ fill: T.chartAxis, fontSize: 9 }} angle={-35} textAnchor="end" />
-          <YAxis tick={{ fill: T.chartAxis, fontSize: 10 }} tickFormatter={v => fmt(v)} />
-          <Tooltip formatter={v => [fmt(v)]} contentStyle={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 8, fontSize: 11, color: T.textPrimary }} />
-          <Bar dataKey="newLogo" name="New Logo" stackId="pos" fill={T.chartExpansion} />
-          <Bar dataKey="upsell"  name="Upsell"   stackId="pos" fill={`${T.chartExpansion}88`} />
-          <Bar dataKey="addOn"   name="Add on"   stackId="pos" fill={`${T.chartExpansion}55`} />
-          <Bar dataKey="churn"   name="Churn"    stackId="neg" fill={T.chartContraction} />
-          <Legend wrapperStyle={{ fontSize: 10, color: T.textSecondary }} />
-        </BarChart>
-      </ResponsiveContainer>
+      {/* Bridge Table */}
+      <div style={{ overflowX: 'auto', borderRadius: 8, border: `1px solid ${T.borderDefault}`, marginBottom: 24 }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: cols.length * 90 + 180 }}>
+          <thead>
+            <tr>
+              <th style={{ ...thStyle, textAlign: 'left', minWidth: 160 }}>Classification</th>
+              {cols.map(c => <th key={c.label} style={thStyle}>{c.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {BRIDGE_ROWS.map(row => (
+              <tr key={row.key} style={{ background: row.bold ? T.bgRaised : 'transparent' }}>
+                <td style={labelStyle(row.bold, row.indent)}>{row.label}</td>
+                {cols.map(c => {
+                  const d    = byPeriod[c.period]
+                  const val  = d?.[row.key]
+                  const pACV = d?.priorACV || 0
+                  const isNeg = row.sign * (val || 0) < 0 && !row.bold
+                  const isPos = row.sign * (val || 0) > 0 && !row.bold
+                  return (
+                    <td key={c.label} style={tdStyle(row.bold, isNeg && !row.bold, isPos && !row.bold)}>
+                      {fmtCell(val, row.key, pACV)}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+
+            {/* Spacer */}
+            <tr><td colSpan={cols.length + 1} style={{ padding: 4, background: T.bgRaised }} /></tr>
+
+            {/* Metric rows */}
+            {METRIC_ROWS.map(row => (
+              <tr key={row.key}>
+                <td style={{ ...labelStyle(false, false), color: T.textMuted, fontStyle: 'italic' }}>{row.label}</td>
+                {cols.map(c => {
+                  const val = byPeriod[c.period]?.[row.key]
+                  const isGood = val !== null && val >= (row.key === 'nrr' || row.key === 'nnr' ? 1.0 : 0.85)
+                  return (
+                    <td key={c.label} style={{ ...tdStyle(false), color: val === null ? T.textMuted : isGood ? posColor : negColor }}>
+                      {fmtMetric(val)}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Charts — Ending ACV trend + Movement Mix */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div style={{ background: T.bgRaised, borderRadius: 8, padding: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 12 }}>Ending ACV Trend</div>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={chartData} margin={{ top: 5, right: 10, bottom: 30, left: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={T.chartGrid} />
+              <XAxis dataKey="label" tick={{ fill: T.chartAxis, fontSize: 8 }} angle={-35} textAnchor="end" interval="preserveStartEnd" />
+              <YAxis tick={{ fill: T.chartAxis, fontSize: 9 }} tickFormatter={v => fmt(v)} width={50} />
+              <Tooltip formatter={v => [fmt(v)]} contentStyle={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 6, fontSize: 10 }} />
+              <Line type="monotone" dataKey="endingACV"  name="Ending ACV"  stroke={T.chartBaseline}    strokeWidth={2} dot={{ r: 2 }} />
+              <Line type="monotone" dataKey="expiryPool" name="Expiry Pool" stroke={T.chartNeutral}     strokeWidth={1.5} dot={{ r: 2 }} strokeDasharray="4 2" />
+              <Line type="monotone" dataKey="newLogo"    name="New Logo"    stroke={T.chartExpansion}   strokeWidth={1.5} dot={{ r: 2 }} />
+              <Line type="monotone" dataKey="churnAbs"   name="Churn"       stroke={T.chartContraction} strokeWidth={1.5} dot={{ r: 2 }} />
+              <Legend wrapperStyle={{ fontSize: 9, color: T.textSecondary }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={{ background: T.bgRaised, borderRadius: 8, padding: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 12 }}>Movement Mix (lb=12)</div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData} margin={{ top: 5, right: 10, bottom: 30, left: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={T.chartGrid} vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: T.chartAxis, fontSize: 8 }} angle={-35} textAnchor="end" interval="preserveStartEnd" />
+              <YAxis tick={{ fill: T.chartAxis, fontSize: 9 }} tickFormatter={v => fmt(v)} width={50} />
+              <Tooltip formatter={v => [fmt(v)]} contentStyle={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 6, fontSize: 10 }} />
+              <Bar dataKey="newLogo"   name="New Logo" stackId="pos" fill={T.chartExpansion} />
+              <Bar dataKey="upsell"    name="Upsell"   stackId="pos" fill={`${T.chartExpansion}88`} />
+              <Bar dataKey="addOn"     name="Add on"   stackId="pos" fill={`${T.chartExpansion}55`} />
+              <Bar dataKey="churnAbs"  name="Churn"    stackId="neg" fill={T.chartContraction} />
+              <Legend wrapperStyle={{ fontSize: 9, color: T.textSecondary }} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+// ─── Cohort Analysis ─────────────────────────────────────────────────────────
+function CohortAnalysis({ bridgeTable, T }) {
+  const [cohortGrain, setCohortGrain] = useState('yearly')    // 'yearly'|'quarterly'
+  const [cohortMetric, setCohortMetric] = useState('acv')     // 'acv'|'count'|'acvPerCust'
+  const [showRetention, setShowRetention] = useState(false)
+  const [filterProduct,  setFilterProduct]  = useState('')
+  const [filterChannel,  setFilterChannel]  = useState('')
+  const [filterRegion,   setFilterRegion]   = useState('')
+
+  // Dimension options
+  const products = useMemo(() => ['', ...new Set(bridgeTable.map(r => r.product).filter(Boolean))].sort(), [bridgeTable])
+  const channels = useMemo(() => ['', ...new Set(bridgeTable.map(r => r.channel).filter(Boolean))].sort(), [bridgeTable])
+  const regions  = useMemo(() => ['', ...new Set(bridgeTable.map(r => r.region).filter(Boolean))].sort(), [bridgeTable])
+
+  const rows = useMemo(() => buildCohortGrid(bridgeTable, cohortGrain, {
+    product: filterProduct || undefined,
+    channel: filterChannel || undefined,
+    region:  filterRegion  || undefined,
+  }), [bridgeTable, cohortGrain, filterProduct, filterChannel, filterRegion])
+
+  // All column offsets (months since vintage), sorted
+  const offsets = useMemo(() => {
+    const s = new Set()
+    rows.forEach(r => Object.keys(r.values).forEach(k => s.add(Number(k))))
+    return [...s].sort((a,b) => a - b)
+  }, [rows])
+
+  if (!rows.length) return (
+    <div style={{ padding: 40, textAlign: 'center', color: T.textMuted, fontSize: 12 }}>
+      No cohort data available
+    </div>
+  )
+
+  const getCellVal = (row, offset) => {
+    switch (cohortMetric) {
+      case 'acv':        return row.values[offset]  || 0
+      case 'count':      return row.custCnt[offset] || 0
+      case 'acvPerCust': {
+        const a = row.values[offset]  || 0
+        const c = row.custCnt[offset] || 0
+        return c > 0 ? a / c : 0
+      }
+    }
+  }
+
+  // Retention = value at offset / value at offset=0
+  const getCellRetention = (row, offset) => {
+    const base = getCellVal(row, 0)
+    if (!base) return null
+    return getCellVal(row, offset) / base
+  }
+
+  // Color scale for retention heatmap
+  const heatColor = (pct) => {
+    if (pct === null) return 'transparent'
+    if (pct >= 1.0)  return '#BBF7D0'  // green
+    if (pct >= 0.85) return '#D1FAE5'
+    if (pct >= 0.70) return '#FEF3C7'  // amber
+    if (pct >= 0.50) return '#FED7AA'
+    return '#FECACA'                    // red
+  }
+
+  const fmtCell = (row, offset) => {
+    if (showRetention) {
+      const r = getCellRetention(row, offset)
+      return r !== null ? `${(r * 100).toFixed(1)}%` : '—'
+    }
+    const v = getCellVal(row, offset)
+    if (cohortMetric === 'acv')        return v ? fmt(v) : '—'
+    if (cohortMetric === 'count')      return v ? v.toFixed(0) : '—'
+    if (cohortMetric === 'acvPerCust') return v ? `$${(v/1000).toFixed(1)}K` : '—'
+    return '—'
+  }
+
+  const thS = { padding: '5px 8px', fontSize: 10, fontWeight: 700, color: T.textMuted,
+    textAlign: 'right', background: T.bgRaised, borderBottom: `1px solid ${T.borderDefault}`,
+    whiteSpace: 'nowrap', fontFamily: T.mono }
+  const tdS = (bg='transparent') => ({
+    padding: '4px 8px', fontSize: 11, textAlign: 'right',
+    borderBottom: `1px solid ${T.borderSubtle}`, fontFamily: T.mono,
+    background: bg, color: T.textPrimary, whiteSpace: 'nowrap',
+  })
+
+  return (
+    <div>
+      {/* Controls row */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Grain */}
+        <div style={{ display: 'flex', gap: 2, background: T.bgRaised, padding: 3, borderRadius: 7 }}>
+          {[['yearly','Yearly'],['quarterly','Quarterly']].map(([v,l]) => (
+            <button key={v} onClick={() => setCohortGrain(v)} style={{
+              padding: '3px 12px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 11,
+              background: cohortGrain === v ? T.brandPrimary : 'transparent',
+              color: cohortGrain === v ? '#fff' : T.textMuted, fontWeight: cohortGrain === v ? 700 : 400,
+            }}>{l}</button>
+          ))}
+        </div>
+        {/* Metric */}
+        <div style={{ display: 'flex', gap: 2, background: T.bgRaised, padding: 3, borderRadius: 7 }}>
+          {[['acv','ACV $'],['count','Customers'],['acvPerCust','ACV / Cust']].map(([v,l]) => (
+            <button key={v} onClick={() => setCohortMetric(v)} style={{
+              padding: '3px 12px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 11,
+              background: cohortMetric === v ? T.brandPrimary : 'transparent',
+              color: cohortMetric === v ? '#fff' : T.textMuted, fontWeight: cohortMetric === v ? 700 : 400,
+            }}>{l}</button>
+          ))}
+        </div>
+        {/* Retention toggle */}
+        <button onClick={() => setShowRetention(r => !r)} style={{
+          padding: '4px 14px', borderRadius: 7, border: `1px solid ${showRetention ? T.brandPrimary : T.borderDefault}`,
+          background: showRetention ? T.brandSoft : 'transparent', fontSize: 11, cursor: 'pointer',
+          color: showRetention ? T.brandPrimary : T.textSecondary, fontWeight: showRetention ? 700 : 400,
+        }}>% Retention</button>
+
+        <div style={{ width: 1, height: 20, background: T.borderDefault }} />
+
+        {/* Filters */}
+        {products.length > 2 && (
+          <select value={filterProduct} onChange={e => setFilterProduct(e.target.value)} style={{
+            padding: '3px 8px', borderRadius: 6, border: `1px solid ${T.borderDefault}`,
+            background: T.bgSurface, color: T.textPrimary, fontSize: 10, cursor: 'pointer',
+          }}>
+            <option value=''>All Products</option>
+            {products.filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        )}
+        {channels.length > 2 && (
+          <select value={filterChannel} onChange={e => setFilterChannel(e.target.value)} style={{
+            padding: '3px 8px', borderRadius: 6, border: `1px solid ${T.borderDefault}`,
+            background: T.bgSurface, color: T.textPrimary, fontSize: 10, cursor: 'pointer',
+          }}>
+            <option value=''>All Channels</option>
+            {channels.filter(Boolean).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        {regions.length > 2 && (
+          <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} style={{
+            padding: '3px 8px', borderRadius: 6, border: `1px solid ${T.borderDefault}`,
+            background: T.bgSurface, color: T.textPrimary, fontSize: 10, cursor: 'pointer',
+          }}>
+            <option value=''>All Regions</option>
+            {regions.filter(Boolean).map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Cohort Grid */}
+      <div style={{ overflowX: 'auto', borderRadius: 8, border: `1px solid ${T.borderDefault}` }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+          <thead>
+            <tr>
+              <th style={{ ...thS, textAlign: 'left', minWidth: 80 }}>
+                {cohortGrain === 'yearly' ? 'Vintage Year' : 'Vintage Quarter'}
+              </th>
+              {offsets.map(o => (
+                <th key={o} style={thS}>
+                  {o === 0 ? 'Start' : `+${o}M`}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, ri) => (
+              <tr key={row.label}>
+                <td style={{ padding: '4px 12px', fontSize: 11, fontWeight: 700,
+                  color: T.textPrimary, borderBottom: `1px solid ${T.borderSubtle}`,
+                  background: ri % 2 === 0 ? 'transparent' : T.bgRaised }}>
+                  {row.label}
+                </td>
+                {offsets.map(o => {
+                  const hasVal = (row.values[o] || row.custCnt[o])
+                  const bg = showRetention ? heatColor(getCellRetention(row, o)) : (ri % 2 === 0 ? 'transparent' : T.bgRaised)
+                  return (
+                    <td key={o} style={tdS(bg)}>
+                      {hasVal ? fmtCell(row, o) : '—'}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+            {/* Grand Total row */}
+            <tr style={{ background: T.bgRaised }}>
+              <td style={{ padding: '5px 12px', fontSize: 11, fontWeight: 700,
+                color: T.textPrimary, borderTop: `2px solid ${T.borderDefault}` }}>
+                Grand Total
+              </td>
+              {offsets.map(o => {
+                const total = rows.reduce((s, r) => s + (getCellVal(r, o) || 0), 0)
+                return (
+                  <td key={o} style={{ ...tdS(), borderTop: `2px solid ${T.borderDefault}`, fontWeight: 700 }}>
+                    {total > 0 ? (cohortMetric === 'count' ? total.toFixed(0) : fmt(total)) : '—'}
+                  </td>
+                )
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Retention legend */}
+      {showRetention && (
+        <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'center' }}>
+          <span style={{ fontSize: 10, color: T.textMuted }}>Retention:</span>
+          {[['≥100%','#BBF7D0'],['85–100%','#D1FAE5'],['70–85%','#FEF3C7'],['50–70%','#FED7AA'],['<50%','#FECACA']].map(([l,c]) => (
+            <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 12, height: 12, borderRadius: 2, background: c }} />
+              <span style={{ fontSize: 10, color: T.textMuted }}>{l}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -649,14 +1071,15 @@ function Account360({ bridgeTable, bookingsTable, T }) {
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'summary',     label: 'Summary',       icon: Zap },
-  { id: 'bridge',      label: 'ACV Bridge',    icon: TrendingUp },
-  { id: 'expiry',      label: 'Expiry Pool',   icon: Clock },
-  { id: 'renewal',     label: 'Renewal Rates', icon: Shield },
-  { id: 'bookings',    label: 'Bookings Walk', icon: FileText },
-  { id: 'movers',      label: 'Top Movers',    icon: Target },
-  { id: 'historical',  label: 'Historical',    icon: Layers },
-  { id: 'account360',  label: 'Account 360',   icon: Users },
+  { id: 'summary',     label: 'Summary',         icon: Zap },
+  { id: 'bridge',      label: 'ACV Bridge',      icon: TrendingUp },
+  { id: 'expiry',      label: 'Expiry Pool',     icon: Clock },
+  { id: 'renewal',     label: 'Renewal Rates',   icon: Shield },
+  { id: 'bookings',    label: 'Bookings Walk',   icon: FileText },
+  { id: 'movers',      label: 'Top Movers',      icon: Target },
+  { id: 'historical',  label: 'Historical',      icon: Layers },
+  { id: 'cohort',      label: 'Cohort Analysis', icon: Users },
+  { id: 'account360',  label: 'Account 360',     icon: Users },
 ]
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -1178,6 +1601,17 @@ export default function ACVCenter() {
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Historical ACV Performance</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Multi-period ACV trend — lb=12 basis</div>
                 <HistoricalACV bridgeTable={engineOutput.bridgeTable} T={T} rangeStart={effectiveStart} rangeEnd={effectiveEnd} />
+              </div>
+            )}
+
+            {/* ── COHORT ANALYSIS TAB ─────────────────────────────────── */}
+            {tab === 'cohort' && (
+              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Cohort Analysis</div>
+                <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>
+                  Retention by vintage cohort — how ACV evolves from each customer's first contract date
+                </div>
+                <CohortAnalysis bridgeTable={engineOutput.bridgeTable} T={T} />
               </div>
             )}
 
