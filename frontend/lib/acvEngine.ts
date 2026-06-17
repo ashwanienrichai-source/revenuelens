@@ -116,29 +116,28 @@ export const CLS = {
 } as const
 
 // ── Waterfall order (canonical) ───────────────────────────────────────────────
-// NOT_UP_FOR_RENEWAL = computed display row (not a classification)
-export const NOT_UP = 'Not Up for Renewal'
+// RoB = "Not Up for Renewal" — real bridge classification (Sort=2 per Alteryx mapping)
+// Display name mapping: 'RoB' → 'Not Up for Renewal' handled in UI layer
 
 export const ACV_WATERFALL_ORDER = [
-  CLS.PRIOR,                        // anchor — left bar
-  CLS.EXPIRY,                       // informational — expiry pool
-  NOT_UP,                           // computed: Expiry - |Churn| - |ChurnP| - |Lapsed|
-  CLS.CHURN,                        // negative
-  CLS.CHURN_P,                      // negative
-  CLS.DOWNSELL,                     // negative
-  CLS.UPSELL,                       // positive
-  CLS.ADDON,                        // positive
-  CLS.CROSS_SELL,                   // positive
-  CLS.NEW_LOGO,                     // positive
-  CLS.LAPSED,                       // negative — temporary
-  CLS.RETURNING,                    // positive
-  CLS.OTHER_IN,                     // neutral
-  CLS.OTHER_OUT,                    // neutral
-  CLS.ENDING,                       // anchor — right bar
+  CLS.EXPIRY,       // Sort 1
+  CLS.ROB,          // Sort 2  — displays as "Not Up for Renewal"
+  CLS.PRIOR,        // Sort 3  — anchor left bar
+  CLS.CHURN,        // Sort 4
+  CLS.CHURN_P,      // Sort 5
+  CLS.DOWNSELL,     // Sort 6
+  CLS.UPSELL,       // Sort 7
+  CLS.ADDON,        // Sort 8
+  CLS.CROSS_SELL,   // Sort 9
+  CLS.NEW_LOGO,     // Sort 10
+  CLS.LAPSED,       // Sort 11
+  CLS.RETURNING,    // Sort 12
+  CLS.OTHER_IN,     // Sort 13
+  CLS.OTHER_OUT,    // Sort 14
+  CLS.ENDING,       // Sort 15 — anchor right bar
 ]
 
 export const ACV_BRIDGE_COLORS: Record<string, string> = {
-  [NOT_UP]:        '#94A3B8',   // grey — reference bar
   [CLS.PRIOR]:     '#3D5068',
   [CLS.ENDING]:    '#475569',
   [CLS.EXPIRY]:    '#7C9DBC',
