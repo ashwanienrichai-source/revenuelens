@@ -27,7 +27,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender
 import {
   runACVEngine, calcACVKPIs, buildACVWaterfall, buildExpiryPool,
   buildRenewalRateTrend, buildCohortGrid, calcCustomerKPIs,
-  ACV_WATERFALL_ORDER, ACV_BRIDGE_COLORS, NOT_UP
+  ACV_WATERFALL_ORDER, ACV_BRIDGE_COLORS
 } from '../../lib/acvEngine'
 
 // ─── THEMES (identical token system as command-center) ────────────────────────
@@ -113,8 +113,7 @@ const getACVBridgeColor = (T) => ({
   'Prior ACV':          T.chartBaseline,
   'Ending ACV':         T.chartBaseline,
   'Expiry Pool':        T.chartNeutral,
-  'Not Up for Renewal': '#94A3B8',
-  'RoB':           T.chartNeutral,
+  'RoB':           '#94A3B8',   // Not Up for Renewal
   'New Logo':      T.chartExpansion,
   'Cross-sell':    T.chartExpansion,
   'Upsell':        T.chartExpansion,
@@ -214,26 +213,23 @@ function ACVWaterfall({ bridgeTable, lb, period, T }) {
     const totals = {}
     for (const r of rows) totals[r.bridgeClassification] = (totals[r.bridgeClassification] || 0) + r.bridgeValue
 
-    // Compute NOT_UP = Expiry Pool - |Churn| - |Churn Partial| - |Lapsed|
-    const expiry    = totals['Expiry Pool']    || 0
-    const churn     = Math.abs(totals['Churn']          || 0)
-    const churnP    = Math.abs(totals['Churn Partial']  || 0)
-    const lapsed    = Math.abs(totals['Lapsed']         || 0)
-    totals['Not Up for Renewal'] = expiry - churn - churnP - lapsed
+    // Display name mapping: RoB → 'Not Up for Renewal' for bar labels
+    const DISPLAY = { 'RoB': 'Not Up for Renewal' }
 
     let running = 0
     const wf = []
     for (const name of ACV_WATERFALL_ORDER) {
       const val = totals[name] || 0
       if (val === 0) continue
-      const isAnchor  = name === 'Prior ACV'  || name === 'Ending ACV'
-      const isInfoBar = name === 'Expiry Pool' || name === NOT_UP
+      const isAnchor  = name === 'Prior ACV' || name === 'Ending ACV'
+      const isInfoBar = name === 'Expiry Pool' || name === 'RoB'
       const base = (isAnchor || isInfoBar) ? 0 : running
       wf.push({
-        name, base,
-        value: (isAnchor || isInfoBar) ? Math.abs(val) : Math.abs(val),
-        fill:  BC[name] || T.chartNeutral,
-        isNeg: !isAnchor && !isInfoBar && val < 0,
+        name:   DISPLAY[name] || name,
+        base,
+        value:  Math.abs(val),
+        fill:   BC[name] || T.chartNeutral,
+        isNeg:  !isAnchor && !isInfoBar && val < 0,
         rawVal: val,
         isInfo: isInfoBar,
       })
@@ -469,7 +465,7 @@ function ACVTopMovers({ bridgeTable, lb, period, T }) {
 // ─── Historical ACV — Bridge Table + Charts ──────────────────────────────────
 const BRIDGE_ROWS = [
   { key: 'expiryPool',    cls: 'Expiry Pool',    label: 'Expiry Pool',         sign:  1, bold: false, indent: false },
-  { key: 'notUp',         cls: null,             label: 'Not Up for Renewal',  sign:  1, bold: false, indent: true  },
+  { key: 'rob',           cls: 'RoB',            label: 'Not Up for Renewal',  sign:  1, bold: false, indent: true  },
   { key: 'priorACV',      cls: 'Prior ACV',      label: 'Prior ACV',           sign:  1, bold: true,  indent: false },
   { key: 'churn',         cls: 'Churn',          label: 'Churn',               sign: -1, bold: false, indent: true  },
   { key: 'churnPartial',  cls: 'Churn Partial',  label: 'Churn Partial',       sign: -1, bold: false, indent: true  },
@@ -513,7 +509,7 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
       const prior = sum('Prior ACV'); const ending = sum('Ending ACV')
       byPeriod[p] = {
         expiryPool:   ep,
-        notUp:        ep + ch + cp + la,  // Expiry - |negatives|
+        rob:          sum('RoB'),          // Not Up for Renewal — real classification
         priorACV:     prior,
         churn:        ch, churnPartial: cp, downsell: dn,
         upsell:       up, addOn: sum('Add on'),
