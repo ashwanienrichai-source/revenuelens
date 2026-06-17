@@ -591,46 +591,53 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
   }))
 
   const tdStyle = (bold=false, isNeg=false, isPos=false) => ({
-    padding: '4px 10px', fontSize: 11, fontWeight: bold ? 700 : 400,
+    padding: '5px 10px', fontSize: 11, fontWeight: bold ? 700 : 400,
     color: isNeg ? negColor : isPos ? posColor : T.textPrimary,
     textAlign: 'right', borderBottom: `1px solid ${T.borderSubtle}`,
-    fontFamily: T.mono, whiteSpace: 'nowrap',
+    fontFamily: T.mono, whiteSpace: 'nowrap', letterSpacing: '-0.01em',
   })
-  const thStyle = { padding: '5px 10px', fontSize: 10, fontWeight: 700,
-    color: T.textMuted, textAlign: 'right', background: T.bgRaised,
-    borderBottom: `1px solid ${T.borderDefault}`, whiteSpace: 'nowrap', fontFamily: T.mono }
+  const thStyle = { padding: '6px 10px', fontSize: 10, fontWeight: 700,
+    color: T.textMuted, textAlign: 'right',
+    background: T.bgRaised,
+    borderBottom: `2px solid ${T.borderDefault}`,
+    whiteSpace: 'nowrap', fontFamily: T.mono, letterSpacing: '0.04em' }
   const labelStyle = (bold=false, indent=false) => ({
-    padding: '4px 12px', paddingLeft: indent ? 24 : 12,
-    fontSize: 11, fontWeight: bold ? 700 : 400, color: bold ? T.textPrimary : T.textSecondary,
-    borderBottom: `1px solid ${T.borderSubtle}`, whiteSpace: 'nowrap', textAlign: 'left',
+    padding: '5px 12px', paddingLeft: indent ? 28 : 12,
+    fontSize: 11, fontWeight: bold ? 700 : 400,
+    color: bold ? T.textPrimary : T.textSecondary,
+    borderBottom: `1px solid ${T.borderSubtle}`,
+    whiteSpace: 'nowrap', textAlign: 'left',
+    borderLeft: bold ? `3px solid ${T.brandPrimary}` : '3px solid transparent',
   })
 
   return (
     <div>
-      {/* Controls */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 2, background: T.bgRaised, padding: 3, borderRadius: 7 }}>
+      {/* Controls — aligned to brand toggle style */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 3, background: T.bgRaised, padding: 3, borderRadius: 8, border: `1px solid ${T.borderSubtle}` }}>
           {[['annual','Annual'],['quarterly','Quarterly']].map(([v,l]) => (
             <button key={v} onClick={() => setViewMode(v)} style={{
-              padding: '3px 12px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 11,
+              padding: '4px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11,
               background: viewMode === v ? T.brandPrimary : 'transparent',
-              color: viewMode === v ? '#fff' : T.textMuted, fontWeight: viewMode === v ? 700 : 400,
+              color: viewMode === v ? '#fff' : T.textMuted,
+              fontWeight: viewMode === v ? 700 : 400, transition: 'all 0.15s',
             }}>{l}</button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 2, background: T.bgRaised, padding: 3, borderRadius: 7 }}>
+        <div style={{ display: 'flex', gap: 3, background: T.bgRaised, padding: 3, borderRadius: 8, border: `1px solid ${T.borderSubtle}` }}>
           {[['dollar','$ Bridge'],['pct','% of Prior ACV']].map(([v,l]) => (
             <button key={v} onClick={() => setDispMode(v)} style={{
-              padding: '3px 12px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 11,
+              padding: '4px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11,
               background: dispMode === v ? T.brandPrimary : 'transparent',
-              color: dispMode === v ? '#fff' : T.textMuted, fontWeight: dispMode === v ? 700 : 400,
+              color: dispMode === v ? '#fff' : T.textMuted,
+              fontWeight: dispMode === v ? 700 : 400, transition: 'all 0.15s',
             }}>{l}</button>
           ))}
         </div>
       </div>
 
       {/* Bridge Table */}
-      <div style={{ overflowX: 'auto', borderRadius: 8, border: `1px solid ${T.borderDefault}`, marginBottom: 24 }}>
+      <div style={{ overflowX: 'auto', borderRadius: 10, border: `1px solid ${T.borderDefault}`, marginBottom: 24, boxShadow: `0 1px 4px rgba(0,0,0,0.04)` }}>
         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: cols.length * 90 + 180 }}>
           <thead>
             <tr>
@@ -640,7 +647,7 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
           </thead>
           <tbody>
             {BRIDGE_ROWS.map(row => (
-              <tr key={row.key} style={{ background: row.bold ? T.bgRaised : 'transparent' }}>
+              <tr key={row.key} style={{ background: row.bold ? T.brandSoft : 'transparent' }}>
                 <td style={labelStyle(row.bold, row.indent)}>{row.label}</td>
                 {cols.map(c => {
                   const d    = byPeriod[c.period]
@@ -663,7 +670,7 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
             {/* Metric rows */}
             {METRIC_ROWS.map(row => (
               <tr key={row.key}>
-                <td style={{ ...labelStyle(false, false), color: T.textMuted, fontStyle: 'italic' }}>{row.label}</td>
+                <td style={{ ...labelStyle(false, false), color: T.brandPrimary, fontStyle: 'italic', fontSize: 10, fontWeight: 600 }}>{row.label}</td>
                 {cols.map(c => {
                   const val = byPeriod[c.period]?.[row.key]
                   const isGood = val !== null && val >= (row.key === 'nrr' || row.key === 'nnr' ? 1.0 : 0.85)
@@ -681,8 +688,8 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
 
       {/* Charts — Ending ACV trend + Movement Mix */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        <div style={{ background: T.bgRaised, borderRadius: 8, padding: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 12 }}>Ending ACV Trend</div>
+        <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: T.brandPrimary, marginBottom: 12, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Ending ACV Trend</div>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={chartData} margin={{ top: 5, right: 10, bottom: 30, left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={T.chartGrid} />
@@ -697,8 +704,8 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div style={{ background: T.bgRaised, borderRadius: 8, padding: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 12 }}>Movement Mix (lb=12)</div>
+        <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: T.brandPrimary, marginBottom: 12, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Movement Mix (lb=12)</div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chartData} margin={{ top: 5, right: 10, bottom: 30, left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={T.chartGrid} vertical={false} />
@@ -773,12 +780,12 @@ function CohortAnalysis({ bridgeTable, T }) {
 
   // Color scale for retention heatmap
   const heatColor = (pct) => {
-    if (pct === null) return 'transparent'
-    if (pct >= 1.0)  return '#BBF7D0'  // green
-    if (pct >= 0.85) return '#D1FAE5'
-    if (pct >= 0.70) return '#FEF3C7'  // amber
-    if (pct >= 0.50) return '#FED7AA'
-    return '#FECACA'                    // red
+    if (pct === null || pct === undefined) return 'transparent'
+    if (pct >= 1.0)  return 'rgba(16,185,129,0.18)'   // growth green
+    if (pct >= 0.85) return 'rgba(16,185,129,0.09)'
+    if (pct >= 0.70) return 'rgba(245,158,11,0.15)'   // warning amber
+    if (pct >= 0.50) return 'rgba(245,158,11,0.28)'
+    return 'rgba(239,68,68,0.18)'                      // decline red
   }
 
   const fmtCell = (row, offset) => {
@@ -793,13 +800,13 @@ function CohortAnalysis({ bridgeTable, T }) {
     return '—'
   }
 
-  const thS = { padding: '5px 8px', fontSize: 10, fontWeight: 700, color: T.textMuted,
-    textAlign: 'right', background: T.bgRaised, borderBottom: `1px solid ${T.borderDefault}`,
-    whiteSpace: 'nowrap', fontFamily: T.mono }
+  const thS = { padding: '6px 10px', fontSize: 10, fontWeight: 700, color: T.textMuted,
+    textAlign: 'right', background: T.bgRaised, borderBottom: `2px solid ${T.borderDefault}`,
+    whiteSpace: 'nowrap', fontFamily: T.mono, letterSpacing: '0.04em' }
   const tdS = (bg='transparent') => ({
-    padding: '4px 8px', fontSize: 11, textAlign: 'right',
+    padding: '5px 10px', fontSize: 11, textAlign: 'right',
     borderBottom: `1px solid ${T.borderSubtle}`, fontFamily: T.mono,
-    background: bg, color: T.textPrimary, whiteSpace: 'nowrap',
+    background: bg, color: T.textPrimary, whiteSpace: 'nowrap', letterSpacing: '-0.01em',
   })
 
   return (
@@ -807,30 +814,34 @@ function CohortAnalysis({ bridgeTable, T }) {
       {/* Controls row */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         {/* Grain */}
-        <div style={{ display: 'flex', gap: 2, background: T.bgRaised, padding: 3, borderRadius: 7 }}>
+        <div style={{ display: 'flex', gap: 3, background: T.bgRaised, padding: 3, borderRadius: 8, border: `1px solid ${T.borderSubtle}` }}>
           {[['yearly','Yearly'],['quarterly','Quarterly']].map(([v,l]) => (
             <button key={v} onClick={() => setCohortGrain(v)} style={{
-              padding: '3px 12px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 11,
+              padding: '4px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11,
               background: cohortGrain === v ? T.brandPrimary : 'transparent',
-              color: cohortGrain === v ? '#fff' : T.textMuted, fontWeight: cohortGrain === v ? 700 : 400,
+              color: cohortGrain === v ? '#fff' : T.textMuted,
+              fontWeight: cohortGrain === v ? 700 : 400, transition: 'all 0.15s',
             }}>{l}</button>
           ))}
         </div>
         {/* Metric */}
-        <div style={{ display: 'flex', gap: 2, background: T.bgRaised, padding: 3, borderRadius: 7 }}>
+        <div style={{ display: 'flex', gap: 3, background: T.bgRaised, padding: 3, borderRadius: 8, border: `1px solid ${T.borderSubtle}` }}>
           {[['acv','ACV $'],['count','Customers'],['acvPerCust','ACV / Cust']].map(([v,l]) => (
             <button key={v} onClick={() => setCohortMetric(v)} style={{
-              padding: '3px 12px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 11,
+              padding: '4px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11,
               background: cohortMetric === v ? T.brandPrimary : 'transparent',
-              color: cohortMetric === v ? '#fff' : T.textMuted, fontWeight: cohortMetric === v ? 700 : 400,
+              color: cohortMetric === v ? '#fff' : T.textMuted,
+              fontWeight: cohortMetric === v ? 700 : 400, transition: 'all 0.15s',
             }}>{l}</button>
           ))}
         </div>
         {/* Retention toggle */}
         <button onClick={() => setShowRetention(r => !r)} style={{
-          padding: '4px 14px', borderRadius: 7, border: `1px solid ${showRetention ? T.brandPrimary : T.borderDefault}`,
-          background: showRetention ? T.brandSoft : 'transparent', fontSize: 11, cursor: 'pointer',
-          color: showRetention ? T.brandPrimary : T.textSecondary, fontWeight: showRetention ? 700 : 400,
+          padding: '4px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 11, transition: 'all 0.15s',
+          border: `1px solid ${showRetention ? T.brandPrimary : T.borderDefault}`,
+          background: showRetention ? T.brandSoft : 'transparent',
+          color: showRetention ? T.brandPrimary : T.textSecondary,
+          fontWeight: showRetention ? 700 : 400,
         }}>% Retention</button>
 
         <div style={{ width: 1, height: 20, background: T.borderDefault }} />
@@ -838,8 +849,9 @@ function CohortAnalysis({ bridgeTable, T }) {
         {/* Filters */}
         {products.length > 2 && (
           <select value={filterProduct} onChange={e => setFilterProduct(e.target.value)} style={{
-            padding: '3px 8px', borderRadius: 6, border: `1px solid ${T.borderDefault}`,
-            background: T.bgSurface, color: T.textPrimary, fontSize: 10, cursor: 'pointer',
+            padding: '4px 10px', borderRadius: 7, border: `1px solid ${T.borderDefault}`,
+            background: T.bgSurface, color: T.textPrimary, fontSize: 11,
+            fontFamily: T.mono, cursor: 'pointer', outline: 'none',
           }}>
             <option value=''>All Products</option>
             {products.filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}
@@ -847,8 +859,9 @@ function CohortAnalysis({ bridgeTable, T }) {
         )}
         {channels.length > 2 && (
           <select value={filterChannel} onChange={e => setFilterChannel(e.target.value)} style={{
-            padding: '3px 8px', borderRadius: 6, border: `1px solid ${T.borderDefault}`,
-            background: T.bgSurface, color: T.textPrimary, fontSize: 10, cursor: 'pointer',
+            padding: '4px 10px', borderRadius: 7, border: `1px solid ${T.borderDefault}`,
+            background: T.bgSurface, color: T.textPrimary, fontSize: 11,
+            fontFamily: T.mono, cursor: 'pointer', outline: 'none',
           }}>
             <option value=''>All Channels</option>
             {channels.filter(Boolean).map(c => <option key={c} value={c}>{c}</option>)}
@@ -856,8 +869,9 @@ function CohortAnalysis({ bridgeTable, T }) {
         )}
         {regions.length > 2 && (
           <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} style={{
-            padding: '3px 8px', borderRadius: 6, border: `1px solid ${T.borderDefault}`,
-            background: T.bgSurface, color: T.textPrimary, fontSize: 10, cursor: 'pointer',
+            padding: '4px 10px', borderRadius: 7, border: `1px solid ${T.borderDefault}`,
+            background: T.bgSurface, color: T.textPrimary, fontSize: 11,
+            fontFamily: T.mono, cursor: 'pointer', outline: 'none',
           }}>
             <option value=''>All Regions</option>
             {regions.filter(Boolean).map(r => <option key={r} value={r}>{r}</option>)}
@@ -866,7 +880,7 @@ function CohortAnalysis({ bridgeTable, T }) {
       </div>
 
       {/* Cohort Grid */}
-      <div style={{ overflowX: 'auto', borderRadius: 8, border: `1px solid ${T.borderDefault}` }}>
+      <div style={{ overflowX: 'auto', borderRadius: 10, border: `1px solid ${T.borderDefault}`, boxShadow: `0 1px 4px rgba(0,0,0,0.04)` }}>
         <table style={{ borderCollapse: 'collapse', width: '100%' }}>
           <thead>
             <tr>
@@ -883,9 +897,12 @@ function CohortAnalysis({ bridgeTable, T }) {
           <tbody>
             {rows.map((row, ri) => (
               <tr key={row.label}>
-                <td style={{ padding: '4px 12px', fontSize: 11, fontWeight: 700,
+                <td style={{
+                  padding: '5px 14px', fontSize: 11, fontWeight: 700,
                   color: T.textPrimary, borderBottom: `1px solid ${T.borderSubtle}`,
-                  background: ri % 2 === 0 ? 'transparent' : T.bgRaised }}>
+                  borderLeft: `3px solid ${T.brandPrimary}`,
+                  background: ri % 2 === 0 ? 'transparent' : T.bgRaised,
+                }}>
                   {row.label}
                 </td>
                 {offsets.map(o => {
@@ -900,9 +917,12 @@ function CohortAnalysis({ bridgeTable, T }) {
               </tr>
             ))}
             {/* Grand Total row */}
-            <tr style={{ background: T.bgRaised }}>
-              <td style={{ padding: '5px 12px', fontSize: 11, fontWeight: 700,
-                color: T.textPrimary, borderTop: `2px solid ${T.borderDefault}` }}>
+            <tr style={{ background: T.brandSoft }}>
+              <td style={{
+                padding: '5px 14px', fontSize: 11, fontWeight: 700,
+                color: T.brandPrimary, borderTop: `2px solid ${T.borderDefault}`,
+                borderLeft: `3px solid ${T.brandPrimary}`,
+              }}>
                 Grand Total
               </td>
               {offsets.map(o => {
@@ -922,7 +942,7 @@ function CohortAnalysis({ bridgeTable, T }) {
       {showRetention && (
         <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'center' }}>
           <span style={{ fontSize: 10, color: T.textMuted }}>Retention:</span>
-          {[['≥100%','#BBF7D0'],['85–100%','#D1FAE5'],['70–85%','#FEF3C7'],['50–70%','#FED7AA'],['<50%','#FECACA']].map(([l,c]) => (
+          {[['≥100%','rgba(16,185,129,0.18)'],['85–100%','rgba(16,185,129,0.09)'],['70–85%','rgba(245,158,11,0.15)'],['50–70%','rgba(245,158,11,0.28)'],['<50%','rgba(239,68,68,0.18)']].map(([l,c]) => (
             <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <div style={{ width: 12, height: 12, borderRadius: 2, background: c }} />
               <span style={{ fontSize: 10, color: T.textMuted }}>{l}</span>
