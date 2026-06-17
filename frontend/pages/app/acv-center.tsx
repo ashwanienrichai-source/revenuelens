@@ -818,14 +818,6 @@ export default function ACVCenter() {
     setRunning(false)
   }
 
-  // Clamp selPeriod within rangePeriods when range changes
-  useEffect(() => {
-    if (!rangePeriods.length) return
-    if (!selPeriod || !rangePeriods.includes(selPeriod)) {
-      setSelPeriod(rangePeriods[rangePeriods.length - 1])
-    }
-  }, [rangePeriods])
-
   // KPIs for selected period
   const kpis = useMemo(() => {
     if (!engineOutput?.bridgeTable?.length) return null
@@ -847,9 +839,9 @@ export default function ACVCenter() {
     if (!engineOutput?.bridgeTable?.length) return ''
     const lb12 = engineOutput.bridgeTable.filter(r => r.monthLookback === 12 && r.bridgeClassification === 'Ending ACV')
     if (!lb12.length) return ''
-    const peak = Math.max(...lb12.map(r => r.bridgeValue))
+    const peak = lb12.reduce((m, r) => r.bridgeValue > m ? r.bridgeValue : m, 0)
     const threshold = peak * 0.01
-    const sorted = lb12.sort((a,b) => a.date - b.date)
+    const sorted = lb12.slice().sort((a,b) => a.date - b.date)
     const first = sorted.find(r => r.bridgeValue >= threshold)
     if (!first) return ''
     return `${first.date.getFullYear()}-${String(first.date.getMonth()+1).padStart(2,'0')}`
@@ -863,6 +855,14 @@ export default function ACVCenter() {
   const rangePeriods = useMemo(() =>
     periods.filter(p => (!effectiveStart || p >= effectiveStart) && (!effectiveEnd || p <= effectiveEnd))
   , [periods, effectiveStart, effectiveEnd])
+
+  // Clamp selPeriod within rangePeriods when range changes
+  useEffect(() => {
+    if (!rangePeriods.length) return
+    if (!selPeriod || !rangePeriods.includes(selPeriod)) {
+      setSelPeriod(rangePeriods[rangePeriods.length - 1])
+    }
+  }, [rangePeriods])
 
   // Format period label
   const fmtPeriod = p => {
