@@ -247,7 +247,7 @@ function ACVWaterfall({ bridgeTable, lb, period, T }) {
 }
 
 // ─── Expiry Pool Timeline Chart ───────────────────────────────────────────────
-function ExpiryTimeline({ bridgeTable, selPeriod, T }) {
+function ExpiryTimeline({ bridgeTable, selPeriod, T, rangeStart='', rangeEnd='' }) {
   const data = useMemo(() => {
     if (!bridgeTable.length) return []
     const rows = bridgeTable.filter(r =>
@@ -260,6 +260,7 @@ function ExpiryTimeline({ bridgeTable, selPeriod, T }) {
       byPeriod[k] = (byPeriod[k] || 0) + r.bridgeValue
     }
     return Object.entries(byPeriod)
+      .filter(([k]) => (!rangeStart || k >= rangeStart) && (!rangeEnd || k <= rangeEnd))
       .sort(([a],[b]) => a.localeCompare(b))
       .map(([period, value]) => ({
         period: period.slice(0,7),
@@ -299,8 +300,11 @@ function ExpiryTimeline({ bridgeTable, selPeriod, T }) {
 }
 
 // ─── Renewal Rate Trend Chart ─────────────────────────────────────────────────
-function RenewalRateTrend({ bridgeTable, lb, T }) {
-  const data = useMemo(() => buildRenewalRateTrend(bridgeTable, lb), [bridgeTable, lb])
+function RenewalRateTrend({ bridgeTable, lb, T, rangeStart='', rangeEnd='' }) {
+  const data = useMemo(() => {
+    const all = buildRenewalRateTrend(bridgeTable, lb)
+    return all.filter(r => (!rangeStart || r.date >= rangeStart) && (!rangeEnd || r.date <= rangeEnd))
+  }, [bridgeTable, lb, rangeStart, rangeEnd])
 
   if (!data.length) return <div style={{ padding: 40, textAlign: 'center', color: T.textMuted, fontSize: 12 }}>Insufficient data for renewal rate trend</div>
 
@@ -446,11 +450,12 @@ function ACVTopMovers({ bridgeTable, lb, period, T }) {
 }
 
 // ─── Historical ACV Trend ─────────────────────────────────────────────────────
-function HistoricalACV({ bridgeTable, T }) {
+function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
   const data = useMemo(() => {
-    const periods = [...new Set(bridgeTable.filter(r => r.monthLookback === 12).map(r =>
+    const allPeriods = [...new Set(bridgeTable.filter(r => r.monthLookback === 12).map(r =>
       `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`)
     )].sort()
+    const periods = allPeriods.filter(p => (!rangeStart || p >= rangeStart) && (!rangeEnd || p <= rangeEnd))
 
     return periods.map(period => {
       const rows = bridgeTable.filter(r => r.monthLookback === 12 &&
@@ -674,9 +679,11 @@ export default function ACVCenter() {
   const [tab, setTab]       = useState('summary')
   const [lb, setLb]         = useState(12)
   const [selPeriod, setSelPeriod] = useState('')
+  const [rangeStart, setRangeStart] = useState('')  // 'YYYY-MM' or ''=auto
+  const [rangeEnd,   setRangeEnd]   = useState('')  // 'YYYY-MM' or ''=all
   const [revenueUnit, setRevenueUnit] = useState('TCV')
   const [apiResults,  setApiResults]  = useState(null)
-  const [hasStoredData, setHasStoredData] = useState(true) // optimistic — assume data exists until proven otherwise
+  const [hasStoredData, setHasStoredData] = useState(true)
 
   // Auth check
   useEffect(() => {
@@ -811,13 +818,21 @@ export default function ACVCenter() {
     setRunning(false)
   }
 
+  // Clamp selPeriod within rangePeriods when range changes
+  useEffect(() => {
+    if (!rangePeriods.length) return
+    if (!selPeriod || !rangePeriods.includes(selPeriod)) {
+      setSelPeriod(rangePeriods[rangePeriods.length - 1])
+    }
+  }, [rangePeriods])
+
   // KPIs for selected period
   const kpis = useMemo(() => {
     if (!engineOutput?.bridgeTable?.length) return null
     return calcACVKPIs(engineOutput.bridgeTable, lb, selPeriod)
   }, [engineOutput, lb, selPeriod])
 
-  // All available periods
+  // All available periods (full)
   const periods = useMemo(() => {
     if (!engineOutput?.bridgeTable?.length) return []
     return [...new Set(
@@ -826,6 +841,28 @@ export default function ACVCenter() {
         .map(r => `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`)
     )].sort()
   }, [engineOutput, lb])
+
+  // Auto-detect material start: first period where Ending ACV > 1% of peak
+  const materialStart = useMemo(() => {
+    if (!engineOutput?.bridgeTable?.length) return ''
+    const lb12 = engineOutput.bridgeTable.filter(r => r.monthLookback === 12 && r.bridgeClassification === 'Ending ACV')
+    if (!lb12.length) return ''
+    const peak = Math.max(...lb12.map(r => r.bridgeValue))
+    const threshold = peak * 0.01
+    const sorted = lb12.sort((a,b) => a.date - b.date)
+    const first = sorted.find(r => r.bridgeValue >= threshold)
+    if (!first) return ''
+    return `${first.date.getFullYear()}-${String(first.date.getMonth()+1).padStart(2,'0')}`
+  }, [engineOutput])
+
+  // Effective range (auto or user-set)
+  const effectiveStart = rangeStart || materialStart
+  const effectiveEnd   = rangeEnd   || (periods.length ? periods[periods.length - 1] : '')
+
+  // Periods filtered to selected range
+  const rangePeriods = useMemo(() =>
+    periods.filter(p => (!effectiveStart || p >= effectiveStart) && (!effectiveEnd || p <= effectiveEnd))
+  , [periods, effectiveStart, effectiveEnd])
 
   // Format period label
   const fmtPeriod = p => {
@@ -880,15 +917,56 @@ export default function ACVCenter() {
             ))}
           </div>
 
-          {/* Period selector */}
+          {/* ── Date Range Control ─────────────────────────────── */}
           {periods.length > 0 && (
-            <select value={selPeriod} onChange={e => setSelPeriod(e.target.value)} style={{
-              padding: '4px 10px', borderRadius: 7, border: `1px solid ${T.borderDefault}`,
-              background: T.bgSurface, color: T.textPrimary, fontSize: 11,
-              fontFamily: T.mono, cursor: 'pointer', outline: 'none',
-            }}>
-              {periods.map(p => <option key={p} value={p}>{fmtPeriod(p)}</option>)}
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* Range start */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 10, color: T.textMuted, fontFamily: T.mono }}>From</span>
+                <select value={rangeStart} onChange={e => setRangeStart(e.target.value)} style={{
+                  padding: '3px 8px', borderRadius: 6, border: `1px solid ${T.borderDefault}`,
+                  background: T.bgSurface, color: T.textPrimary, fontSize: 10,
+                  fontFamily: T.mono, cursor: 'pointer', outline: 'none',
+                }}>
+                  <option value=''>Auto</option>
+                  {periods.map(p => <option key={p} value={p}>{fmtPeriod(p)}</option>)}
+                </select>
+              </div>
+              <span style={{ fontSize: 10, color: T.textMuted }}>→</span>
+              {/* Range end */}
+              <select value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} style={{
+                padding: '3px 8px', borderRadius: 6, border: `1px solid ${T.borderDefault}`,
+                background: T.bgSurface, color: T.textPrimary, fontSize: 10,
+                fontFamily: T.mono, cursor: 'pointer', outline: 'none',
+              }}>
+                <option value=''>Latest</option>
+                {periods.map(p => <option key={p} value={p}>{fmtPeriod(p)}</option>)}
+              </select>
+              {/* Auto badge when using auto-detect */}
+              {!rangeStart && materialStart && (
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                  background: T.brandSoft, color: T.brandPrimary, letterSpacing: '0.05em',
+                }}>AUTO</span>
+              )}
+              {/* Reset range */}
+              {(rangeStart || rangeEnd) && (
+                <button onClick={() => { setRangeStart(''); setRangeEnd('') }} style={{
+                  fontSize: 9, padding: '2px 6px', borderRadius: 4, border: `1px solid ${T.borderDefault}`,
+                  background: 'transparent', color: T.textMuted, cursor: 'pointer',
+                }}>✕</button>
+              )}
+              {/* Separator */}
+              <div style={{ width: 1, height: 16, background: T.borderDefault }} />
+              {/* Period selector — constrained to range */}
+              <select value={selPeriod} onChange={e => setSelPeriod(e.target.value)} style={{
+                padding: '3px 10px', borderRadius: 6, border: `1px solid ${T.brandBorder}`,
+                background: T.brandSoft, color: T.brandPrimary, fontSize: 11,
+                fontFamily: T.mono, cursor: 'pointer', outline: 'none', fontWeight: 700,
+              }}>
+                {rangePeriods.map(p => <option key={p} value={p}>{fmtPeriod(p)}</option>)}
+              </select>
+            </div>
           )}
 
           {/* Back to dashboard */}
@@ -1063,7 +1141,7 @@ export default function ACVCenter() {
               <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Expiry Pool Analysis</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Contracts due for renewal by month — forward-looking view</div>
-                <ExpiryTimeline bridgeTable={engineOutput.bridgeTable} selPeriod={selPeriod} T={T} />
+                <ExpiryTimeline bridgeTable={engineOutput.bridgeTable} selPeriod={selPeriod} T={T} rangeStart={effectiveStart} rangeEnd={effectiveEnd} />
               </div>
             )}
 
@@ -1072,7 +1150,7 @@ export default function ACVCenter() {
               <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Renewal Rate Intelligence</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Gross Renewal = (Expiry Pool − Churn − Churn-Partial) / Expiry Pool · Net Renewal adds Upsell − Downsell</div>
-                <RenewalRateTrend bridgeTable={engineOutput.bridgeTable} lb={lb} T={T} />
+                <RenewalRateTrend bridgeTable={engineOutput.bridgeTable} lb={lb} T={T} rangeStart={effectiveStart} rangeEnd={effectiveEnd} />
               </div>
             )}
 
@@ -1099,7 +1177,7 @@ export default function ACVCenter() {
               <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Historical ACV Performance</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Multi-period ACV trend — lb=12 basis</div>
-                <HistoricalACV bridgeTable={engineOutput.bridgeTable} T={T} />
+                <HistoricalACV bridgeTable={engineOutput.bridgeTable} T={T} rangeStart={effectiveStart} rangeEnd={effectiveEnd} />
               </div>
             )}
 
