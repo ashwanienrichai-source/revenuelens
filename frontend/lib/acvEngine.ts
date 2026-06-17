@@ -116,15 +116,29 @@ export const CLS = {
 } as const
 
 // ── Waterfall order (canonical) ───────────────────────────────────────────────
+// NOT_UP_FOR_RENEWAL = computed display row (not a classification)
+export const NOT_UP = 'Not Up for Renewal'
+
 export const ACV_WATERFALL_ORDER = [
-  CLS.PRIOR, CLS.EXPIRY,
-  CLS.NEW_LOGO, CLS.CROSS_SELL, CLS.UPSELL, CLS.ADDON, CLS.ROB,
-  CLS.RETURNING, CLS.OTHER_IN,
-  CLS.CHURN, CLS.CHURN_P, CLS.DOWNSELL, CLS.LAPSED, CLS.OTHER_OUT,
-  CLS.ENDING,
+  CLS.PRIOR,                        // anchor — left bar
+  CLS.EXPIRY,                       // informational — expiry pool
+  NOT_UP,                           // computed: Expiry - |Churn| - |ChurnP| - |Lapsed|
+  CLS.CHURN,                        // negative
+  CLS.CHURN_P,                      // negative
+  CLS.DOWNSELL,                     // negative
+  CLS.UPSELL,                       // positive
+  CLS.ADDON,                        // positive
+  CLS.CROSS_SELL,                   // positive
+  CLS.NEW_LOGO,                     // positive
+  CLS.LAPSED,                       // negative — temporary
+  CLS.RETURNING,                    // positive
+  CLS.OTHER_IN,                     // neutral
+  CLS.OTHER_OUT,                    // neutral
+  CLS.ENDING,                       // anchor — right bar
 ]
 
 export const ACV_BRIDGE_COLORS: Record<string, string> = {
+  [NOT_UP]:        '#94A3B8',   // grey — reference bar
   [CLS.PRIOR]:     '#3D5068',
   [CLS.ENDING]:    '#475569',
   [CLS.EXPIRY]:    '#7C9DBC',
@@ -819,4 +833,97 @@ export function buildRenewalRateTrend(bridgeTable: ACVBridgeRow[], lb: 1|3|12) {
       return { date: period, grossRenewal: k?.grossRenewal ?? null, netRenewal: k?.netRenewal ?? null, expiryPool: k?.expiryPool ?? 0 }
     })
     .filter(r => r.expiryPool > 0)
+}
+
+// ── Cohort Grid Builder ───────────────────────────────────────────────────────
+// Returns yearly and quarterly cohort grids from bridge table
+// Columns = months since customer's first contract (vintage date), in 3M steps
+// Values = Ending ACV at each time interval
+
+export interface CohortRow {
+  label:    string           // '2018' or '2018Q1'
+  values:   Record<number, number>  // months_since_vintage → Ending ACV
+  custCnt:  Record<number, number>  // months_since_vintage → customer count
+}
+
+export function buildCohortGrid(
+  bridgeTable: ACVBridgeRow[],
+  grain: 'yearly' | 'quarterly' = 'yearly',
+  filters: { product?: string; channel?: string; region?: string } = {}
+): CohortRow[] {
+  const lb12 = bridgeTable.filter(r =>
+    r.monthLookback === 12 &&
+    r.bridgeClassification === 'Ending ACV' &&
+    (!filters.product  || r.product  === filters.product)  &&
+    (!filters.channel  || r.channel  === filters.channel)  &&
+    (!filters.region   || r.region   === filters.region)
+  )
+
+  if (!lb12.length) return []
+
+  // Map: vintageKey → monthsOffset → { acv, custSet }
+  const grid = new Map<string, Map<number, { acv: number; custs: Set<string> }>>()
+
+  for (const r of lb12) {
+    // Vintage key
+    const vy  = r.vintage.getFullYear()
+    const vmo = r.vintage.getMonth()
+    const vKey = grain === 'yearly'
+      ? String(vy)
+      : `${vy}Q${Math.floor(vmo / 3) + 1}`
+
+    // Months since vintage (snap to nearest 3)
+    const rawMonths = (r.date.getFullYear() - r.vintage.getFullYear()) * 12
+                    + (r.date.getMonth() - r.vintage.getMonth())
+    const offset = Math.round(rawMonths / 3) * 3
+    if (offset < 0) continue
+
+    if (!grid.has(vKey)) grid.set(vKey, new Map())
+    const row = grid.get(vKey)!
+    if (!row.has(offset)) row.set(offset, { acv: 0, custs: new Set() })
+    const cell = row.get(offset)!
+    cell.acv += r.bridgeValue
+    cell.custs.add(r.customer)
+  }
+
+  // Sort vintage keys
+  const sortedKeys = [...grid.keys()].sort()
+
+  return sortedKeys.map(label => {
+    const row = grid.get(label)!
+    const values: Record<number, number>  = {}
+    const custCnt: Record<number, number> = {}
+    for (const [offset, cell] of row) {
+      values[offset]  = cell.acv
+      custCnt[offset] = cell.custs.size
+    }
+    return { label, values, custCnt }
+  })
+}
+
+// ── Customer Count KPIs ───────────────────────────────────────────────────────
+
+export function calcCustomerKPIs(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period: string) {
+  const rows = bridgeTable.filter(r =>
+    r.monthLookback === lb &&
+    dk(r.date) === period
+  )
+  const byClass = (cls: string) => new Set(rows.filter(r => r.bridgeClassification === cls).map(r => r.customer))
+
+  const priorCustomers   = byClass('Prior ACV').size
+  const endingCustomers  = byClass('Ending ACV').size
+  const churnedCustomers = byClass('Churn').size + byClass('Churn Partial').size
+  const newCustomers     = byClass('New Logo').size
+  const endingACV        = rows.filter(r => r.bridgeClassification === 'Ending ACV').reduce((s,r) => s + r.bridgeValue, 0)
+  const priorACV         = rows.filter(r => r.bridgeClassification === 'Prior ACV').reduce((s,r) => s + r.bridgeValue, 0)
+
+  return {
+    priorCustomers,
+    endingCustomers,
+    churnedCustomers,
+    newCustomers,
+    custChurnPct:   priorCustomers > 0 ? churnedCustomers / priorCustomers : null,
+    acvPerCustomer: endingCustomers > 0 ? endingACV / endingCustomers : null,
+    priorACVPerCustomer: priorCustomers > 0 ? priorACV / priorCustomers : null,
+  }
 }
