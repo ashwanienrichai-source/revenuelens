@@ -501,6 +501,11 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
 
         // Skip all-zero rows (Alteryx 4.3 Filter)
         if (e.acv === 0 && pAcv === 0 && e.dte === 0) continue
+        // Skip dead-zone rows: pAcv>0, acv=0, dte=0
+        // These are gap months between contracts beyond any expiry pool window
+        // The pACV shift grabbed a prior value but no contract covers this month
+        // Alteryx never generates these rows — dense fill creates them, we remove them
+        if (e.acv === 0 && pAcv !== 0 && e.dte === 0) continue
 
         const [yr, mo] = denseKeys[i].split('-').map(Number)
         allSeries.push({
