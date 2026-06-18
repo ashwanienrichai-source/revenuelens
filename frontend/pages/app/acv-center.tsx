@@ -316,7 +316,9 @@ function ExpiryTimeline({ bridgeTable, selPeriod, T, rangeStart='', rangeEnd='' 
 function RenewalRateTrend({ bridgeTable, lb, T, rangeStart='', rangeEnd='' }) {
   const data = useMemo(() => {
     const all = buildRenewalRateTrend(bridgeTable, lb)
-    return all.filter(r => (!rangeStart || r.date >= rangeStart) && (!rangeEnd || r.date <= rangeEnd))
+    return all.filter(r =>
+      (!rangeStart || r.date >= rangeStart) && (!rangeEnd || r.date <= rangeEnd) && r.expiryPool > 0
+    )
   }, [bridgeTable, lb, rangeStart, rangeEnd])
 
   if (!data.length) return <div style={{ padding: 40, textAlign: 'center', color: T.textMuted, fontSize: 12 }}>Insufficient data for renewal rate trend</div>
@@ -482,10 +484,10 @@ const BRIDGE_ROWS = [
 ]
 
 const METRIC_ROWS = [
-  { key: 'grr',  label: 'Gross Retention Rate', fmt: 'pct' },
-  { key: 'nrr',  label: 'Net Retention Rate',   fmt: 'pct' },
-  { key: 'gnr',  label: 'Gross Renewal Rate',   fmt: 'pct' },
-  { key: 'nnr',  label: 'Net Renewal Rate',      fmt: 'pct' },
+  { key: 'grr', label: 'Gross Retention Rate', fmt: 'pct', good: 0.85, desc: '(Prior - Churn - ChurnP - Downsell) / Prior' },
+  { key: 'nrr', label: 'Net Retention Rate',   fmt: 'pct', good: 1.00, desc: '(Prior - Churn - ChurnP - Downsell + Upsell + AddOn + CrossSell) / Prior' },
+  { key: 'gnr', label: 'Gross Renewal Rate',   fmt: 'pct', good: 0.70, desc: '(Expiry - Churn - ChurnP - Downsell) / Expiry' },
+  { key: 'nnr', label: 'Net Renewal Rate',     fmt: 'pct', good: 0.85, desc: '(Expiry - Churn - ChurnP - Downsell + Upsell) / Expiry' },
 ]
 
 function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
@@ -517,10 +519,12 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
         lapsed:       la, returning: sum('Returning'),
         otherIn:      sum('Other In'), otherOut: sum('Other Out'),
         endingACV:    ending,
-        grr:  ep > 0 ? (ep + ch + cp) / ep       : null,
-        nrr:  ep > 0 ? (ep + ch + cp + up + dn) / ep : null,
-        gnr:  prior > 0 ? ending / prior           : null,
-        nnr:  prior > 0 ? (ending + Math.abs(ch) + Math.abs(cp)) / prior : null,
+        // Retention rates — denominator = Prior ACV
+        grr:  prior > 0 ? (prior + ch + cp + dn) / prior                          : null,
+        nrr:  prior > 0 ? (prior + ch + cp + dn + up + sum('Add on') + sum('Cross-sell')) / prior : null,
+        // Renewal rates — denominator = Expiry Pool
+        gnr:  ep    > 0 ? (ep + ch + cp + dn) / ep                                : null,
+        nnr:  ep    > 0 ? (ep + ch + cp + dn + up) / ep                           : null,
       }
     }
     return { periods: all, byPeriod }
@@ -669,7 +673,7 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
                 <td style={{ ...labelStyle(false, false), color: T.brandPrimary, fontStyle: 'italic', fontSize: 10, fontWeight: 600 }}>{row.label}</td>
                 {cols.map(c => {
                   const val = byPeriod[c.period]?.[row.key]
-                  const isGood = val !== null && val >= (row.key === 'nrr' || row.key === 'nnr' ? 1.0 : 0.85)
+                  const isGood = val !== null && val >= (row.good ?? 0.85)
                   return (
                     <td key={c.label} style={{ ...tdStyle(false), color: val === null ? T.textMuted : isGood ? posColor : negColor }}>
                       {fmtMetric(val)}
@@ -1490,8 +1494,8 @@ export default function ACVCenter() {
                   <KpiCard label="Ending ACV"     value={fmt(kpis.endingACV)}
                     sub={kpis.priorACV > 0 ? `${kpis.netChange >= 0 ? '+' : ''}${fmt(kpis.netChange)} (${((kpis.netChange/kpis.priorACV)*100).toFixed(1)}%)` : null}
                     subGood={kpis.netChange >= 0} T={T} accent />
-                  <KpiCard label="Gross Renewal"  value={fmtPct(kpis.grossRenewal)} subGood={kpis.grossRenewal != null && kpis.grossRenewal >= 0.85} sub={kpis.grossRenewal != null ? (kpis.grossRenewal >= 0.85 ? 'Healthy' : 'Needs attention') : null} T={T} />
-                  <KpiCard label="Net Renewal"    value={fmtPct(kpis.netRenewal)}   subGood={kpis.netRenewal  != null && kpis.netRenewal  >= 1.00} sub={kpis.netRenewal  != null ? (kpis.netRenewal  >= 1.00 ? 'Expanding' : 'Contracting') : null} T={T} />
+                  <KpiCard label="Gross Retention" value={fmtPct(kpis.grossRetention)} subGood={kpis.grossRetention != null && kpis.grossRetention >= 0.85} sub={kpis.grossRetention != null ? (kpis.grossRetention >= 0.85 ? 'Healthy' : 'Needs attention') : null} T={T} />
+                  <KpiCard label="Net Retention"   value={fmtPct(kpis.netRetention)}   subGood={kpis.netRetention   != null && kpis.netRetention   >= 1.00} sub={kpis.netRetention   != null ? (kpis.netRetention   >= 1.00 ? 'Expanding' : 'Contracting') : null} T={T} />
                   <KpiCard label="Expiry Pool"    value={fmt(kpis.expiryPool)} sub="Due to renew" T={T} />
                   <KpiCard label="New Bookings"   value={fmt(kpis.newLogo + kpis.crossSell)} sub="New Logo + Cross-sell" subGood={kpis.newLogo + kpis.crossSell > 0} T={T} />
                 </div>
