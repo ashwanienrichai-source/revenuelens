@@ -532,39 +532,40 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
     return { periods: all, byPeriod }
   }, [bridgeTable, rangeStart, rangeEnd])
 
-  // Collapse to annual or quarterly display columns
+  // Build display columns based on viewMode and selPeriod
+  // 'yearly'    → same month as selPeriod, one column per year
+  //              e.g. selPeriod=Dec-2019 → Dec-16, Dec-17, Dec-18, Dec-19
+  //              lb=12 guarantees: Ending(Dec-N) = Prior(Dec-N+1) — no override needed
+  // 'quarterly' → quarter-end months (Mar/Jun/Sep/Dec) across all years in range
   const cols = useMemo(() => {
+    if (!periods.length) return []
+    const selMo = selPeriod ? selPeriod.slice(5,7) : null  // '12' for Dec
+
     if (viewMode === 'annual') {
-      // Use ONLY the last available period of each year (prefer month 12)
-      // This ensures lb=12 Prior ACV = previous year's Ending ACV (consistent anchors)
-      const years = [...new Set(periods.map(p => p.slice(0,4)))].sort()
-      return years.map(yr => {
-        const yrPeriods = periods.filter(p => p.startsWith(yr))
-        // Prefer December; if absent use the last available period of that year
-        const period = yrPeriods.find(p => p.endsWith('-12'))
-                    || yrPeriods[yrPeriods.length - 1]
-        return { label: `FY${yr.slice(2)}`, period }
-      }).filter(c => c.period)
+      // Same month as selected period, one per year
+      const matchPeriods = selMo
+        ? periods.filter(p => p.slice(5,7) === selMo)
+        : periods.filter(p => p.endsWith('-12'))   // fallback to December
+      return matchPeriods.map(p => {
+        const [yr, mo] = p.split('-').map(Number)
+        const mon = new Date(yr, mo-1).toLocaleString('en-US', { month: 'short' })
+        return { label: `${mon}-${String(yr).slice(2)}`, period: p }
+      })
     } else {
-      // Quarterly: use last month of each calendar quarter (Mar, Jun, Sep, Dec)
-      // This ensures consistent quarter-end snapshots
+      // Quarterly: Mar/Jun/Sep/Dec of each year in range
       const quarterEnd = new Set(['03','06','09','12'])
       const qCols = periods
         .filter(p => quarterEnd.has(p.slice(5,7)))
         .map(p => {
           const [yr, mo] = p.split('-').map(Number)
-          return { label: `${yr.toString().slice(2)}Q${Math.ceil(mo/3)}`, period: p }
+          return { label: `${String(yr).slice(2)}Q${Math.ceil(mo/3)}`, period: p }
         })
-      // If no quarter-end periods exist, fall back to all periods
-      if (!qCols.length) {
-        return periods.map(p => {
-          const [yr, mo] = p.split('-').map(Number)
-          return { label: `${yr.toString().slice(2)}Q${Math.ceil(mo/3)}`, period: p }
-        })
-      }
-      return qCols
+      return qCols.length ? qCols : periods.map(p => {
+        const [yr, mo] = p.split('-').map(Number)
+        return { label: `${String(yr).slice(2)}Q${Math.ceil(mo/3)}`, period: p }
+      })
     }
-  }, [periods, viewMode])
+  }, [periods, viewMode, selPeriod])
 
   const fmtCell = (val, key, priorACV) => {
     if (val === null || val === undefined) return '—'
@@ -631,7 +632,7 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
       {/* Controls — aligned to brand toggle style */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 3, background: T.bgRaised, padding: 3, borderRadius: 8, border: `1px solid ${T.borderSubtle}` }}>
-          {[['annual','Annual'],['quarterly','Quarterly']].map(([v,l]) => (
+          {[['annual','Yearly'],['quarterly','Quarterly']].map(([v,l]) => (
             <button key={v} onClick={() => setViewMode(v)} style={{
               padding: '4px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11,
               background: viewMode === v ? T.brandPrimary : 'transparent',
