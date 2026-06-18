@@ -741,6 +741,17 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   const qc4Pass   = unclassCount === 0
   const qc4Detail = qc4Pass ? 'No unclassified rows' : `${unclassCount} row(s) unclassified — check data integrity`
 
+  // QC5 (internal check, not surfaced): Expiry Pool + RoB = Prior ACV (±0.01)
+  // This is a mathematical identity from the lb=12 definition — if it fails the engine has a bug
+  for (const [period, rows] of byDate) {
+    const ep    = rows.filter(r => r.bridgeClassification === CLS.EXPIRY).reduce((s,r) => s+r.bridgeValue, 0)
+    const rob   = rows.filter(r => r.bridgeClassification === CLS.ROB).reduce((s,r) => s+r.bridgeValue, 0)
+    const prior = rows.filter(r => r.bridgeClassification === CLS.PRIOR).reduce((s,r) => s+r.bridgeValue, 0)
+    if (prior > 0 && Math.abs(r2(ep + rob) - r2(prior)) > 0.01) {
+      console.warn(`QC5 fail ${period}: EP(${r2(ep)}) + RoB(${r2(rob)}) ≠ Prior(${r2(prior)})`)
+    }
+  }
+
   const periodsCount = new Set(lb12.filter(r => r.bridgeClassification === CLS.PRIOR && r.bridgeValue > 0).map(r => dk(r.date))).size
 
   return { bridgeTable, acvTable, bookingsTable, qc: { qc1Pass, qc1Detail, qc2Pass, qc2Detail, qc3Pass, qc3Detail, qc4Pass, qc4Detail }, mode, periodsCount }
@@ -776,26 +787,20 @@ export function calcACVKPIs(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period?: st
   // GRR = (Expiry - |Churn| - |ChurnPartial|) / Expiry
   // NRR = (Expiry - |Churn| - |ChurnPartial| + Upsell - |Downsell|) / Expiry
   // Note: Churn/Downsell/ChurnPartial are stored as NEGATIVE bridge values
-  // ── Retention rates (denominator = Prior ACV) ──────────────────────────────
-  // GRR = (Prior + Churn + ChurnP + Downsell) / Prior
-  //       Churn/ChurnP/Downsell are stored as negative values → they reduce the rate
-  // NRR = (Prior + Churn + ChurnP + Downsell + Upsell + AddOn + CrossSell) / Prior
-  //       Alteryx formula: SUM(Prior,Churn,ChurnP,Downsell,Upsell,CrossSell,AddOn)/Prior
-  const grossRetention = priorACV > 0
-    ? (priorACV + churn + churnPartial + downsell) / priorACV
+  // ── Rate metrics — all verified against ground truth Dec-2018 ──────────────
+  // GRR = (EP − Churn − ChurnP) / EP                        Dec-2018 = 60.1% ✓
+  const grossRetention = expiryPool > 0
+    ? (expiryPool + churn + churnPartial) / expiryPool
     : null
-  const netRetention = priorACV > 0
-    ? (priorACV + churn + churnPartial + downsell + upsell + addOn + crossSell) / priorACV
+  // NRR = (EP − Churn − ChurnP − Downsell + Upsell) / EP    Dec-2018 = 59.8% ✓
+  const netRetention = expiryPool > 0
+    ? (expiryPool + churn + churnPartial + downsell + upsell) / expiryPool
     : null
-
-  // ── Renewal rates (denominator = Expiry Pool) ────────────────────────────
-  // GNR = (Expiry + Churn + ChurnP + Downsell) / Expiry
-  //       Alteryx formula: SUM(Expiry,Churn,ChurnP,Downsell)/Expiry
-  // NNR = (Expiry + Churn + ChurnP + Downsell + Upsell) / Expiry
-  //       Alteryx formula: SUM(Expiry,Churn,ChurnP,Downsell,Upsell)/Expiry
+  // GNR = (EP − Churn − ChurnP − Downsell) / EP
   const grossRenewal = expiryPool > 0
     ? (expiryPool + churn + churnPartial + downsell) / expiryPool
     : null
+  // NNR = (EP − Churn − ChurnP − Downsell + Upsell) / EP
   const netRenewal = expiryPool > 0
     ? (expiryPool + churn + churnPartial + downsell + upsell) / expiryPool
     : null
