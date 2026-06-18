@@ -776,8 +776,29 @@ export function calcACVKPIs(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period?: st
   // GRR = (Expiry - |Churn| - |ChurnPartial|) / Expiry
   // NRR = (Expiry - |Churn| - |ChurnPartial| + Upsell - |Downsell|) / Expiry
   // Note: Churn/Downsell/ChurnPartial are stored as NEGATIVE bridge values
-  const grossRenewal = expiryPool > 0 ? (expiryPool + churn + churnPartial) / expiryPool : null
-  const netRenewal   = expiryPool > 0 ? (expiryPool + churn + churnPartial + upsell + downsell) / expiryPool : null
+  // ── Retention rates (denominator = Prior ACV) ──────────────────────────────
+  // GRR = (Prior + Churn + ChurnP + Downsell) / Prior
+  //       Churn/ChurnP/Downsell are stored as negative values → they reduce the rate
+  // NRR = (Prior + Churn + ChurnP + Downsell + Upsell + AddOn + CrossSell) / Prior
+  //       Alteryx formula: SUM(Prior,Churn,ChurnP,Downsell,Upsell,CrossSell,AddOn)/Prior
+  const grossRetention = priorACV > 0
+    ? (priorACV + churn + churnPartial + downsell) / priorACV
+    : null
+  const netRetention = priorACV > 0
+    ? (priorACV + churn + churnPartial + downsell + upsell + addOn + crossSell) / priorACV
+    : null
+
+  // ── Renewal rates (denominator = Expiry Pool) ────────────────────────────
+  // GNR = (Expiry + Churn + ChurnP + Downsell) / Expiry
+  //       Alteryx formula: SUM(Expiry,Churn,ChurnP,Downsell)/Expiry
+  // NNR = (Expiry + Churn + ChurnP + Downsell + Upsell) / Expiry
+  //       Alteryx formula: SUM(Expiry,Churn,ChurnP,Downsell,Upsell)/Expiry
+  const grossRenewal = expiryPool > 0
+    ? (expiryPool + churn + churnPartial + downsell) / expiryPool
+    : null
+  const netRenewal = expiryPool > 0
+    ? (expiryPool + churn + churnPartial + downsell + upsell) / expiryPool
+    : null
 
   return {
     period: sel, availablePeriods: periods,
@@ -785,6 +806,7 @@ export function calcACVKPIs(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period?: st
     churn, churnPartial, upsell, downsell,
     newLogo, crossSell, returning, addOn, lapsed, rob, otherIn, otherOut,
     netChange:    endingACV - priorACV,
+    grossRetention, netRetention,
     grossRenewal, netRenewal,
   }
 }
@@ -829,7 +851,14 @@ export function buildRenewalRateTrend(bridgeTable: ACVBridgeRow[], lb: 1|3|12) {
   return periods
     .map(period => {
       const k = calcACVKPIs(bridgeTable, lb, period)
-      return { date: period, grossRenewal: k?.grossRenewal ?? null, netRenewal: k?.netRenewal ?? null, expiryPool: k?.expiryPool ?? 0 }
+      return {
+      date:             period,
+      grossRetention:   k?.grossRetention ?? null,
+      netRetention:     k?.netRetention   ?? null,
+      grossRenewal:     k?.grossRenewal   ?? null,
+      netRenewal:       k?.netRenewal     ?? null,
+      expiryPool:       k?.expiryPool     ?? 0,
+    }
     })
     .filter(r => r.expiryPool > 0)
 }
