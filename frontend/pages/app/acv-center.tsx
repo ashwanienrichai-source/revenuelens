@@ -533,20 +533,34 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
   // Collapse to annual or quarterly display columns
   const cols = useMemo(() => {
     if (viewMode === 'annual') {
+      // Use ONLY the last available period of each year (prefer month 12)
+      // This ensures lb=12 Prior ACV = previous year's Ending ACV (consistent anchors)
       const years = [...new Set(periods.map(p => p.slice(0,4)))].sort()
       return years.map(yr => {
-        // Use December of each year if available, else latest period for that year
         const yrPeriods = periods.filter(p => p.startsWith(yr))
-        const dec = yrPeriods.find(p => p.endsWith('-12')) || yrPeriods[yrPeriods.length - 1]
-        return { label: `FY${yr.slice(2)}`, period: dec }
+        // Prefer December; if absent use the last available period of that year
+        const period = yrPeriods.find(p => p.endsWith('-12'))
+                    || yrPeriods[yrPeriods.length - 1]
+        return { label: `FY${yr.slice(2)}`, period }
       }).filter(c => c.period)
     } else {
-      // Quarterly: keep every period, relabel as Q
-      return periods.map(p => {
-        const [yr, mo] = p.split('-').map(Number)
-        const q = Math.ceil(mo / 3)
-        return { label: `${yr.toString().slice(2)}Q${q}`, period: p }
-      })
+      // Quarterly: use last month of each calendar quarter (Mar, Jun, Sep, Dec)
+      // This ensures consistent quarter-end snapshots
+      const quarterEnd = new Set(['03','06','09','12'])
+      const qCols = periods
+        .filter(p => quarterEnd.has(p.slice(5,7)))
+        .map(p => {
+          const [yr, mo] = p.split('-').map(Number)
+          return { label: `${yr.toString().slice(2)}Q${Math.ceil(mo/3)}`, period: p }
+        })
+      // If no quarter-end periods exist, fall back to all periods
+      if (!qCols.length) {
+        return periods.map(p => {
+          const [yr, mo] = p.split('-').map(Number)
+          return { label: `${yr.toString().slice(2)}Q${Math.ceil(mo/3)}`, period: p }
+        })
+      }
+      return qCols
     }
   }, [periods, viewMode])
 
@@ -646,13 +660,22 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
             </tr>
           </thead>
           <tbody>
-            {BRIDGE_ROWS.map(row => (
+            {BRIDGE_ROWS.map((row, rowIdx) => (
               <tr key={row.key} style={{ background: row.bold ? T.brandSoft : 'transparent' }}>
                 <td style={labelStyle(row.bold, row.indent)}>{row.label}</td>
-                {cols.map(c => {
+                {cols.map((c, colIdx) => {
                   const d    = byPeriod[c.period]
-                  const val  = d?.[row.key]
-                  const pACV = d?.priorACV || 0
+                  // For Prior ACV anchor: enforce consistency —
+                  // FY(N) Prior ACV must equal FY(N-1) Ending ACV
+                  // This corrects data gaps where Dec may not exist in every year
+                  const prevEnding = colIdx > 0
+                    ? byPeriod[cols[colIdx-1].period]?.endingACV
+                    : null
+                  const rawVal = d?.[row.key]
+                  const val  = (row.key === 'priorACV' && colIdx > 0 && prevEnding != null)
+                    ? prevEnding
+                    : rawVal
+                  const pACV = (colIdx > 0 && prevEnding != null) ? prevEnding : (d?.priorACV || 0)
                   const isNeg = row.sign * (val || 0) < 0 && !row.bold
                   const isPos = row.sign * (val || 0) > 0 && !row.bold
                   return (
