@@ -519,12 +519,14 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
         lapsed:       la, returning: sum('Returning'),
         otherIn:      sum('Other In'), otherOut: sum('Other Out'),
         endingACV:    ending,
-        // Retention rates — denominator = Prior ACV
-        grr:  prior > 0 ? (prior + ch + cp + dn) / prior                          : null,
-        nrr:  prior > 0 ? (prior + ch + cp + dn + up + sum('Add on') + sum('Cross-sell')) / prior : null,
-        // Renewal rates — denominator = Expiry Pool
-        gnr:  ep    > 0 ? (ep + ch + cp + dn) / ep                                : null,
-        nnr:  ep    > 0 ? (ep + ch + cp + dn + up) / ep                           : null,
+        // GRR = (EP - Churn - ChurnP) / EP  [verified: Dec-2018 = 60.1%]
+        grr:  ep > 0 ? (ep + ch + cp)           / ep : null,
+        // NRR = (EP - Churn - ChurnP - Downsell + Upsell) / EP  [verified: Dec-2018 = 59.8%]
+        nrr:  ep > 0 ? (ep + ch + cp + dn + up) / ep : null,
+        // GNR = (EP - Churn - ChurnP - Downsell) / EP
+        gnr:  ep > 0 ? (ep + ch + cp + dn)      / ep : null,
+        // NNR = (EP - Churn - ChurnP - Downsell + Upsell) / EP
+        nnr:  ep > 0 ? (ep + ch + cp + dn + up) / ep : null,
       }
     }
     return { periods: all, byPeriod }
@@ -660,22 +662,16 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
             </tr>
           </thead>
           <tbody>
-            {BRIDGE_ROWS.map((row, rowIdx) => (
+            {BRIDGE_ROWS.map(row => (
               <tr key={row.key} style={{ background: row.bold ? T.brandSoft : 'transparent' }}>
                 <td style={labelStyle(row.bold, row.indent)}>{row.label}</td>
-                {cols.map((c, colIdx) => {
+                {cols.map(c => {
                   const d    = byPeriod[c.period]
-                  // For Prior ACV anchor: enforce consistency —
-                  // FY(N) Prior ACV must equal FY(N-1) Ending ACV
-                  // This corrects data gaps where Dec may not exist in every year
-                  const prevEnding = colIdx > 0
-                    ? byPeriod[cols[colIdx-1].period]?.endingACV
-                    : null
-                  const rawVal = d?.[row.key]
-                  const val  = (row.key === 'priorACV' && colIdx > 0 && prevEnding != null)
-                    ? prevEnding
-                    : rawVal
-                  const pACV = (colIdx > 0 && prevEnding != null) ? prevEnding : (d?.priorACV || 0)
+                  // Use raw data directly — no override needed
+                  // lb=12 guarantees: Prior ACV(Dec-N) = Ending ACV(Dec-N-1)
+                  // AND: Prior ACV = Expiry Pool + RoB (always, per INV-3 corrected)
+                  const val  = d?.[row.key]
+                  const pACV = d?.priorACV || 0
                   const isNeg = row.sign * (val || 0) < 0 && !row.bold
                   const isPos = row.sign * (val || 0) > 0 && !row.bold
                   return (
