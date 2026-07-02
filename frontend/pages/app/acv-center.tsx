@@ -490,7 +490,7 @@ const METRIC_ROWS = [
   { key: 'nnr', label: 'Net Renewal Rate',     fmt: 'pct', good: 0.85, desc: '(Expiry - Churn - ChurnP - Downsell + Upsell) / Expiry' },
 ]
 
-function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='' }) {
+function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='', selPeriod='' }) {
   const [viewMode, setViewMode] = useState('annual')   // 'annual' | 'quarterly'
   const [dispMode, setDispMode] = useState('dollar')   // 'dollar' | 'pct'
 
@@ -1640,7 +1640,7 @@ export default function ACVCenter() {
               <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Historical ACV Performance</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Multi-period ACV trend — lb=12 basis</div>
-                <HistoricalACV bridgeTable={engineOutput.bridgeTable} T={T} rangeStart={effectiveStart} rangeEnd={effectiveEnd} />
+                <HistoricalACV bridgeTable={engineOutput.bridgeTable} T={T} rangeStart={effectiveStart} rangeEnd={effectiveEnd} selPeriod={selPeriod} />
               </div>
             )}
 
