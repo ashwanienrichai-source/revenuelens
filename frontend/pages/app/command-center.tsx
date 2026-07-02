@@ -960,6 +960,7 @@ export default function CommandCenter() {
 
   // Field mapping
   const [fieldMap, setFieldMap]   = useState({})
+  const [mappingFromStore, setMappingFromStore] = useState(false)  // true when mapping came from upload wizard — skip auto-detect
   const [showOpt, setShowOpt]     = useState(false)
   const [validated, setValidated] = useState(false)
 
@@ -1799,25 +1800,43 @@ export default function CommandCenter() {
       const f = dataCubeStore.toFile(cube)
       setFile(f); setColumns(cube.meta.columns); setRowCount(cube.meta.rowCount||0)
       setIsBridgeOutput(false)
-      const map = cube.meta.mapping||{}; const fm = {}
+
+      // Set engine from analysisType stored at upload time
+      const at = cube.meta.analysisType || ''
+      if      (at === 'mrr_arr') setEngine('mrr')
+      else if (at === 'acv_tcv') setEngine('acv')
+
+      // Set revenueUnit from store
+      const ru = cube.meta.revenueUnit || 'raw'
+      setRevUnit(ru)
+
+      // Apply the mapping the user set in the upload wizard — do NOT auto-detect
+      const map = cube.meta.mapping || {}
+      const fm  = {}
       if (map.customer) fm['customer'] = map.customer
       if (map.date)     fm['date']     = map.date
       if (map.revenue)  fm['revenue']  = map.revenue
       if (map.product)  fm['product']  = map.product
       if (map.channel)  fm['channel']  = map.channel
       if (map.region)   fm['region']   = map.region
+      if (map.quantity) fm['quantity'] = map.quantity
       setFieldMap(fm)
+
+      // Flag: mapping came from upload wizard — skip auto-detect override
+      if (Object.keys(fm).length > 0) setMappingFromStore(true)
     }
   }, [])
 
   useEffect(() => {
     if (!engine||!columns.length) return
+    // Skip auto-map if mapping came from upload wizard — user already set it correctly
+    if (mappingFromStore) return
     setFieldMap(buildAutoMap(engine,columns))
     setShowOpt(false); setValidated(false)
-  }, [engine, columns])
+  }, [engine, columns, mappingFromStore])
 
   async function uploadFile(f) {
-    setFile(f); setUploading(true); setUploadErr(''); setColumns([]); setEngine(null); setFieldMap({}); setResults(null); setIsBridgeOutput(false)
+    setFile(f); setUploading(true); setUploadErr(''); setColumns([]); setEngine(null); setFieldMap({}); setResults(null); setIsBridgeOutput(false); setMappingFromStore(false)
     try {
       const fd = new FormData(); fd.append('file',f)
       const {data} = await axios.post(`${API}/api/columns`,fd,{timeout:90000})
@@ -2458,7 +2477,7 @@ export default function CommandCenter() {
                 )}
 
                 {/* Reset */}
-                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setSelDims('customer');setSelPeriod('');setCohortResults(null);setRawFileRows([])}}
+                <button onClick={()=>{setResults(null);setFile(null);setColumns([]);setEngine(null);setFieldMap({});setMappingFromStore(false);setSelDims('customer');setSelPeriod('');setCohortResults(null);setRawFileRows([])}}
                   style={{height:30,width:30,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:5,border:`1px solid ${T.borderDefault}`,background:'transparent',cursor:'pointer',color:T.textMuted}}
                   onMouseEnter={e=>{e.currentTarget.style.color=T.accentPrimary;e.currentTarget.style.borderColor=T.borderStrong}}
                   onMouseLeave={e=>{e.currentTarget.style.color=T.textMuted;e.currentTarget.style.borderColor=T.borderDefault}}>
