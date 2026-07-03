@@ -270,6 +270,8 @@ export default function UploadPage() {
   const [columns, setColumns]         = useState([])
   const [datasetType, setDatasetType] = useState('revenue')
   const [mapping, setMapping]         = useState({})
+  const [qtyResolution, setQtyResolution] = useState(null) // null | 'exclude' | 'assume_one'
+  const [zeroQtyCount,  setZeroQtyCount]  = useState(0)    // TCV>0 AND Qty<=0 row count
   const [error, setError]             = useState('')
 
   // Quality state
@@ -477,6 +479,12 @@ export default function UploadPage() {
   // Launch
   function launchAnalytics(){
     if(!file||!rawRows.length) return
+    // If quantity mapped and zero-qty contracts exist, user must choose resolution
+    if(analysisType==='acv_tcv' && mapping.quantity && zeroQtyCount > 0 && !qtyResolution){
+      // Scroll to review card — resolution required before launch
+      document.querySelector('[data-qty-card]')?.scrollIntoView({behavior:'smooth'})
+      return
+    }
     const transforms=[]; if(appliedFuzzy) transforms.push('customer_consolidation')
     const csvText=dataCubeStore.buildCsv(columns,rawRows)
     dataCubeStore.save({meta:{fileName:file.name,datasetType,rowCount:rawRows.length,columns,mapping,transforms,revenueUnit,analysisType,createdAt:new Date().toISOString()},csvText,revenueUnit,analysisType})
@@ -485,6 +493,22 @@ export default function UploadPage() {
       // Save pre-mapped rows so acv-center can call FastAPI immediately
       try{
         const MAX=5000
+        // ── In-Scope Rule (Alteryx 2.2 Formula — exact replication) ─────────────────
+        // Out of Scope if: Start > End  OR  TCV <= 0  OR  (TCV > 0 AND Quantity <= 0)
+        // Applied unconditionally — not user-configurable — matches Alteryx workflow exactly
+        // ── Scope rule (Alteryx 2.2 + user resolution for zero-qty) ──────────
+        const isZeroQty = (r) => mapping.quantity && r.tcv > 0 && r.quantity <= 0
+        const isInScope = (r) => {
+          if (r.contractStart && r.contractEnd && r.contractStart > r.contractEnd) return false
+          if (r.tcv <= 0) return false
+          if (isZeroQty(r)) {
+            // Zero-qty: resolution determines behaviour
+            if (!mapping.quantity) return true          // no qty col → include
+            if (qtyResolution === 'assume_one') return true   // user chose assume → include
+            return false                                 // exclude (default / user chose exclude)
+          }
+          return true
+        }
         const mapped=rawRows.slice(0,MAX).map(r=>({
           customer:      String(r[mapping.customer]      ||''),
           product:       String(r[mapping.product]       ||'N/A'),
@@ -493,10 +517,19 @@ export default function UploadPage() {
           contractStart: String(r[mapping.contractStart] ||''),
           contractEnd:   String(r[mapping.contractEnd]   ||''),
           tcv:           parseFloat(String(r[mapping.tcv]||0).replace(/[,$]/g,''))||0,
-          quantity:      parseFloat(String(r[mapping.quantity]||1))||1,
+          // If assume_one and qty=0 → set qty=1; otherwise use actual value
+          quantity:      (() => {
+            const q = parseFloat(String(r[mapping.quantity]||0))||0
+            if (q <= 0 && qtyResolution === 'assume_one' && mapping.quantity) return 1
+            return q
+          })(),
           revenueUnit:   revenueUnit||'TCV',
-        })).filter(r=>r.customer&&r.contractStart&&r.contractEnd&&r.tcv>0)
-        const acvReady={mapped,mapping,revenueUnit,analysisType,fileName:file.name,rowCount:rawRows.length,columns,createdAt:new Date().toISOString()}
+          qtyAssumed:    (() => {
+            const q = parseFloat(String(r[mapping.quantity]||0))||0
+            return q <= 0 && qtyResolution === 'assume_one' && mapping.quantity
+          })(),
+        })).filter(r=>r.customer&&r.contractStart&&r.contractEnd&&isInScope(r))
+        const acvReady={mapped,mapping,revenueUnit,analysisType,fileName:file.name,rowCount:rawRows.length,columns,qtyResolution,zeroQtyCount,createdAt:new Date().toISOString()}
         sessionStorage.setItem('rl_acv_ready',JSON.stringify(acvReady))
       }catch(e){ console.warn('ACV context save failed:',e.message) }
       router.push('/app/acv-center')
@@ -823,6 +856,18 @@ export default function UploadPage() {
                 }else{
                   if(!mapping.customer||!mapping.date||!mapping.revenue){setError('Please map Customer, Date, and Revenue fields.');return}
                 }
+                // Detect zero-quantity contracts when quantity column is mapped
+                if(mapping.quantity){
+                  const zeroQty = rawRows.filter(r => {
+                    const tcv = parseFloat(String(r[mapping.tcv]||0).replace(/[,$]/g,''))||0
+                    const qty = parseFloat(String(r[mapping.quantity]||0))||0
+                    return tcv > 0 && qty <= 0
+                  })
+                  setZeroQtyCount(zeroQty.length)
+                  if(zeroQty.length > 0) setQtyResolution(null) // reset — user must choose
+                } else {
+                  setZeroQtyCount(0); setQtyResolution(null)
+                }
                 setError('');setQState('idle');setAppliedFuzzy(false);setStep('quality')
               }} style={S.btnPrimary}>Data Quality Checks <ArrowRight size={14}/></button>
             </div>
@@ -1140,6 +1185,61 @@ export default function UploadPage() {
                 </span>
               </div>
             </div>
+            {/* ── Quantity Resolution Card (shows only when qty col mapped + zero-qty rows exist) ── */}
+            {analysisType==='acv_tcv' && mapping.quantity && zeroQtyCount > 0 && (
+              <div data-qty-card="true" style={{...S.card,marginBottom:16,border:'1px solid #FDE68A',background:'#FFFBEB'}}>
+                <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
+                  <div style={{fontSize:20,marginTop:2}}>⚠️</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#92400E',marginBottom:4}}>
+                      {zeroQtyCount.toLocaleString()} contract{zeroQtyCount!==1?'s':''} have no quantity value
+                    </div>
+                    <div style={{fontSize:12,color:'#78350F',marginBottom:14,lineHeight:1.5}}>
+                      These contracts have valid TCV but zero or missing quantity.
+                      The ACV bridge will run correctly either way — choose how to handle them for Price × Volume analysis.
+                    </div>
+                    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                      {/* Option 1: Exclude */}
+                      <label style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 14px',borderRadius:8,
+                        border:`1px solid ${qtyResolution==='exclude'?'#2563EB':'#E5E7EB'}`,
+                        background:qtyResolution==='exclude'?'#EFF6FF':'#fff',cursor:'pointer'}}
+                        onClick={()=>setQtyResolution('exclude')}>
+                        <input type="radio" checked={qtyResolution==='exclude'} onChange={()=>setQtyResolution('exclude')}
+                          style={{marginTop:3,accentColor:'#2563EB'}}/>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:600,color:'#111827'}}>Exclude these contracts</div>
+                          <div style={{fontSize:11,color:'#6B7280',marginTop:2}}>
+                            Matches Alteryx scope filter exactly. ACV bridge runs on remaining contracts only.
+                            Excluded contracts shown in bookings table with reason "No quantity value".
+                          </div>
+                        </div>
+                      </label>
+                      {/* Option 2: Assume Qty = 1 */}
+                      <label style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 14px',borderRadius:8,
+                        border:`1px solid ${qtyResolution==='assume_one'?'#2563EB':'#E5E7EB'}`,
+                        background:qtyResolution==='assume_one'?'#EFF6FF':'#fff',cursor:'pointer'}}
+                        onClick={()=>setQtyResolution('assume_one')}>
+                        <input type="radio" checked={qtyResolution==='assume_one'} onChange={()=>setQtyResolution('assume_one')}
+                          style={{marginTop:3,accentColor:'#2563EB'}}/>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:600,color:'#111827'}}>Assume quantity = 1 and include</div>
+                          <div style={{fontSize:11,color:'#6B7280',marginTop:2}}>
+                            All contracts included. Price × Volume runs using TCV as unit price for these contracts.
+                            Best when contracts are dollar-value-only with no defined seat count.
+                          </div>
+                          {qtyResolution==='assume_one' && (
+                            <div style={{marginTop:6,padding:'6px 10px',background:'#FEF3C7',borderRadius:6,fontSize:11,color:'#92400E'}}>
+                              Note: P×V accuracy depends on quantity scale consistency across your dataset.
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setStep('quality')} style={S.btnSecondary}>← Back</button>
               <button onClick={()=>{if(!file||!rawRows.length) return;const csvText=dataCubeStore.buildCsv(columns,rawRows);const blob=new Blob([csvText],{type:'text/csv'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=file.name.replace(/\.(csv|xlsx|xls)$/,'')+'_cleaned.csv';a.click();URL.revokeObjectURL(url)}} style={{...S.btnSecondary,padding:'11px 24px',fontSize:14}}>Download data cube</button>
