@@ -368,7 +368,7 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
     const channel  = String(r.channel  || 'N/A').trim() || 'N/A'
     const region   = String(r.region   || 'N/A').trim() || 'N/A'
     const tcv      = parseNum(r.tcv)
-    const qty      = parseNum(r.quantity) || 1
+    const qty      = parseNum(r.quantity)      // 0 if not provided — needed for Alteryx cond 3
     const cStart   = parseDate(String(r.contractStart || ''))
     const cEnd     = parseDate(String(r.contractEnd   || ''))
     const signing  = parseDate(String(r.signingDate   || ''))
@@ -378,12 +378,21 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
       bookingsTable.push({ customer, product, channel, region, contractStart: cStart!, contractEnd: cEnd!, tcv, acv: 0, quantity: qty, inScope: false, outOfScopeReason: 'Invalid dates' })
       continue
     }
+    // ── In-Scope Rule (Alteryx 2.2 Formula — exact replication) ──────────────
+    // Out of Scope if:
+    //   1. Contract Start Date > Contract End Date
+    //   2. TCV <= 0
+    //   3. TCV > 0 AND Quantity <= 0  (only when quantity column is provided)
     if (cStart > cEnd) {
       bookingsTable.push({ customer, product, channel, region, contractStart: cStart, contractEnd: cEnd, tcv, acv: 0, quantity: qty, inScope: false, outOfScopeReason: 'Start > End' })
       continue
     }
     if (tcv <= 0) {
       bookingsTable.push({ customer, product, channel, region, contractStart: cStart, contractEnd: cEnd, tcv, acv: 0, quantity: qty, inScope: false, outOfScopeReason: 'TCV ≤ 0' })
+      continue
+    }
+    if (tcv > 0 && qty <= 0 && hasQty) {
+      bookingsTable.push({ customer, product, channel, region, contractStart: cStart, contractEnd: cEnd, tcv, acv: 0, quantity: qty, inScope: false, outOfScopeReason: 'TCV > 0 but Quantity ≤ 0' })
       continue
     }
 
