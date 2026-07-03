@@ -1308,7 +1308,7 @@ export default function ACVCenter() {
         contractStart: String(r[mapping.contractStart] || ''),
         contractEnd:   String(r[mapping.contractEnd]   || ''),
         tcv:           parseFloat(String(r[mapping.tcv] || 0).replace(/[,$]/g,'')) || 0,
-        quantity:      parseFloat(String(r[mapping.quantity] || 1)) || 1,
+        quantity:      parseFloat(String(r[mapping.quantity] || 0)) || 0,  // 0=not provided; enables scope condition 3
         revenueUnit:   unit,
       })).filter(r => r.customer && r.contractStart && r.contractEnd && r.tcv > 0)
 
