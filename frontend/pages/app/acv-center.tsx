@@ -659,24 +659,21 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='', selPeriod='
           <thead>
             <tr>
               <th style={{ ...thStyle, textAlign: 'left', minWidth: 160 }}>Classification</th>
-              {cols.map(c => <th key={c.label} style={thStyle}>{c.label}</th>)}
+              {cols.map(col => <th key={col.label} style={thStyle}>{col.label}</th>)}
             </tr>
           </thead>
           <tbody>
             {BRIDGE_ROWS.map(row => (
               <tr key={row.key} style={{ background: row.bold ? T.brandSoft : 'transparent' }}>
                 <td style={labelStyle(row.bold, row.indent)}>{row.label}</td>
-                {cols.map(c => {
-                  const d    = byPeriod[c.period]
-                  // Use raw data directly — no override needed
-                  // lb=12 guarantees: Prior ACV(Dec-N) = Ending ACV(Dec-N-1)
-                  // AND: Prior ACV = Expiry Pool + RoB (always, per INV-3 corrected)
-                  const val  = d?.[row.key]
-                  const pACV = d?.priorACV || 0
+                {cols.map(col => {
+                  const colData = byPeriod[col.period]
+                  const val  = colData?.[row.key]
+                  const pACV = colData?.priorACV || 0
                   const isNeg = row.sign * (val || 0) < 0 && !row.bold
                   const isPos = row.sign * (val || 0) > 0 && !row.bold
                   return (
-                    <td key={c.label} style={tdStyle(row.bold, isNeg && !row.bold, isPos && !row.bold)}>
+                    <td key={col.label} style={tdStyle(row.bold, isNeg && !row.bold, isPos && !row.bold)}>
                       {fmtCell(val, row.key, pACV)}
                     </td>
                   )
@@ -691,11 +688,11 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='', selPeriod='
             {METRIC_ROWS.map(row => (
               <tr key={row.key}>
                 <td style={{ ...labelStyle(false, false), color: T.brandPrimary, fontStyle: 'italic', fontSize: 10, fontWeight: 600 }}>{row.label}</td>
-                {cols.map(c => {
-                  const val = byPeriod[c.period]?.[row.key]
+                {cols.map(col => {
+                  const val = byPeriod[col.period]?.[row.key]
                   const isGood = val !== null && val >= (row.good ?? 0.85)
                   return (
-                    <td key={c.label} style={{ ...tdStyle(false), color: val === null ? T.textMuted : isGood ? posColor : negColor }}>
+                    <td key={col.label} style={{ ...tdStyle(false), color: val === null ? T.textMuted : isGood ? posColor : negColor }}>
                       {fmtMetric(val)}
                     </td>
                   )
@@ -785,7 +782,7 @@ function CohortAnalysis({ bridgeTable, T }) {
       case 'count':      return row.custCnt[offset] || 0
       case 'acvPerCust': {
         const a = row.values[offset]  || 0
-        const c = row.custCnt[offset] || 0
+        const custCount = row.custCnt[offset] || 0
         return c > 0 ? a / c : 0
       }
     }
@@ -1161,7 +1158,8 @@ export default function ACVCenter() {
   // Load pre-computed context from upload wizard → call FastAPI → render
   useEffect(() => {
     // ── Try rl_acv_ready first (set by launchAnalytics in upload wizard) ──────
-    const ready = (() => { try { const r = sessionStorage.getItem('rl_acv_ready'); return r ? JSON.parse(r) : null } catch { return null } })()
+    let ready = null
+    try { const raw = sessionStorage.getItem('rl_acv_ready'); ready = raw ? JSON.parse(raw) : null } catch { ready = null }
     const cube  = dataCubeStore.load()
 
     if (!ready && !cube?.csvText) { setHasStoredData(false); return }  // nothing loaded — show empty state
