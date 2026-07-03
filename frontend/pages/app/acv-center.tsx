@@ -1146,6 +1146,7 @@ export default function ACVCenter() {
   const [rangeEnd,   setRangeEnd]   = useState('')  // 'YYYY-MM' or ''=all
   const [revenueUnit, setRevenueUnit] = useState('TCV')
   const [apiResults,  setApiResults]  = useState(null)
+  const [qtyResolutionInfo, setQtyResolutionInfo] = useState({ resolution: null, count: 0 })
   const [hasStoredData, setHasStoredData] = useState(true)
 
   // Auth check
@@ -1168,6 +1169,9 @@ export default function ACVCenter() {
     const mapping              = ready?.mapping      || cube?.meta?.mapping      || {}
     const revenueUnitFromStore = ready?.revenueUnit  || cube?.meta?.revenueUnit  || 'TCV'
     const analysisType         = ready?.analysisType || cube?.meta?.analysisType || ''
+    const qtyResolutionLoaded  = ready?.qtyResolution  || null
+    const zeroQtyCountLoaded   = ready?.zeroQtyCount   || 0
+    setQtyResolutionInfo({ resolution: qtyResolutionLoaded, count: zeroQtyCountLoaded })
     setRevenueUnit(revenueUnitFromStore)
 
     if (analysisType && analysisType !== 'acv_tcv') {
@@ -1533,6 +1537,35 @@ export default function ACVCenter() {
           <>
             {/* QC Banner */}
             <QCBanner qc={engineOutput.qc} T={T} />
+
+            {/* ── Quantity Resolution Banners ──────────────────────── */}
+            {qtyResolutionInfo.resolution === 'assume_one' && qtyResolutionInfo.count > 0 && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10, marginTop: 8,
+                padding: '10px 16px', borderRadius: 8,
+                background: '#FFFBEB', border: '1px solid #FDE68A',
+              }}>
+                <span style={{ fontSize: 14 }}>⚠️</span>
+                <span style={{ fontSize: 12, color: '#92400E' }}>
+                  <strong>{qtyResolutionInfo.count.toLocaleString()} contracts</strong> had
+                  no quantity value — quantity assumed = 1 for Price × Volume analysis.
+                  ACV bridge is unaffected.
+                </span>
+              </div>
+            )}
+            {qtyResolutionInfo.resolution === 'exclude' && qtyResolutionInfo.count > 0 && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10, marginTop: 8,
+                padding: '10px 16px', borderRadius: 8,
+                background: `${T.growth}12`, border: `1px solid ${T.growth}33`,
+              }}>
+                <span style={{ fontSize: 14 }}>✅</span>
+                <span style={{ fontSize: 12, color: T.growth }}>
+                  <strong>{qtyResolutionInfo.count.toLocaleString()} contracts</strong> excluded
+                  — zero quantity, matching Alteryx scope filter exactly.
+                </span>
+              </div>
+            )}
 
             {/* Tab bar */}
             <div style={{ display: 'flex', gap: 2, overflowX: 'auto', borderBottom: `1px solid ${T.borderDefault}`, marginBottom: 24, scrollbarWidth: 'none' }}>
