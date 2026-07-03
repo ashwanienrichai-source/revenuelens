@@ -497,38 +497,45 @@ export default function UploadPage() {
         // Out of Scope if: Start > End  OR  TCV <= 0  OR  (TCV > 0 AND Quantity <= 0)
         // Applied unconditionally — not user-configurable — matches Alteryx workflow exactly
         // ── Scope rule (Alteryx 2.2 + user resolution for zero-qty) ──────────
-        const isZeroQty = (r) => mapping.quantity && r.tcv > 0 && r.quantity <= 0
-        const isInScope = (r) => {
-          if (r.contractStart && r.contractEnd && r.contractStart > r.contractEnd) return false
-          if (r.tcv <= 0) return false
-          if (isZeroQty(r)) {
-            // Zero-qty: resolution determines behaviour
-            if (!mapping.quantity) return true          // no qty col → include
-            if (qtyResolution === 'assume_one') return true   // user chose assume → include
-            return false                                 // exclude (default / user chose exclude)
+        // Scope helpers — no IIFEs to avoid minification TDZ
+        const qtyColMapped = !!mapping.quantity
+        const assumeOne    = qtyResolution === 'assume_one'
+
+        const getQty = (rawRow) => {
+          const q = parseFloat(String(rawRow[mapping.quantity]||0))||0
+          return (q <= 0 && assumeOne && qtyColMapped) ? 1 : q
+        }
+        const isInScope = (rawRow, tcv, qty) => {
+          const start = String(rawRow[mapping.contractStart]||'')
+          const end   = String(rawRow[mapping.contractEnd]||'')
+          if (start && end && start > end) return false        // Cond 1: Start > End
+          if (tcv <= 0) return false                           // Cond 2: TCV <= 0
+          if (qtyColMapped && tcv > 0 && qty <= 0) {          // Cond 3: TCV>0 AND Qty<=0
+            return assumeOne                                    // include only if assume_one
           }
           return true
         }
-        const mapped=rawRows.slice(0,MAX).map(r=>({
-          customer:      String(r[mapping.customer]      ||''),
-          product:       String(r[mapping.product]       ||'N/A'),
-          channel:       String(r[mapping.channel]       ||'N/A'),
-          region:        String(r[mapping.region]        ||'N/A'),
-          contractStart: String(r[mapping.contractStart] ||''),
-          contractEnd:   String(r[mapping.contractEnd]   ||''),
-          tcv:           parseFloat(String(r[mapping.tcv]||0).replace(/[,$]/g,''))||0,
-          // If assume_one and qty=0 → set qty=1; otherwise use actual value
-          quantity:      (() => {
-            const q = parseFloat(String(r[mapping.quantity]||0))||0
-            if (q <= 0 && qtyResolution === 'assume_one' && mapping.quantity) return 1
-            return q
-          })(),
-          revenueUnit:   revenueUnit||'TCV',
-          qtyAssumed:    (() => {
-            const q = parseFloat(String(r[mapping.quantity]||0))||0
-            return q <= 0 && qtyResolution === 'assume_one' && mapping.quantity
-          })(),
-        })).filter(r=>r.customer&&r.contractStart&&r.contractEnd&&isInScope(r))
+        const mapped = rawRows.slice(0,MAX).map(rawRow => {
+          const tcv = parseFloat(String(rawRow[mapping.tcv]||0).replace(/[,$]/g,''))||0
+          const qty = getQty(rawRow)
+          return {
+            customer:      String(rawRow[mapping.customer]      ||''),
+            product:       String(rawRow[mapping.product]       ||'N/A'),
+            channel:       String(rawRow[mapping.channel]       ||'N/A'),
+            region:        String(rawRow[mapping.region]        ||'N/A'),
+            contractStart: String(rawRow[mapping.contractStart] ||''),
+            contractEnd:   String(rawRow[mapping.contractEnd]   ||''),
+            tcv,
+            quantity:      qty,
+            revenueUnit:   revenueUnit||'TCV',
+            qtyAssumed:    qty === 1 && getQty({[mapping.quantity||'']: '0'}) <= 0 && assumeOne,
+          }
+        }).filter(rawRow => {
+          const tcv = rawRow.tcv
+          const qty = rawRow.quantity
+          return rawRow.customer && rawRow.contractStart && rawRow.contractEnd
+            && isInScope(rawRow, tcv, qty)
+        })
         const acvReady={mapped,mapping,revenueUnit,analysisType,fileName:file.name,rowCount:rawRows.length,columns,qtyResolution,zeroQtyCount,createdAt:new Date().toISOString()}
         sessionStorage.setItem('rl_acv_ready',JSON.stringify(acvReady))
       }catch(e){ console.warn('ACV context save failed:',e.message) }
@@ -1150,7 +1157,18 @@ export default function UploadPage() {
 
             <div style={{display:'flex',gap:10,marginTop:24}}>
               <button onClick={()=>setStep('map')} style={S.btnSecondary}>← Back</button>
-              <button onClick={()=>setStep('review')} style={S.btnPrimary}>Review & Confirm <ArrowRight size={14}/></button>
+              <button onClick={()=>{
+                  if(mapping.quantity && analysisType==='acv_tcv'){
+                    const zq=rawRows.filter(r=>{
+                      const tcv=parseFloat(String(r[mapping.tcv]||0).replace(/[,$]/g,''))||0
+                      const qty=parseFloat(String(r[mapping.quantity]||0))||0
+                      return tcv>0&&qty<=0
+                    })
+                    setZeroQtyCount(zq.length)
+                    if(zq.length>0&&qtyResolution!=='exclude'&&qtyResolution!=='assume_one') setQtyResolution(null)
+                  }
+                  setStep('review')
+                }} style={S.btnPrimary}>Review & Confirm <ArrowRight size={14}/></button>
             </div>
           </div>
         )}
