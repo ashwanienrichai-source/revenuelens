@@ -165,8 +165,8 @@ function parseDate(s: string): Date | null {
   const raw = String(s).trim()
 
   // Try ISO first (most common in CSV exports)
-  const iso = new Date(raw + (raw.includes('T') ? '' : 'T00:00:00'))
-  if (!isNaN(iso.getTime())) return iso
+  const isoDate = new Date(raw + (raw.includes('T') ? '' : 'T00:00:00'))
+  if (!isNaN(isoDate.getTime())) return isoDate
 
   // Multi-format fallback — try common date patterns
   const fmts: Array<(s: string) => Date | null> = [
@@ -194,10 +194,10 @@ function parseDate(s: string): Date | null {
            return mn >= 0 ? new Date(+m[3], mn, +m[2]) : null },
   ]
 
-  for (const fn of fmts) {
+  for (const parseFn of fmts) {
     try {
-      const d = fn(raw)
-      if (d && !isNaN(d.getTime()) && d.getFullYear() > 1900 && d.getFullYear() < 2100) return d
+      const parsedDt = parseFn(raw)
+      if (parsedDt && !isNaN(parsedDt.getTime()) && parsedDt.getFullYear() > 1900 && parsedDt.getFullYear() < 2100) return parsedDt
     } catch { /* continue */ }
   }
   return null
@@ -235,16 +235,16 @@ function daysInMonth(d: Date): number {
 }
 
 // YYYY-MM key for maps
-function dk(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+function dk(dtInput: Date): string {
+  return `${dtInput.getFullYear()}-${String(dtInput.getMonth() + 1).padStart(2, '0')}`
 }
 
 // ── Number Utilities ──────────────────────────────────────────────────────────
 
 function parseNum(v: any): number {
   if (v == null || v === '') return 0
-  const n = Number(String(v).replace(/[,$\s]/g, ''))
-  return isNaN(n) ? 0 : n
+  const numVal = Number(String(v).replace(/[,$\s]/g, ''))
+  return isNaN(numVal) ? 0 : numVal
 }
 
 const r6 = (n: number) => Math.round(n * 1e6) / 1e6
@@ -255,8 +255,8 @@ const r1 = (n: number) => Math.round(n * 10) / 10
 // ACV = Round( (TCV / (DateDiff(End,Start,'days') + 1)) × 365,  6dp )
 // Special: if duration = 0 → use 365
 
-function computeACV(tcv: number, start: Date, end: Date, revenueUnit: 'TCV' | 'ACV'): number {
-  if (revenueUnit === 'ACV') return r6(tcv)
+function computeACV(tcv: number, start: Date, end: Date, revUnitArg: 'TCV' | 'ACV'): number {
+  if (revUnitArg === 'ACV') return r6(tcv)
   const dur = daysBetween(start, end) + 1
   return r6((tcv / (dur > 0 ? dur : 365)) * 365)
 }
@@ -362,17 +362,17 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   const bookingsTable: BookingsRow[] = []
   const contracts: Contract[] = []
 
-  for (const r of rawRows) {
-    const customer = String(r.customer || '').trim()
-    const product  = String(r.product  || 'N/A').trim() || 'N/A'
-    const channel  = String(r.channel  || 'N/A').trim() || 'N/A'
-    const region   = String(r.region   || 'N/A').trim() || 'N/A'
-    const tcv      = parseNum(r.tcv)
-    const qty      = parseNum(r.quantity)      // 0 if not provided — needed for Alteryx cond 3
-    const cStart   = parseDate(String(r.contractStart || ''))
-    const cEnd     = parseDate(String(r.contractEnd   || ''))
-    const signing  = parseDate(String(r.signingDate   || ''))
-    const ru       = r.revenueUnit || 'TCV'
+  for (const inputRow of rawRows) {
+    const customer = String(inputRow.customer || '').trim()
+    const product  = String(inputRow.product  || 'N/A').trim() || 'N/A'
+    const channel  = String(inputRow.channel  || 'N/A').trim() || 'N/A'
+    const region   = String(inputRow.region   || 'N/A').trim() || 'N/A'
+    const tcv      = parseNum(inputRow.tcv)
+    const qty      = parseNum(inputRow.quantity)      // 0 if not provided — needed for Alteryx cond 3
+    const cStart   = parseDate(String(inputRow.contractStart || ''))
+    const cEnd     = parseDate(String(inputRow.contractEnd   || ''))
+    const signing  = parseDate(String(inputRow.signingDate   || ''))
+    const revUnit   = inputRow.revenueUnit || 'TCV'
 
     if (!cStart || !cEnd) {
       bookingsTable.push({ customer, product, channel, region, contractStart: cStart!, contractEnd: cEnd!, tcv, acv: 0, quantity: qty, inScope: false, outOfScopeReason: 'Invalid dates' })
@@ -396,7 +396,7 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
       continue
     }
 
-    const acv = computeACV(tcv, cStart, cEnd, ru)
+    const acv = computeACV(tcv, cStart, cEnd, revUnit)
     bookingsTable.push({ customer, product, channel, region, contractStart: cStart, contractEnd: cEnd, tcv, acv, quantity: qty, inScope: true })
     contracts.push({ customer, product, channel, region, cStart, cEnd, tcv, acv, qty, signingDate: signing })
   }
@@ -410,20 +410,20 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   }
 
   // Detect optional fields — for graceful degradation
-  const hasProduct  = contracts.some(c => c.product  !== 'N/A')
-  const hasChannel  = contracts.some(c => c.channel  !== 'N/A')
-  const hasRegion   = contracts.some(c => c.region   !== 'N/A')
-  const hasQty      = contracts.some(c => c.qty > 0)
+  const hasProduct  = contracts.some(ct => ct.product  !== 'N/A')
+  const hasChannel  = contracts.some(ct => ct.channel  !== 'N/A')
+  const hasRegion   = contracts.some(ct => ct.region   !== 'N/A')
+  const hasQty      = contracts.some(ct => ct.qty > 0)
 
   // ── STEP 2: ACV Table (monthly revenue recognition, lb=1 pass) ────────────
 
   const acvTable: ACVTableRow[] = []
-  for (const c of contracts) {
-    let date = lastOfMonth(c.cStart)
-    while (date <= lastOfMonth(c.cEnd)) {
-      const rev = monthRevenue(c.acv, c.cStart, c.cEnd, date)
+  for (const contract of contracts) {
+    let date = lastOfMonth(contract.cStart)
+    while (date <= lastOfMonth(contract.cEnd)) {
+      const rev = monthRevenue(contract.acv, contract.cStart, contract.cEnd, date)
       if (rev > 0) {
-        acvTable.push({ customer: c.customer, product: c.product, contractStart: c.cStart, contractEnd: c.cEnd, acv: c.acv, date, revenue: rev })
+        acvTable.push({ customer: contract.customer, product: contract.product, contractStart: contract.cStart, contractEnd: contract.cEnd, acv: contract.acv, date, revenue: rev })
       }
       date = nextLOM(date)
     }
@@ -445,9 +445,9 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   for (const lb of LOOKBACKS) {
     const unitMap = new Map<string, Map<string, AggEntry>>()
 
-    for (const c of contracts) {
-      const rows = generateContractRows(c.acv, c.qty, c.cStart, c.cEnd, lb)
-      const uk   = uKey(c)
+    for (const contract of contracts) {
+      const rows = generateContractRows(contract.acv, contract.qty, contract.cStart, contract.cEnd, lb)
+      const uk   = uKey(contract)
       if (!unitMap.has(uk)) unitMap.set(uk, new Map())
       const dateMap = unitMap.get(uk)!
 
@@ -481,9 +481,9 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
 
   // Build unit metadata from all contracts
   const unitMeta = new Map<string, { customer: string; product: string; channel: string; region: string }>()
-  for (const c of contracts) {
-    const uk = uKey(c)
-    if (!unitMeta.has(uk)) unitMeta.set(uk, { customer: c.customer, product: c.product, channel: c.channel, region: c.region })
+  for (const contract of contracts) {
+    const uk = uKey(contract)
+    if (!unitMeta.has(uk)) unitMeta.set(uk, { customer: contract.customer, product: contract.product, channel: contract.channel, region: contract.region })
   }
 
   for (const lb of LOOKBACKS) {
@@ -508,32 +508,29 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
       const denseKeys: string[] = []
       let cur = firstDate
       while (cur <= lastDate) {
-        const k   = dk(cur)
-        const val = dateMap.get(k) || { acv: 0, dte: 0, qty: 0 }
+        const denseKey = dk(cur)
+        const val = dateMap.get(denseKey) || { acv: 0, dte: 0, qty: 0 }
         dense.push(val)
-        denseKeys.push(k)
+        denseKeys.push(denseKey)
         cur = nextLOM(cur)
       }
 
       // pACV shift: Row[i - lb] within this sorted dense series
       for (let i = 0; i < dense.length; i++) {
-        const e    = dense[i]
+        const denseEntry = dense[i]
         const pAcv = i >= lb ? dense[i - lb].acv : 0
         const pQty = i >= lb ? dense[i - lb].qty : 0
 
         // Skip all-zero rows (Alteryx 4.3 Filter)
-        if (e.acv === 0 && pAcv === 0 && e.dte === 0) continue
+        if (denseEntry.acv === 0 && pAcv === 0 && denseEntry.dte === 0) continue
         // Skip dead-zone rows: pAcv>0, acv=0, dte=0
-        // These are gap months between contracts beyond any expiry pool window
-        // The pACV shift grabbed a prior value but no contract covers this month
-        // Alteryx never generates these rows — dense fill creates them, we remove them
-        if (e.acv === 0 && pAcv !== 0 && e.dte === 0) continue
+        if (denseEntry.acv === 0 && pAcv !== 0 && denseEntry.dte === 0) continue
 
         const [yr, mo] = denseKeys[i].split('-').map(Number)
         allSeries.push({
           ...meta,
           date: new Date(yr, mo - 1 + 1, 0),
-          acv: e.acv, dte: e.dte, qty: e.qty,
+          acv: denseEntry.acv, dte: denseEntry.dte, qty: denseEntry.qty,
           pAcv, pQty, lb
         })
       }
@@ -550,18 +547,18 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   const cpMin   = new Map<string, Date>()
   const cpMax   = new Map<string, Date>()
 
-  for (const s of allSeries) {
-    if (s.acv <= 0) continue
-    const uk  = uKey(s)
-    const ck  = s.customer
-    const cpk = `${s.customer}|||${s.product}`
+  for (const series of allSeries) {
+    if (series.acv <= 0) continue
+    const uk  = uKey(series)
+    const ck  = series.customer
+    const cpk = `${series.customer}|||${series.product}`
 
-    if (!unitMin.has(uk) || s.date < unitMin.get(uk)!) unitMin.set(uk, s.date)
-    if (!unitMax.has(uk) || s.date > unitMax.get(uk)!) unitMax.set(uk, s.date)
-    if (!custMin.has(ck) || s.date < custMin.get(ck)!) custMin.set(ck, s.date)
-    if (!custMax.has(ck) || s.date > custMax.get(ck)!) custMax.set(ck, s.date)
-    if (!cpMin.has(cpk)  || s.date < cpMin.get(cpk)!)  cpMin.set(cpk, s.date)
-    if (!cpMax.has(cpk)  || s.date > cpMax.get(cpk)!)  cpMax.set(cpk, s.date)
+    if (!unitMin.has(uk) || series.date < unitMin.get(uk)!) unitMin.set(uk, series.date)
+    if (!unitMax.has(uk) || series.date > unitMax.get(uk)!) unitMax.set(uk, series.date)
+    if (!custMin.has(ck) || series.date < custMin.get(ck)!) custMin.set(ck, series.date)
+    if (!custMax.has(ck) || series.date > custMax.get(ck)!) custMax.set(ck, series.date)
+    if (!cpMin.has(cpk)  || series.date < cpMin.get(cpk)!)  cpMin.set(cpk, series.date)
+    if (!cpMax.has(cpk)  || s.date > cpMax.get(cpk)!)  cpMax.set(cpk, seriesRow.date)
   }
 
   // Vintage = customer first-ever ACV date
@@ -588,9 +585,9 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
     return flag
   }
 
-  for (const s of allSeries) {
-    const uk  = uKey(s)
-    const ck  = s.customer
+  for (const seriesRow of allSeries) {
+    const uk  = uKey(seriesRow)
+    const ck  = seriesRow.customer
     const cpk = `${s.customer}|||${s.product}`
 
     const uMin = unitMin.get(uk)
@@ -601,11 +598,11 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
     const cpMx = cpMax.get(cpk)
 
     // Lookback start date = lastOfMonth(Date - lb months)
-    const lbStartDate = new Date(s.date.getFullYear(), s.date.getMonth() - s.lb + 1, 0)
+    const lbStartDate = new Date(seriesRow.date.getFullYear(), seriesRow.date.getMonth() - s.lb + 1, 0)
 
     // pastACV: round((Date - lastOfMonth(UnitMin)) / 30, 1) >= lb
     const pastACV = uMin
-      ? r1(daysBetween(lastOfMonth(uMin), s.date) / 30) >= s.lb
+      ? r1(daysBetween(lastOfMonth(uMin), seriesRow.date) / 30) >= s.lb
       : false
 
     // futureACV: UnitMax > Date (strictly)
@@ -616,28 +613,28 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
     // ── Classification decision tree (Alteryx 5.2 Formula exactly) ──────────
     let flag = CLS.UNCLASS
 
-    if (s.pAcv === 0 && s.acv !== 0 && !pastACV) {
+    if (seriesRow.pAcv === 0 && s.acv !== 0 && !pastACV) {
       // New inflow — differentiate by customer/product history
       if (cpMn && cpMn <= lbStartDate)        flag = CLS.OTHER_IN
       else if (cMin && cMin <= lbStartDate)   flag = CLS.CROSS_SELL
       else                                     flag = CLS.NEW_LOGO
     }
-    else if (s.pAcv === 0 && s.acv !== 0 && pastACV) {
+    else if (seriesRow.pAcv === 0 && s.acv !== 0 && pastACV) {
       flag = CLS.RETURNING
     }
-    else if (s.pAcv !== 0 && s.acv === 0 && s.dte !== 0 && !futureACV) {
+    else if (seriesRow.pAcv !== 0 && s.acv === 0 && s.dte !== 0 && !futureACV) {
       // Outflow — differentiate by customer/product survival
       if (cpMx && cpMx >= s.date)             flag = CLS.OTHER_OUT
       else if (cMax && cMax >= s.date)        flag = CLS.CHURN_P
       else                                     flag = CLS.CHURN
     }
-    else if (s.acv === 0 && s.dte !== 0 && futureACV) {
+    else if (seriesRow.acv === 0 && s.dte !== 0 && futureACV) {
       flag = CLS.LAPSED
     }
-    else if (s.pAcv !== 0 && s.acv !== 0 && s.dte !== 0) {
+    else if (seriesRow.pAcv !== 0 && s.acv !== 0 && s.dte !== 0) {
       flag = s.pAcv <= s.acv ? CLS.UPSELL : CLS.DOWNSELL
     }
-    else if (s.pAcv !== 0 && s.acv !== 0 && s.dte === 0) {
+    else if (seriesRow.pAcv !== 0 && s.acv !== 0 && s.dte === 0) {
       flag = CLS.ADDON
     }
 
@@ -660,7 +657,7 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
     if (hasQty && (flag === CLS.UPSELL || flag === CLS.DOWNSELL) && s.qty > 0 && s.pQty > 0) {
       const price  = s.acv  / s.qty
       const pPrice = s.pAcv / s.pQty
-      const minQ   = Math.min(s.qty,  s.pQty)
+      const minQ   = Math.min(seriesRow.qty,  s.pQty)
       const minP   = Math.min(price,  pPrice)
       const dP     = price  - pPrice
       const dQ     = s.qty  - s.pQty
@@ -680,7 +677,7 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
     }
 
     // ── Emit bridge rows ────────────────────────────────────────────────────
-    const base = { customer: s.customer, product: s.product, channel: s.channel, region: s.region, vintage, date: s.date, acvNew: s.acv, quantity: s.qty, monthLookback: s.lb as 1|3|12, dteNew: s.dte }
+    const base = { customer: seriesRow.customer, product: seriesRow.product, channel: seriesRow.channel, region: seriesRow.region, vintage, date: seriesRow.date, acvNew: seriesRow.acv, quantity: seriesRow.qty, monthLookback: seriesRow.lb as 1|3|12, dteNew: seriesRow.dte }
 
     const push = (cls: string, val: number) => {
       if (val !== 0) bridgeTable.push({ ...base, bridgeClassification: cls, bridgeValue: val })
@@ -702,10 +699,10 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
 
   // Group by date-key
   const byDate = new Map<string, ACVBridgeRow[]>()
-  for (const r of lb12) {
-    const k = dk(r.date)
-    if (!byDate.has(k)) byDate.set(k, [])
-    byDate.get(k)!.push(r)
+  for (const lb12Row of lb12) {
+    const lb12DateKey = dk(lb12Row.date)
+    if (!byDate.has(lb12DateKey)) byDate.set(lb12DateKey, [])
+    byDate.get(lb12DateKey)!.push(lb12Row)
   }
 
   let qc1Pass = true, qc1Detail = 'All periods reconcile (±0.01)'
@@ -713,10 +710,10 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   const MOVEMENT_EXCL = new Set([CLS.PRIOR, CLS.ENDING, CLS.EXPIRY, CLS.ROB, CLS.PRICE_I, CLS.VOL_I, CLS.POV])
 
   for (const [period, rows] of byDate) {
-    const sum = (cls: string[]) => rows.filter(r => cls.includes(r.bridgeClassification)).reduce((s, r) => s + r.bridgeValue, 0)
+    const sum = (cls: string[]) => rows.filter(r => cls.includes(r.bridgeClassification)).reduce((s, r) => s + cohortRow.bridgeValue, 0)
     const prior   = sum([CLS.PRIOR])
     const ending  = sum([CLS.ENDING])
-    const moves   = rows.filter(r => !MOVEMENT_EXCL.has(r.bridgeClassification)).reduce((s, r) => s + r.bridgeValue, 0)
+    const moves   = rows.filter(r => !MOVEMENT_EXCL.has(r.bridgeClassification)).reduce((s, r) => s + cohortRow.bridgeValue, 0)
 
     if (Math.abs(r2(prior + moves) - r2(ending)) > 0.01) {
       qc1Pass   = false
@@ -737,8 +734,8 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   if (lb12.length > 0 && acvTable.length > 0) {
     const latestPeriod = [...byDate.keys()].sort().pop()!
     const [lyr, lmo] = latestPeriod.split('-').map(Number)
-    const bridgeEnd = (byDate.get(latestPeriod) || []).filter(r => r.bridgeClassification === CLS.ENDING).reduce((s, r) => s + r.bridgeValue, 0)
-    const acvEnd    = acvTable.filter(r => r.date.getFullYear() === lyr && r.date.getMonth() === lmo - 1).reduce((s, r) => s + r.acv, 0)
+    const bridgeEnd = (byDate.get(latestPeriod) || []).filter(r => r.bridgeClassification === CLS.ENDING).reduce((s, r) => s + cohortRow.bridgeValue, 0)
+    const acvEnd    = acvTable.filter(r => cohortRow.date.getFullYear() === lyr && cohortRow.date.getMonth() === lmo - 1).reduce((s, r) => s + r.acv, 0)
     if (bridgeEnd > 0 && Math.abs(r2(bridgeEnd) - r2(acvEnd)) > 0.01) {
       qc3Pass   = false
       qc3Detail = `Bridge ending ACV ${r2(bridgeEnd)} vs ACV Table ${r2(acvEnd)}`
@@ -753,15 +750,15 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   // QC5 (internal check, not surfaced): Expiry Pool + RoB = Prior ACV (±0.01)
   // This is a mathematical identity from the lb=12 definition — if it fails the engine has a bug
   for (const [period, rows] of byDate) {
-    const ep    = rows.filter(r => r.bridgeClassification === CLS.EXPIRY).reduce((s,r) => s+r.bridgeValue, 0)
-    const rob   = rows.filter(r => r.bridgeClassification === CLS.ROB).reduce((s,r) => s+r.bridgeValue, 0)
-    const prior = rows.filter(r => r.bridgeClassification === CLS.PRIOR).reduce((s,r) => s+r.bridgeValue, 0)
+    const ep    = rows.filter(r => r.bridgeClassification === CLS.EXPIRY).reduce((s,r) => s+cohortRow.bridgeValue, 0)
+    const rob   = rows.filter(r => r.bridgeClassification === CLS.ROB).reduce((s,r) => s+cohortRow.bridgeValue, 0)
+    const prior = rows.filter(r => r.bridgeClassification === CLS.PRIOR).reduce((s,r) => s+cohortRow.bridgeValue, 0)
     if (prior > 0 && Math.abs(r2(ep + rob) - r2(prior)) > 0.01) {
       console.warn(`QC5 fail ${period}: EP(${r2(ep)}) + RoB(${r2(rob)}) ≠ Prior(${r2(prior)})`)
     }
   }
 
-  const periodsCount = new Set(lb12.filter(r => r.bridgeClassification === CLS.PRIOR && r.bridgeValue > 0).map(r => dk(r.date))).size
+  const periodsCount = new Set(lb12.filter(r => r.bridgeClassification === CLS.PRIOR && cohortRow.bridgeValue > 0).map(r => dk(cohortRow.date))).size
 
   return { bridgeTable, acvTable, bookingsTable, qc: { qc1Pass, qc1Detail, qc2Pass, qc2Detail, qc3Pass, qc3Detail, qc4Pass, qc4Detail }, mode, periodsCount }
 }
@@ -770,28 +767,28 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
 
 export function calcACVKPIs(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period?: string) {
   const rows    = bridgeTable.filter(r => r.monthLookback === lb)
-  const periods = [...new Set(rows.map(r => dk(r.date)))].sort()
+  const periods = [...new Set(rows.map(r => dk(cohortRow.date)))].sort()
   const sel     = period || periods[periods.length - 1]
   if (!sel) return null
 
-  const pr = rows.filter(r => dk(r.date) === sel)
-  const s  = (cls: string[]) => pr.filter(r => cls.includes(r.bridgeClassification)).reduce((t, r) => t + r.bridgeValue, 0)
+  const pr = rows.filter(r => dk(cohortRow.date) === sel)
+  const sumCls = (cls: string[]) => pr.filter(prRow => cls.includes(prRow.bridgeClassification)).reduce((tot, prRow2) => tot + prRow2.bridgeValue, 0)
 
-  const priorACV     = s([CLS.PRIOR])
-  const endingACV    = s([CLS.ENDING])
-  const expiryPool   = s([CLS.EXPIRY])
-  const churn        = s([CLS.CHURN])
-  const churnPartial = s([CLS.CHURN_P])
-  const upsell       = s([CLS.UPSELL])
-  const downsell     = s([CLS.DOWNSELL])
-  const newLogo      = s([CLS.NEW_LOGO])
-  const crossSell    = s([CLS.CROSS_SELL])
-  const returning    = s([CLS.RETURNING])
-  const addOn        = s([CLS.ADDON])
-  const lapsed       = s([CLS.LAPSED])
-  const rob          = s([CLS.ROB])
-  const otherIn      = s([CLS.OTHER_IN])
-  const otherOut     = s([CLS.OTHER_OUT])
+  const priorACV     = sumCls([CLS.PRIOR])
+  const endingACV    = sumCls([CLS.ENDING])
+  const expiryPool   = sumCls([CLS.EXPIRY])
+  const churn        = sumCls([CLS.CHURN])
+  const churnPartial = sumCls([CLS.CHURN_P])
+  const upsell       = sumCls([CLS.UPSELL])
+  const downsell     = sumCls([CLS.DOWNSELL])
+  const newLogo      = sumCls([CLS.NEW_LOGO])
+  const crossSell    = sumCls([CLS.CROSS_SELL])
+  const returning    = sumCls([CLS.RETURNING])
+  const addOn        = sumCls([CLS.ADDON])
+  const lapsed       = sumCls([CLS.LAPSED])
+  const rob          = sumCls([CLS.ROB])
+  const otherIn      = sumCls([CLS.OTHER_IN])
+  const otherOut     = sumCls([CLS.OTHER_OUT])
 
   // GRR = (Expiry - |Churn| - |ChurnPartial|) / Expiry
   // NRR = (Expiry - |Churn| - |ChurnPartial| + Upsell - |Downsell|) / Expiry
@@ -828,9 +825,9 @@ export function calcACVKPIs(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period?: st
 // ── Waterfall Builder ─────────────────────────────────────────────────────────
 
 export function buildACVWaterfall(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period: string) {
-  const rows   = bridgeTable.filter(r => r.monthLookback === lb && dk(r.date) === period)
+  const rows   = bridgeTable.filter(r => r.monthLookback === lb && dk(cohortRow.date) === period)
   const totals: Record<string, number> = {}
-  for (const r of rows) totals[r.bridgeClassification] = (totals[r.bridgeClassification] || 0) + r.bridgeValue
+  for (const wfRow of rows) totals[wfRow.bridgeClassification] = (totals[wfRow.bridgeClassification] || 0) + wfRow.bridgeValue
 
   let running = 0
   return ACV_WATERFALL_ORDER
@@ -849,11 +846,11 @@ export function buildACVWaterfall(bridgeTable: ACVBridgeRow[], lb: 1|3|12, perio
 
 export function buildExpiryPool(bridgeTable: ACVBridgeRow[], asOfPeriod?: string) {
   const all     = bridgeTable.filter(r => r.monthLookback === 12 && r.bridgeClassification === CLS.EXPIRY)
-  const periods = [...new Set(all.map(r => dk(r.date)))].sort()
+  const periods = [...new Set(all.map(r => dk(cohortRow.date)))].sort()
   const from    = asOfPeriod || periods[periods.length - 1] || ''
   const byP     = new Map<string, number>()
-  for (const r of all) {
-    if (dk(r.date) >= from) byP.set(dk(r.date), (byP.get(dk(r.date)) || 0) + r.bridgeValue)
+  for (const epRow of all) {
+    if (dk(epRow.date) >= from) byP.set(dk(epRow.date), (byP.get(dk(epRow.date)) || 0) + epRow.bridgeValue)
   }
   return [...byP.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([period, value]) => ({ period, value }))
 }
@@ -861,17 +858,17 @@ export function buildExpiryPool(bridgeTable: ACVBridgeRow[], asOfPeriod?: string
 // ── Renewal Rate Trend ────────────────────────────────────────────────────────
 
 export function buildRenewalRateTrend(bridgeTable: ACVBridgeRow[], lb: 1|3|12) {
-  const periods = [...new Set(bridgeTable.filter(r => r.monthLookback === lb).map(r => dk(r.date)))].sort()
+  const periods = [...new Set(bridgeTable.filter(r => r.monthLookback === lb).map(r => dk(cohortRow.date)))].sort()
   return periods
     .map(period => {
-      const k = calcACVKPIs(bridgeTable, lb, period)
+      const kpiResult = calcACVKPIs(bridgeTable, lb, period)
       return {
       date:             period,
-      grossRetention:   k?.grossRetention ?? null,
-      netRetention:     k?.netRetention   ?? null,
-      grossRenewal:     k?.grossRenewal   ?? null,
-      netRenewal:       k?.netRenewal     ?? null,
-      expiryPool:       k?.expiryPool     ?? 0,
+      grossRetention:   kpiResult?.grossRetention ?? null,
+      netRetention:     kpiResult?.netRetention   ?? null,
+      grossRenewal:     kpiResult?.grossRenewal   ?? null,
+      netRenewal:       kpiResult?.netRenewal     ?? null,
+      expiryPool:       kpiResult?.expiryPool     ?? 0,
     }
     })
     .filter(r => r.expiryPool > 0)
@@ -896,9 +893,9 @@ export function buildCohortGrid(
   const lb12 = bridgeTable.filter(r =>
     r.monthLookback === 12 &&
     r.bridgeClassification === 'Ending ACV' &&
-    (!filters.product  || r.product  === filters.product)  &&
-    (!filters.channel  || r.channel  === filters.channel)  &&
-    (!filters.region   || r.region   === filters.region)
+    (!filters.product  || cohortRow.product  === filters.product)  &&
+    (!filters.channel  || cohortRow.channel  === filters.channel)  &&
+    (!filters.region   || cohortRow.region   === filters.region)
   )
 
   if (!lb12.length) return []
@@ -906,17 +903,17 @@ export function buildCohortGrid(
   // Map: vintageKey → monthsOffset → { acv, custSet }
   const grid = new Map<string, Map<number, { acv: number; custs: Set<string> }>>()
 
-  for (const r of lb12) {
+  for (const cohortRow of lb12) {
     // Vintage key
-    const vy  = r.vintage.getFullYear()
-    const vmo = r.vintage.getMonth()
+    const vy  = cohortRow.vintage.getFullYear()
+    const vmo = cohortRow.vintage.getMonth()
     const vKey = grain === 'yearly'
       ? String(vy)
       : `${vy}Q${Math.floor(vmo / 3) + 1}`
 
     // Months since vintage (snap to nearest 3)
-    const rawMonths = (r.date.getFullYear() - r.vintage.getFullYear()) * 12
-                    + (r.date.getMonth() - r.vintage.getMonth())
+    const rawMonths = (cohortRow.date.getFullYear() - cohortRow.vintage.getFullYear()) * 12
+                    + (cohortRow.date.getMonth() - cohortRow.vintage.getMonth())
     const offset = Math.round(rawMonths / 3) * 3
     if (offset < 0) continue
 
@@ -924,8 +921,8 @@ export function buildCohortGrid(
     const row = grid.get(vKey)!
     if (!row.has(offset)) row.set(offset, { acv: 0, custs: new Set() })
     const cell = row.get(offset)!
-    cell.acv += r.bridgeValue
-    cell.custs.add(r.customer)
+    cell.acv += cohortRow.bridgeValue
+    cell.custs.add(cohortRow.customer)
   }
 
   // Sort vintage keys
@@ -948,16 +945,16 @@ export function buildCohortGrid(
 export function calcCustomerKPIs(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period: string) {
   const rows = bridgeTable.filter(r =>
     r.monthLookback === lb &&
-    dk(r.date) === period
+    dk(cohortRow.date) === period
   )
-  const byClass = (cls: string) => new Set(rows.filter(r => r.bridgeClassification === cls).map(r => r.customer))
+  const byClass = (cls: string) => new Set(rows.filter(r => r.bridgeClassification === cls).map(r => cohortRow.customer))
 
   const priorCustomers   = byClass('Prior ACV').size
   const endingCustomers  = byClass('Ending ACV').size
   const churnedCustomers = byClass('Churn').size + byClass('Churn Partial').size
   const newCustomers     = byClass('New Logo').size
-  const endingACV        = rows.filter(r => r.bridgeClassification === 'Ending ACV').reduce((s,r) => s + r.bridgeValue, 0)
-  const priorACV         = rows.filter(r => r.bridgeClassification === 'Prior ACV').reduce((s,r) => s + r.bridgeValue, 0)
+  const endingACV        = rows.filter(r => r.bridgeClassification === 'Ending ACV').reduce((s,r) => s + cohortRow.bridgeValue, 0)
+  const priorACV         = rows.filter(r => r.bridgeClassification === 'Prior ACV').reduce((s,r) => s + cohortRow.bridgeValue, 0)
 
   return {
     priorCustomers,
