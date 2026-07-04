@@ -1190,8 +1190,7 @@ export default function ACVCenter() {
         ].map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(','))
       ]
       const syntheticCube = {
-        csvText: csvLines.join('
-'),
+        csvText: csvLines.join('\n'),
         meta: { fileName: ready.fileName || 'data.csv', mapping: ready.mapping || {}, revenueUnit: revenueUnitFromStore }
       }
       const syntheticMapping = ready.mapping || {}
