@@ -25,7 +25,7 @@ import { dataCubeStore } from '../../lib/dataCubeStore'
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
 
 import {
-  runACVEngine, calcACVKPIs, buildACVWaterfall, buildExpiryPool,
+  calcACVKPIs, buildACVWaterfall, buildExpiryPool,
   buildRenewalRateTrend, buildCohortGrid, calcCustomerKPIs,
   ACV_WATERFALL_ORDER, ACV_BRIDGE_COLORS
 } from '../../lib/acvEngine'
@@ -1180,24 +1180,32 @@ export default function ACVCenter() {
     if (cube?.csvText) {
       callFastAPI(cube, mapping, revenueUnitFromStore)
     } else if (ready?.mapped?.length) {
-      // No csvText but we have pre-mapped rows — run browser engine directly
-      setRunning(true)
-      setTimeout(() => {
-        try {
-          const inputRows = ready.mapped.map(mappedRow => ({ ...mappedRow, revenueUnit: revenueUnitFromStore }))
-          const engineResult = runACVEngine(inputRows)
-          setEngineOutput(engineResult)
-          const bridgeLb12 = engineResult.bridgeTable.filter(bridgeRow => bridgeRow.monthLookback === 12)
-          const allPeriods = [...new Set(
-            bridgeLb12.map(bridgeRow => {
-              const yr = bridgeRow.date.getFullYear()
-              const mo = String(bridgeRow.date.getMonth() + 1).padStart(2, '0')
-              return `${yr}-${mo}`
-            })
-          )].sort()
-          if (allPeriods.length) setSelPeriod(allPeriods[allPeriods.length - 1])
-        } catch(engineErr) { setError(`Engine error: ${engineErr.message}`) }
-        setRunning(false)
+      // Pre-mapped rows available — reconstruct csvText and send to FastAPI
+      // Browser engine removed: all computation runs server-side
+      const csvLines = [
+        ['customer','contractStart','contractEnd','tcv','product','channel','region','quantity'].join(','),
+        ...ready.mapped.map(row => [
+          row.customer, row.contractStart, row.contractEnd, row.tcv,
+          row.product, row.channel, row.region, row.quantity
+        ].map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(','))
+      ]
+      const syntheticCube = {
+        csvText: csvLines.join('
+'),
+        meta: { fileName: ready.fileName || 'data.csv', mapping: ready.mapping || {}, revenueUnit: revenueUnitFromStore }
+      }
+      const syntheticMapping = ready.mapping || {}
+      // Remap synthetic CSV columns to standard field names
+      syntheticMapping.customer = 'customer'
+      syntheticMapping.contractStart = 'contractStart'
+      syntheticMapping.contractEnd = 'contractEnd'
+      syntheticMapping.tcv = 'tcv'
+      syntheticMapping.product = 'product'
+      syntheticMapping.channel = 'channel'
+      syntheticMapping.region = 'region'
+      syntheticMapping.quantity = 'quantity'
+      callFastAPI(syntheticCube, syntheticMapping, revenueUnitFromStore)
+      return
       }, 50)
     }
   }, [])
@@ -1274,70 +1282,16 @@ export default function ACVCenter() {
       }
 
       setRunning(false)
-      // FastAPI returned no bridge data — run browser engine as fallback
-      setTimeout(() => runBrowserEngine(cube.csvText, mapping, unit), 100)
-    } catch(e) {
-      console.warn('FastAPI ACV failed, running browser engine:', e.message)
+      setError('Analysis server returned no data. Please try again or re-upload your file.')
+    } catch(apiErr) {
+      console.error('FastAPI ACV failed:', apiErr.message)
       setRunning(false)
-      // Fallback: browser engine with 5K row cap for preview
-      setTimeout(() => runBrowserEngine(cube.csvText, mapping, unit), 50)
+      setError('Analysis server unavailable. Please wait 30 seconds and try again. If this persists, re-upload your file.')
     }
   }
 
-  function runBrowserEngine(csvText, mapping, unit) {
-    try {
-      const splitLine = (line) => {
-        const vals = []; let cur = '', inQ = false
-        for (let i = 0; i < line.length; i++) {
-          const ch = line[i]
-          if (ch === '"') { inQ = !inQ }
-          else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = '' }
-          else { cur += ch }
-        }
-        vals.push(cur.trim())
-        return vals.map(v => v.replace(/^["']|["']$/g, ''))
-      }
-      const lines   = csvText.split('\n').filter(l => l.trim())
-      const headers = splitLine(lines[0])
+  // Browser engine removed — all computation runs via FastAPI
 
-      // Cap at 10K rows as safety for browser memory — FastAPI handles full datasets
-      // When FastAPI succeeds, this fallback never renders (return above)
-      const MAX_ROWS = 10000
-      const rawRows = lines.slice(1, MAX_ROWS + 1).map(line => {
-        const vals = splitLine(line); const row = {}
-        headers.forEach((h, i) => { row[h] = vals[i] || '' }); return row
-      })
-
-      const mapped = rawRows.map(rawRow => ({
-        customer:      String(rawRow[mapping.customer]      || ''),
-        product:       String(rawRow[mapping.product]       || 'N/A'),
-        channel:       String(rawRow[mapping.channel]       || 'N/A'),
-        region:        String(rawRow[mapping.region]        || 'N/A'),
-        contractStart: String(rawRow[mapping.contractStart] || ''),
-        contractEnd:   String(rawRow[mapping.contractEnd]   || ''),
-        tcv:           parseFloat(String(rawRow[mapping.tcv] || 0).replace(/[,$]/g,'')) || 0,
-        quantity:      parseFloat(String(rawRow[mapping.quantity] || 0)) || 0,
-        revenueUnit:   unit,
-      })).filter(mappedRow => mappedRow.customer && mappedRow.contractStart && mappedRow.contractEnd && mappedRow.tcv > 0)
-
-      if (!mapped.length) {
-        setError('No valid contract rows found. Check Customer, Contract Start, Contract End and TCV are mapped correctly.')
-        setRunning(false)
-        return
-      }
-      const output = runACVEngine(mapped)
-      setEngineOutput(output)
-      const allPeriods = [...new Set(
-        output.bridgeTable
-          .filter(bRow => bRow.monthLookback === 12)
-          .map(bRow => `${bRow.date.getFullYear()}-${String(bRow.date.getMonth()+1).padStart(2,'0')}`)
-      )].sort()
-      if (allPeriods.length) setSelPeriod(allPeriods[allPeriods.length - 1])
-    } catch(engErr) {
-      setError(`Engine error: ${engErr.message}`)
-    }
-    setRunning(false)
-  }
 
   // KPIs for selected period
   const kpis = useMemo(() => {
