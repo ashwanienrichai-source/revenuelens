@@ -1184,14 +1184,19 @@ export default function ACVCenter() {
       setRunning(true)
       setTimeout(() => {
         try {
-          const output = runACVEngine(ready.mapped.map(r => ({ ...r, revenueUnit: revenueUnitFromStore })))
-          setEngineOutput(output)
+          const inputRows = ready.mapped.map(mappedRow => ({ ...mappedRow, revenueUnit: revenueUnitFromStore }))
+          const engineResult = runACVEngine(inputRows)
+          setEngineOutput(engineResult)
+          const bridgeLb12 = engineResult.bridgeTable.filter(bridgeRow => bridgeRow.monthLookback === 12)
           const allPeriods = [...new Set(
-            output.bridgeTable.filter(r => r.monthLookback === 12)
-              .map(r => `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`)
+            bridgeLb12.map(bridgeRow => {
+              const yr = bridgeRow.date.getFullYear()
+              const mo = String(bridgeRow.date.getMonth() + 1).padStart(2, '0')
+              return `${yr}-${mo}`
+            })
           )].sort()
           if (allPeriods.length) setSelPeriod(allPeriods[allPeriods.length - 1])
-        } catch(e) { setError(`Engine error: ${e.message}`) }
+        } catch(engineErr) { setError(`Engine error: ${engineErr.message}`) }
         setRunning(false)
       }, 50)
     }
@@ -1225,20 +1230,20 @@ export default function ACVCenter() {
       // FastAPI returns bridge rows as JSON array — convert to Date objects
       // matching the format runACVEngine() produces so all tabs work identically
       if (data?.bridge?.length > 0) {
-        const bridgeTable = data.bridge.map(r => ({
-          customer:             String(r.Customer        || r.customer        || ''),
-          product:              String(r.Product         || r.product         || 'N/A'),
-          channel:              String(r.Channel         || r.channel         || 'N/A'),
-          region:               String(r.Region          || r.region          || 'N/A'),
-          vintage:              new Date(r.Vintage       || r.vintage         || r.Date || r.date),
-          date:                 new Date(r.Date          || r.date),
-          acvNew:               parseFloat(r['ACV New']  || r.acv_new         || r.acvNew   || 0),
-          quantity:             parseFloat(r.Quantity    || r.quantity         || 0),
-          monthLookback:        parseInt(r['Month Lookback'] || r.month_lookback || r.monthLookback || 12),
-          dteNew:               parseFloat(r['DTE New']  || r.dte_new         || r.dteNew   || 0),
-          bridgeClassification: String(r['Bridge Classification'] || r.bridge_classification || r.bridgeClassification || ''),
-          bridgeValue:          parseFloat(r['Bridge Value']      || r.bridge_value          || r.bridgeValue          || 0),
-        })).filter(r => r.customer && !isNaN(r.date.getTime()) && r.bridgeClassification)
+        const bridgeTable = data.bridge.map(apiRow => ({
+          customer:             String(apiRow.Customer        || apiRow.customer        || ''),
+          product:              String(apiRow.Product         || apiRow.product         || 'N/A'),
+          channel:              String(apiRow.Channel         || apiRow.channel         || 'N/A'),
+          region:               String(apiRow.Region          || apiRow.region          || 'N/A'),
+          vintage:              new Date(apiRow.Vintage       || apiRow.vintage         || apiRow.Date || apiRow.date),
+          date:                 new Date(apiRow.Date          || apiRow.date),
+          acvNew:               parseFloat(apiRow['ACV New']  || apiRow.acv_new         || apiRow.acvNew   || 0),
+          quantity:             parseFloat(apiRow.Quantity    || apiRow.quantity         || 0),
+          monthLookback:        parseInt(apiRow['Month Lookback'] || apiRow.month_lookback || apiRow.monthLookback || 12),
+          dteNew:               parseFloat(apiRow['DTE New']  || apiRow.dte_new         || apiRow.dteNew   || 0),
+          bridgeClassification: String(apiRow['Bridge Classification'] || apiRow.bridge_classification || apiRow.bridgeClassification || ''),
+          bridgeValue:          parseFloat(apiRow['Bridge Value']      || apiRow.bridge_value          || apiRow.bridgeValue          || 0),
+        })).filter(apiRow => apiRow.customer && !isNaN(apiRow.date.getTime()) && apiRow.bridgeClassification)
 
         if (bridgeTable.length > 0) {
           // Build QC from API response or compute locally
@@ -1254,12 +1259,13 @@ export default function ACVCenter() {
             bookingsTable: data.bookings  || [],
             qc,
             mode:          unit,
-            periodsCount:  new Set(bridgeTable.filter(r => r.monthLookback === 12 && r.bridgeClassification === 'Prior ACV').map(r => `${r.date.getFullYear()}-${r.date.getMonth()}`)).size,
+            periodsCount:  new Set(bridgeTable.filter(pcRow => pcRow.monthLookback === 12 && pcRow.bridgeClassification === 'Prior ACV').map(pcRow => `${pcRow.date.getFullYear()}-${pcRow.date.getMonth()}`)).size,
           }
           setEngineOutput(apiOutput)
           const allPeriods = [...new Set(
-            bridgeTable.filter(r => r.monthLookback === 12)
-              .map(r => `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`)
+            bridgeTable
+              .filter(btRow => btRow.monthLookback === 12)
+              .map(btRow => `${btRow.date.getFullYear()}-${String(btRow.date.getMonth()+1).padStart(2,'0')}`)
           )].sort()
           if (allPeriods.length) setSelPeriod(allPeriods[allPeriods.length - 1])
           setRunning(false)
@@ -1302,17 +1308,17 @@ export default function ACVCenter() {
         headers.forEach((h, i) => { row[h] = vals[i] || '' }); return row
       })
 
-      const mapped = rawRows.map(r => ({
-        customer:      String(r[mapping.customer]      || ''),
-        product:       String(r[mapping.product]       || 'N/A'),
-        channel:       String(r[mapping.channel]       || 'N/A'),
-        region:        String(r[mapping.region]        || 'N/A'),
-        contractStart: String(r[mapping.contractStart] || ''),
-        contractEnd:   String(r[mapping.contractEnd]   || ''),
-        tcv:           parseFloat(String(r[mapping.tcv] || 0).replace(/[,$]/g,'')) || 0,
-        quantity:      parseFloat(String(r[mapping.quantity] || 0)) || 0,  // 0=not provided; enables scope condition 3
+      const mapped = rawRows.map(rawRow => ({
+        customer:      String(rawRow[mapping.customer]      || ''),
+        product:       String(rawRow[mapping.product]       || 'N/A'),
+        channel:       String(rawRow[mapping.channel]       || 'N/A'),
+        region:        String(rawRow[mapping.region]        || 'N/A'),
+        contractStart: String(rawRow[mapping.contractStart] || ''),
+        contractEnd:   String(rawRow[mapping.contractEnd]   || ''),
+        tcv:           parseFloat(String(rawRow[mapping.tcv] || 0).replace(/[,$]/g,'')) || 0,
+        quantity:      parseFloat(String(rawRow[mapping.quantity] || 0)) || 0,
         revenueUnit:   unit,
-      })).filter(r => r.customer && r.contractStart && r.contractEnd && r.tcv > 0)
+      })).filter(mappedRow => mappedRow.customer && mappedRow.contractStart && mappedRow.contractEnd && mappedRow.tcv > 0)
 
       if (!mapped.length) {
         setError('No valid contract rows found. Check Customer, Contract Start, Contract End and TCV are mapped correctly.')
@@ -1322,12 +1328,13 @@ export default function ACVCenter() {
       const output = runACVEngine(mapped)
       setEngineOutput(output)
       const allPeriods = [...new Set(
-        output.bridgeTable.filter(r => r.monthLookback === 12)
-          .map(r => `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`)
+        output.bridgeTable
+          .filter(bRow => bRow.monthLookback === 12)
+          .map(bRow => `${bRow.date.getFullYear()}-${String(bRow.date.getMonth()+1).padStart(2,'0')}`)
       )].sort()
       if (allPeriods.length) setSelPeriod(allPeriods[allPeriods.length - 1])
-    } catch(e) {
-      setError(`Engine error: ${e.message}`)
+    } catch(engErr) {
+      setError(`Engine error: ${engErr.message}`)
     }
     setRunning(false)
   }
@@ -1355,8 +1362,8 @@ export default function ACVCenter() {
     if (!lb12.length) return ''
     const peak = lb12.reduce((m, r) => r.bridgeValue > m ? r.bridgeValue : m, 0)
     const threshold = peak * 0.01
-    const sorted = lb12.slice().sort((a,b) => a.date - b.date)
-    const first = sorted.find(r => r.bridgeValue >= threshold)
+    const sorted = lb12.slice().sort((matA, matB) => matA.date - matB.date)
+    const first = sorted.find(matRow => matRow.bridgeValue >= threshold)
     if (!first) return ''
     return `${first.date.getFullYear()}-${String(first.date.getMonth()+1).padStart(2,'0')}`
   }, [engineOutput])
