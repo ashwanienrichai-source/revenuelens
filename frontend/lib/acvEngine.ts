@@ -548,17 +548,17 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   const cpMax   = new Map<string, Date>()
 
   for (const series of allSeries) {
-    if (series.acv <= 0) continue
+    if (serieseriesRow.acv <= 0) continue
     const uk  = uKey(series)
-    const ck  = series.customer
-    const cpk = `${series.customer}|||${series.product}`
+    const ck  = serieseriesRow.customer
+    const cpk = `${serieseriesRow.customer}|||${serieseriesRow.product}`
 
-    if (!unitMin.has(uk) || series.date < unitMin.get(uk)!) unitMin.set(uk, series.date)
-    if (!unitMax.has(uk) || series.date > unitMax.get(uk)!) unitMax.set(uk, series.date)
-    if (!custMin.has(ck) || series.date < custMin.get(ck)!) custMin.set(ck, series.date)
-    if (!custMax.has(ck) || series.date > custMax.get(ck)!) custMax.set(ck, series.date)
-    if (!cpMin.has(cpk)  || series.date < cpMin.get(cpk)!)  cpMin.set(cpk, series.date)
-    if (!cpMax.has(cpk)  || s.date > cpMax.get(cpk)!)  cpMax.set(cpk, seriesRow.date)
+    if (!unitMin.has(uk) || serieseriesRow.date < unitMin.get(uk)!) unitMin.set(uk, serieseriesRow.date)
+    if (!unitMax.has(uk) || serieseriesRow.date > unitMax.get(uk)!) unitMax.set(uk, serieseriesRow.date)
+    if (!custMin.has(ck) || serieseriesRow.date < custMin.get(ck)!) custMin.set(ck, serieseriesRow.date)
+    if (!custMax.has(ck) || serieseriesRow.date > custMax.get(ck)!) custMax.set(ck, serieseriesRow.date)
+    if (!cpMin.has(cpk)  || serieseriesRow.date < cpMin.get(cpk)!)  cpMin.set(cpk, serieseriesRow.date)
+    if (!cpMax.has(cpk)  || seriesRow.date > cpMax.get(cpk)!)  cpMax.set(cpk, seriesRow.date)
   }
 
   // Vintage = customer first-ever ACV date
@@ -588,7 +588,7 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   for (const seriesRow of allSeries) {
     const uk  = uKey(seriesRow)
     const ck  = seriesRow.customer
-    const cpk = `${s.customer}|||${s.product}`
+    const cpk = `${seriesRow.customer}|||${seriesRow.product}`
 
     const uMin = unitMin.get(uk)
     const uMax = unitMax.get(uk)
@@ -598,69 +598,69 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
     const cpMx = cpMax.get(cpk)
 
     // Lookback start date = lastOfMonth(Date - lb months)
-    const lbStartDate = new Date(seriesRow.date.getFullYear(), seriesRow.date.getMonth() - s.lb + 1, 0)
+    const lbStartDate = new Date(seriesRow.date.getFullYear(), seriesRow.date.getMonth() - seriesRow.lb + 1, 0)
 
     // pastACV: round((Date - lastOfMonth(UnitMin)) / 30, 1) >= lb
     const pastACV = uMin
-      ? r1(daysBetween(lastOfMonth(uMin), seriesRow.date) / 30) >= s.lb
+      ? r1(daysBetween(lastOfMonth(uMin), seriesRow.date) / 30) >= seriesRow.lb
       : false
 
     // futureACV: UnitMax > Date (strictly)
-    const futureACV = uMax ? uMax > s.date : false
+    const futureACV = uMax ? uMax > seriesRow.date : false
 
-    const vintage = vintageMap.get(ck) || s.date
+    const vintage = vintageMap.get(ck) || seriesRow.date
 
     // ── Classification decision tree (Alteryx 5.2 Formula exactly) ──────────
     let flag = CLS.UNCLASS
 
-    if (seriesRow.pAcv === 0 && s.acv !== 0 && !pastACV) {
+    if (seriesRow.pAcv === 0 && seriesRow.acv !== 0 && !pastACV) {
       // New inflow — differentiate by customer/product history
       if (cpMn && cpMn <= lbStartDate)        flag = CLS.OTHER_IN
       else if (cMin && cMin <= lbStartDate)   flag = CLS.CROSS_SELL
       else                                     flag = CLS.NEW_LOGO
     }
-    else if (seriesRow.pAcv === 0 && s.acv !== 0 && pastACV) {
+    else if (seriesRow.pAcv === 0 && seriesRow.acv !== 0 && pastACV) {
       flag = CLS.RETURNING
     }
-    else if (seriesRow.pAcv !== 0 && s.acv === 0 && s.dte !== 0 && !futureACV) {
+    else if (seriesRow.pAcv !== 0 && seriesRow.acv === 0 && seriesRow.dte !== 0 && !futureACV) {
       // Outflow — differentiate by customer/product survival
-      if (cpMx && cpMx >= s.date)             flag = CLS.OTHER_OUT
-      else if (cMax && cMax >= s.date)        flag = CLS.CHURN_P
+      if (cpMx && cpMx >= seriesRow.date)             flag = CLS.OTHER_OUT
+      else if (cMax && cMax >= seriesRow.date)        flag = CLS.CHURN_P
       else                                     flag = CLS.CHURN
     }
-    else if (seriesRow.acv === 0 && s.dte !== 0 && futureACV) {
+    else if (seriesRow.acv === 0 && seriesRow.dte !== 0 && futureACV) {
       flag = CLS.LAPSED
     }
-    else if (seriesRow.pAcv !== 0 && s.acv !== 0 && s.dte !== 0) {
-      flag = s.pAcv <= s.acv ? CLS.UPSELL : CLS.DOWNSELL
+    else if (seriesRow.pAcv !== 0 && seriesRow.acv !== 0 && seriesRow.dte !== 0) {
+      flag = seriesRow.pAcv <= seriesRow.acv ? CLS.UPSELL : CLS.DOWNSELL
     }
-    else if (seriesRow.pAcv !== 0 && s.acv !== 0 && s.dte === 0) {
+    else if (seriesRow.pAcv !== 0 && seriesRow.acv !== 0 && seriesRow.dte === 0) {
       flag = CLS.ADDON
     }
 
     flag = remapFlag(flag)
 
-    const bridgeValue = s.acv - s.pAcv
+    const bridgeValue = seriesRow.acv - seriesRow.pAcv
 
     // Metric fields (Alteryx 5.3 Formula)
-    const expiryPool    = s.dte
-    const priorACV      = s.pAcv
-    const endingACV     = s.acv
+    const expiryPool    = seriesRow.dte
+    const priorACV      = seriesRow.pAcv
+    const endingACV     = seriesRow.acv
     // RoB: Add-on → pAcv; Upsell/Downsell with pAcv≠dte → (pAcv-dte) + addon_rob
-    const addOnRob      = flag === CLS.ADDON ? s.pAcv : 0
-    const partialExpiry = (flag === CLS.UPSELL || flag === CLS.DOWNSELL) && s.pAcv !== s.dte
-      ? s.pAcv - s.dte : 0
+    const addOnRob      = flag === CLS.ADDON ? seriesRow.pAcv : 0
+    const partialExpiry = (flag === CLS.UPSELL || flag === CLS.DOWNSELL) && seriesRow.pAcv !== seriesRow.dte
+      ? seriesRow.pAcv - seriesRow.dte : 0
     const rob           = partialExpiry + addOnRob
 
     // Price × Volume (Alteryx 5.4 Formula) — only when Qty available
     let priceImpact = 0, volImpact = 0, pov = 0
-    if (hasQty && (flag === CLS.UPSELL || flag === CLS.DOWNSELL) && s.qty > 0 && s.pQty > 0) {
-      const price  = s.acv  / s.qty
-      const pPrice = s.pAcv / s.pQty
-      const minQ   = Math.min(seriesRow.qty,  s.pQty)
+    if (hasQty && (flag === CLS.UPSELL || flag === CLS.DOWNSELL) && seriesRow.qty > 0 && seriesRow.pQty > 0) {
+      const price  = seriesRow.acv  / seriesRow.qty
+      const pPrice = seriesRow.pAcv / seriesRow.pQty
+      const minQ   = Math.min(seriesRow.qty,  seriesRow.pQty)
       const minP   = Math.min(price,  pPrice)
       const dP     = price  - pPrice
-      const dQ     = s.qty  - s.pQty
+      const dQ     = seriesRow.qty  - seriesRow.pQty
 
       priceImpact = dP * minQ
       volImpact   = dQ * minP
@@ -710,10 +710,10 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   const MOVEMENT_EXCL = new Set([CLS.PRIOR, CLS.ENDING, CLS.EXPIRY, CLS.ROB, CLS.PRICE_I, CLS.VOL_I, CLS.POV])
 
   for (const [period, rows] of byDate) {
-    const sum = (cls: string[]) => rows.filter(r => cls.includes(r.bridgeClassification)).reduce((s, r) => s + cohortRow.bridgeValue, 0)
+    const sum = (cls: string[]) => rows.filter(r => cls.includes(r.bridgeClassification)).reduce((tot, br) => tot + br.bridgeValue, 0)
     const prior   = sum([CLS.PRIOR])
     const ending  = sum([CLS.ENDING])
-    const moves   = rows.filter(r => !MOVEMENT_EXCL.has(r.bridgeClassification)).reduce((s, r) => s + cohortRow.bridgeValue, 0)
+    const moves   = rows.filter(r => !MOVEMENT_EXCL.has(r.bridgeClassification)).reduce((tot, br) => tot + br.bridgeValue, 0)
 
     if (Math.abs(r2(prior + moves) - r2(ending)) > 0.01) {
       qc1Pass   = false
@@ -734,8 +734,8 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   if (lb12.length > 0 && acvTable.length > 0) {
     const latestPeriod = [...byDate.keys()].sort().pop()!
     const [lyr, lmo] = latestPeriod.split('-').map(Number)
-    const bridgeEnd = (byDate.get(latestPeriod) || []).filter(r => r.bridgeClassification === CLS.ENDING).reduce((s, r) => s + cohortRow.bridgeValue, 0)
-    const acvEnd    = acvTable.filter(r => cohortRow.date.getFullYear() === lyr && cohortRow.date.getMonth() === lmo - 1).reduce((s, r) => s + r.acv, 0)
+    const bridgeEnd = (byDate.get(latestPeriod) || []).filter(q3Row => q3Row.bridgeClassification === CLS.ENDING).reduce((tot, q3Row2) => tot + q3Row2.bridgeValue, 0)
+    const acvEnd    = acvTable.filter(a3Row => a3Row.date.getFullYear() === lyr && a3Row.date.getMonth() === lmo - 1).reduce((tot, a3Row2) => tot + a3Row2.acv, 0)
     if (bridgeEnd > 0 && Math.abs(r2(bridgeEnd) - r2(acvEnd)) > 0.01) {
       qc3Pass   = false
       qc3Detail = `Bridge ending ACV ${r2(bridgeEnd)} vs ACV Table ${r2(acvEnd)}`
@@ -750,15 +750,15 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   // QC5 (internal check, not surfaced): Expiry Pool + RoB = Prior ACV (±0.01)
   // This is a mathematical identity from the lb=12 definition — if it fails the engine has a bug
   for (const [period, rows] of byDate) {
-    const ep    = rows.filter(r => r.bridgeClassification === CLS.EXPIRY).reduce((s,r) => s+cohortRow.bridgeValue, 0)
-    const rob   = rows.filter(r => r.bridgeClassification === CLS.ROB).reduce((s,r) => s+cohortRow.bridgeValue, 0)
-    const prior = rows.filter(r => r.bridgeClassification === CLS.PRIOR).reduce((s,r) => s+cohortRow.bridgeValue, 0)
+    const ep    = rows.filter(q5Row => q5Row.bridgeClassification === CLS.EXPIRY).reduce((tot, qcRow) => tot + qcRow.bridgeValue, 0)
+    const rob   = rows.filter(q5Row => q5Row.bridgeClassification === CLS.ROB).reduce((tot, qcRow) => tot + qcRow.bridgeValue, 0)
+    const prior = rows.filter(q5Row => q5Row.bridgeClassification === CLS.PRIOR).reduce((tot, qcRow) => tot + qcRow.bridgeValue, 0)
     if (prior > 0 && Math.abs(r2(ep + rob) - r2(prior)) > 0.01) {
       console.warn(`QC5 fail ${period}: EP(${r2(ep)}) + RoB(${r2(rob)}) ≠ Prior(${r2(prior)})`)
     }
   }
 
-  const periodsCount = new Set(lb12.filter(r => r.bridgeClassification === CLS.PRIOR && cohortRow.bridgeValue > 0).map(r => dk(cohortRow.date))).size
+  const periodsCount = new Set(lb12.filter(pcRow => pcRow.bridgeClassification === CLS.PRIOR && pcRow.bridgeValue > 0).map(pcRow => dk(pcRow.date))).size
 
   return { bridgeTable, acvTable, bookingsTable, qc: { qc1Pass, qc1Detail, qc2Pass, qc2Detail, qc3Pass, qc3Detail, qc4Pass, qc4Detail }, mode, periodsCount }
 }
@@ -893,9 +893,9 @@ export function buildCohortGrid(
   const lb12 = bridgeTable.filter(r =>
     r.monthLookback === 12 &&
     r.bridgeClassification === 'Ending ACV' &&
-    (!filters.product  || cohortRow.product  === filters.product)  &&
-    (!filters.channel  || cohortRow.channel  === filters.channel)  &&
-    (!filters.region   || cohortRow.region   === filters.region)
+    (!filterseriesRow.product  || cohortRow.product  === filterseriesRow.product)  &&
+    (!filterseriesRow.channel  || cohortRow.channel  === filterseriesRow.channel)  &&
+    (!filterseriesRow.region   || cohortRow.region   === filterseriesRow.region)
   )
 
   if (!lb12.length) return []
