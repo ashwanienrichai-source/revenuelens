@@ -1177,6 +1177,12 @@ export default function ACVCenter() {
       return
     }
 
+    // Proactively wake Render server (free tier sleeps after 15min)
+    // This runs in parallel with data loading — if server is cold, 
+    // callFastAPI timeout triggers auto-retry after warmup
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
+    fetch(`${API_BASE}/health`, { method: 'GET' }).catch(() => {})
+
     if (cube?.csvText) {
       callFastAPI(cube, mapping, revenueUnitFromStore)
     } else if (ready?.mapped?.length) {
@@ -1195,13 +1201,16 @@ export default function ACVCenter() {
       }
       const syntheticMapping = {
         customer: 'customer', contractStart: 'contractStart', contractEnd: 'contractEnd',
-        tcv: 'tcv', product: 'product', channel: 'channel', region: 'region', quantity: 'quantity'
+        tcv: 'tcv', product: 'product', channel: 'channel', region: 'region',
+        // Only pass quantity if the original upload mapped a quantity column
+        // This preserves the Alteryx scope rule: condition 3 only fires when qty is provided
+        ...(ready?.mapping?.quantity ? { quantity: 'quantity' } : {})
       }
       callFastAPI(syntheticCube, syntheticMapping, revenueUnitFromStore)
     }
   }, [])
 
-  async function callFastAPI(cube, mapping, unit) {
+  async function callFastAPI(cube, mapping, unit, _isRetry = false) {
     setRunning(true)
     setError('')
     try {
@@ -1276,8 +1285,18 @@ export default function ACVCenter() {
       setError('Analysis server returned no data. Please try again or re-upload your file.')
     } catch(apiErr) {
       console.error('FastAPI ACV failed:', apiErr.message)
+      // Render free tier cold start takes 30-50s — auto-retry once
+      const isTimeout = apiErr.code === 'ECONNABORTED' || apiErr.message?.includes('timeout')
+      if (isTimeout && !_isRetry) {
+        setError('Analysis server is warming up (first request of the day). Retrying automatically in 15 seconds...')
+        setTimeout(() => callFastAPI(cube, mapping, unit, true), 15000)
+        return
+      }
       setRunning(false)
-      setError('Analysis server unavailable. Please wait 30 seconds and try again. If this persists, re-upload your file.')
+      setError(isTimeout
+        ? 'Analysis server timed out. Please try again — it should be warm now.'
+        : `Analysis failed: ${apiErr.message}. Please try again.`
+      )
     }
   }
 
