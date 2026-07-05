@@ -1177,14 +1177,51 @@ export default function ACVCenter() {
       return
     }
 
-    // Proactively wake Render server (free tier sleeps after 15min)
-    // This runs in parallel with data loading — if server is cold, 
-    // callFastAPI timeout triggers auto-retry after warmup
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
-    fetch(`${API_BASE}/health`, { method: 'GET' }).catch(() => {})
+    // ── Server warm-up strategy ────────────────────────────────────────────
+    // Ping /health first. If server is cold, wait for it to wake BEFORE
+    // sending the heavy analysis request. This prevents timeout on analysis.
+    // If server is already warm, /health responds in <500ms → no delay.
+    const warmAndRun = async (runFn: () => void) => {
+      try {
+        setError('')
+        setRunning(true)
+        // Quick health check — tells us if server is cold or warm
+        const healthRes = await Promise.race([
+          fetch(`${API}/health`),
+          new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('cold')), 3000))
+        ]).catch(() => null)
+
+        if (!healthRes || !healthRes.ok) {
+          // Server is cold — show warming message and wait
+          setError('⏳ Analysis server is warming up (first request of the session). This takes ~30 seconds...')
+          // Keep pinging until server responds
+          let attempts = 0
+          const maxAttempts = 20  // 20 × 3s = 60s max wait
+          while (attempts < maxAttempts) {
+            await new Promise(res => setTimeout(res, 3000))
+            attempts++
+            try {
+              const check = await fetch(`${API}/health`, { signal: AbortSignal.timeout(2000) })
+              if (check.ok) {
+                setError('')  // Clear warming message
+                break
+              }
+            } catch { /* still waking */ }
+            const remaining = Math.round((maxAttempts - attempts) * 3)
+            setError(`⏳ Warming up server... (~${remaining}s remaining)`)
+          }
+        }
+        // Server is warm — run the analysis
+        setError('')
+        runFn()
+      } catch(err) {
+        setError('Could not reach analysis server. Check your connection and try again.')
+        setRunning(false)
+      }
+    }
 
     if (cube?.csvText) {
-      callFastAPI(cube, mapping, revenueUnitFromStore)
+      warmAndRun(() => callFastAPI(cube, mapping, revenueUnitFromStore))
     } else if (ready?.mapped?.length) {
       // Pre-mapped rows available — reconstruct csvText and send to FastAPI
       // Browser engine removed: all computation runs server-side
@@ -1206,11 +1243,11 @@ export default function ACVCenter() {
         // This preserves the Alteryx scope rule: condition 3 only fires when qty is provided
         ...(ready?.mapping?.quantity ? { quantity: 'quantity' } : {})
       }
-      callFastAPI(syntheticCube, syntheticMapping, revenueUnitFromStore)
+      warmAndRun(() => callFastAPI(syntheticCube, syntheticMapping, revenueUnitFromStore))
     }
   }, [])
 
-  async function callFastAPI(cube, mapping, unit, _isRetry = false) {
+  async function callFastAPI(cube, mapping, unit) {
     setRunning(true)
     setError('')
     try {
@@ -1285,18 +1322,8 @@ export default function ACVCenter() {
       setError('Analysis server returned no data. Please try again or re-upload your file.')
     } catch(apiErr) {
       console.error('FastAPI ACV failed:', apiErr.message)
-      // Render free tier cold start takes 30-50s — auto-retry once
-      const isTimeout = apiErr.code === 'ECONNABORTED' || apiErr.message?.includes('timeout')
-      if (isTimeout && !_isRetry) {
-        setError('Analysis server is warming up (first request of the day). Retrying automatically in 15 seconds...')
-        setTimeout(() => callFastAPI(cube, mapping, unit, true), 15000)
-        return
-      }
       setRunning(false)
-      setError(isTimeout
-        ? 'Analysis server timed out. Please try again — it should be warm now.'
-        : `Analysis failed: ${apiErr.message}. Please try again.`
-      )
+      setError(`Analysis failed: ${apiErr.message}. Please try again.`)
     }
   }
 
