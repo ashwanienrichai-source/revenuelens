@@ -1177,51 +1177,8 @@ export default function ACVCenter() {
       return
     }
 
-    // ── Server warm-up strategy ────────────────────────────────────────────
-    // Ping /health first. If server is cold, wait for it to wake BEFORE
-    // sending the heavy analysis request. This prevents timeout on analysis.
-    // If server is already warm, /health responds in <500ms → no delay.
-    const warmAndRun = async (runFn: () => void) => {
-      try {
-        setError('')
-        setRunning(true)
-        // Quick health check — tells us if server is cold or warm
-        const healthRes = await Promise.race([
-          fetch(`${API}/health`),
-          new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('cold')), 3000))
-        ]).catch(() => null)
-
-        if (!healthRes || !healthRes.ok) {
-          // Server is cold — show warming message and wait
-          setError('⏳ Analysis server is warming up (first request of the session). This takes ~30 seconds...')
-          // Keep pinging until server responds
-          let attempts = 0
-          const maxAttempts = 20  // 20 × 3s = 60s max wait
-          while (attempts < maxAttempts) {
-            await new Promise(res => setTimeout(res, 3000))
-            attempts++
-            try {
-              const check = await fetch(`${API}/health`, { signal: AbortSignal.timeout(2000) })
-              if (check.ok) {
-                setError('')  // Clear warming message
-                break
-              }
-            } catch { /* still waking */ }
-            const remaining = Math.round((maxAttempts - attempts) * 3)
-            setError(`⏳ Warming up server... (~${remaining}s remaining)`)
-          }
-        }
-        // Server is warm — run the analysis
-        setError('')
-        runFn()
-      } catch(err) {
-        setError('Could not reach analysis server. Check your connection and try again.')
-        setRunning(false)
-      }
-    }
-
     if (cube?.csvText) {
-      warmAndRun(() => callFastAPI(cube, mapping, revenueUnitFromStore))
+      callFastAPI(cube, mapping, revenueUnitFromStore)
     } else if (ready?.mapped?.length) {
       // Pre-mapped rows available — reconstruct csvText and send to FastAPI
       // Browser engine removed: all computation runs server-side
@@ -1243,7 +1200,7 @@ export default function ACVCenter() {
         // This preserves the Alteryx scope rule: condition 3 only fires when qty is provided
         ...(ready?.mapping?.quantity ? { quantity: 'quantity' } : {})
       }
-      warmAndRun(() => callFastAPI(syntheticCube, syntheticMapping, revenueUnitFromStore))
+      callFastAPI(syntheticCube, syntheticMapping, revenueUnitFromStore)
     }
   }, [])
 
@@ -1320,10 +1277,15 @@ export default function ACVCenter() {
 
       setRunning(false)
       setError('Analysis server returned no data. Please try again or re-upload your file.')
-    } catch(apiErr) {
-      console.error('FastAPI ACV failed:', apiErr.message)
+    } catch(apiErr: any) {
+      console.error('FastAPI ACV failed:', apiErr?.message)
       setRunning(false)
-      setError(`Analysis failed: ${apiErr.message}. Please try again.`)
+      const isTimeout = apiErr?.code === 'ECONNABORTED' || String(apiErr?.message).includes('timeout')
+      if (isTimeout) {
+        setError('The analysis server is starting up — this happens after periods of inactivity. Please click "Run Analysis" again in 30 seconds.')
+      } else {
+        setError(`Analysis failed: ${apiErr?.message || 'Unknown error'}. Please try again.`)
+      }
     }
   }
 
@@ -1523,7 +1485,11 @@ export default function ACVCenter() {
             <AlertCircle size={16} color={T.decline} style={{ flexShrink: 0, marginTop: 1 }} />
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: T.decline, marginBottom: 4 }}>Engine Error</div>
-              <div style={{ fontSize: 11, color: T.textSecondary }}>{error}</div>
+              <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8 }}>{error}</div>
+              <button onClick={() => window.location.reload()} style={{
+                padding: '6px 16px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                background: T.brandPrimary, color: '#fff', fontSize: 11, fontWeight: 600
+              }}>Try Again</button>
             </div>
           </div>
         )}
