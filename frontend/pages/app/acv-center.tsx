@@ -1143,7 +1143,7 @@ export default function ACVCenter() {
   const [rangeEnd,   setRangeEnd]   = useState('')  // 'YYYY-MM' or ''=all
   const [revenueUnit, setRevenueUnit] = useState('TCV')
   const [apiResults,  setApiResults]  = useState(null)
-  const [qtyResolutionInfo, setQtyResolutionInfo] = useState({ resolution: null, count: 0 })
+  const [qtyResolutionInfo, setQtyResolutionInfo] = useState<{ resolution: string | null, count: number }>({ resolution: null, count: 0 })
   const [hasStoredData, setHasStoredData] = useState(true)
 
   // Auth check
@@ -1187,25 +1187,17 @@ export default function ACVCenter() {
         ...ready.mapped.map(row => [
           row.customer, row.contractStart, row.contractEnd, row.tcv,
           row.product, row.channel, row.region, row.quantity
-        ].map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(','))
+        ].map(v => JSON.stringify(String(v||''))).join(','))
       ]
       const syntheticCube = {
         csvText: csvLines.join('\n'),
         meta: { fileName: ready.fileName || 'data.csv', mapping: ready.mapping || {}, revenueUnit: revenueUnitFromStore }
       }
-      const syntheticMapping = ready.mapping || {}
-      // Remap synthetic CSV columns to standard field names
-      syntheticMapping.customer = 'customer'
-      syntheticMapping.contractStart = 'contractStart'
-      syntheticMapping.contractEnd = 'contractEnd'
-      syntheticMapping.tcv = 'tcv'
-      syntheticMapping.product = 'product'
-      syntheticMapping.channel = 'channel'
-      syntheticMapping.region = 'region'
-      syntheticMapping.quantity = 'quantity'
+      const syntheticMapping = {
+        customer: 'customer', contractStart: 'contractStart', contractEnd: 'contractEnd',
+        tcv: 'tcv', product: 'product', channel: 'channel', region: 'region', quantity: 'quantity'
+      }
       callFastAPI(syntheticCube, syntheticMapping, revenueUnitFromStore)
-      return
-      }, 50)
     }
   }, [])
 
