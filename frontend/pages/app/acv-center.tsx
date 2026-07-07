@@ -1278,10 +1278,11 @@ export default function ACVCenter() {
       setRunning(false)
       setError('Analysis server returned no data. Please try again.')
     } catch(apiErr: any) {
-      console.warn('FastAPI ACV failed, using browser engine:', apiErr?.message)
-      // Browser engine fallback — works instantly in browser
-      // Safe now: .babelrc switches to Babel compiler, no TDZ errors
-      runBrowserEngine(cube.csvText, mapping, unit)
+      console.warn('FastAPI ACV failed:', apiErr?.message)
+      setRunning(false)
+      // Show countdown — server is warming up on Render free tier
+      // runBrowserEngine handles the 45s countdown then auto-retries ONCE
+      runBrowserEngine(cube?.csvText || '', mapping, unit)
     }
   }
 
@@ -1306,12 +1307,37 @@ export default function ACVCenter() {
         setError('')
         // Re-trigger the main load effect by re-reading from sessionStorage
         const readyRaw = sessionStorage.getItem('rl_acv_ready')
-        if (readyRaw) {
+        if (_csv) {
+          // Retry once — server should be warm after 45s
+          setRunning(true)
+          setError('Retrying analysis...')
+          const retryCube = { csvText: _csv, meta: { mapping: _mapping, revenueUnit: _unit, fileName: 'data.csv', columns: [] } }
           try {
-            const ready = JSON.parse(readyRaw)
-            const cube  = { csvText: _csv, meta: { mapping: _mapping, revenueUnit: _unit } }
-            callFastAPI(cube, _mapping, _unit)
-          } catch { setError('Please try re-uploading your file.'); setRunning(false) }
+            const axios = (await import('axios')).default
+            const fd = new FormData()
+            fd.append('file', new Blob([_csv], { type: 'text/csv' }), 'data.csv')
+            fd.append('customer_col',   _mapping.customer      || '')
+            fd.append('start_col',      _mapping.contractStart || '')
+            fd.append('end_col',        _mapping.contractEnd   || '')
+            fd.append('tcv_col',        _mapping.tcv           || '')
+            fd.append('revenue_unit',   _unit)
+            fd.append('lookbacks',      JSON.stringify([1, 3, 12]))
+            if (_mapping.product)  fd.append('product_col',  _mapping.product)
+            if (_mapping.channel)  fd.append('channel_col',  _mapping.channel)
+            if (_mapping.region)   fd.append('region_col',   _mapping.region)
+            if (_mapping.quantity) fd.append('quantity_col', _mapping.quantity)
+            const { data } = await axios.post(`${API}/api/acv/analyze`, fd, { timeout: 120000 })
+            if (data?.bridge?.length > 0) {
+              // parse bridge and set engineOutput (same as callFastAPI success path)
+              window.location.reload()  // simplest: reload page, acvReady is in sessionStorage
+            } else {
+              setError('Analysis server returned no data. Please re-upload your file.')
+              setRunning(false)
+            }
+          } catch {
+            setError('Analysis server unavailable. Please upgrade Render to Starter ($7/mo) for always-on service, or try again later.')
+            setRunning(false)
+          }
         } else {
           setError('Session expired. Please re-upload your file.')
           setRunning(false)
