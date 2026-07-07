@@ -25,7 +25,6 @@ import { dataCubeStore } from '../../lib/dataCubeStore'
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://revenuelens-api.onrender.com'
 
 import {
-  runACVEngine,
   calcACVKPIs, buildACVWaterfall, buildExpiryPool,
   buildRenewalRateTrend, buildCohortGrid, calcCustomerKPIs,
   ACV_WATERFALL_ORDER, ACV_BRIDGE_COLORS
@@ -1286,83 +1285,42 @@ export default function ACVCenter() {
     }
   }
 
-  // ── Browser Engine (FastAPI fallback) ──────────────────────────────────────
-  // Runs when FastAPI is unavailable (cold start / network error)
-  // Processes up to 10K rows instantly in the browser
-  // .babelrc ensures Babel compilation — no TDZ/SWC minification issues
-  function runBrowserEngine(csvText: string, mapping: any, unit: string) {
-    try {
-      const splitLine = (line: string): string[] => {
-        const vals: string[] = []
-        let cur = '', inQuote = false
-        for (let i = 0; i < line.length; i++) {
-          const ch = line[i]
-          if (ch === '"') { inQuote = !inQuote }
-          else if (ch === ',' && !inQuote) { vals.push(cur.trim()); cur = '' }
-          else { cur += ch }
+  // ── FastAPI Retry with countdown UX ────────────────────────────────────────
+  // The browser engine was removed permanently. Reason:
+  // acvEngine.ts (968 lines) cannot be safely compiled by Next.js bundler —
+  // SWC minifies variables to single letters causing TDZ crashes,
+  // and Babel (.babelrc) is not reliably applied in all deploy scenarios.
+  //
+  // Architecture decision: ALL computation runs on FastAPI.
+  // Render keep-alive cron prevents cold starts.
+  // When cold start occurs: show countdown, auto-retry until server responds.
+
+  function runBrowserEngine(_csv: string, _mapping: any, _unit: string) {
+    // Renamed to show user a countdown retry instead of error
+    let secondsLeft = 45
+    setError(`⏳ Analysis server warming up — retrying in ${secondsLeft}s`)
+    const tick = setInterval(() => {
+      secondsLeft -= 1
+      if (secondsLeft <= 0) {
+        clearInterval(tick)
+        setError('')
+        // Re-trigger the main load effect by re-reading from sessionStorage
+        const readyRaw = sessionStorage.getItem('rl_acv_ready')
+        if (readyRaw) {
+          try {
+            const ready = JSON.parse(readyRaw)
+            const cube  = { csvText: _csv, meta: { mapping: _mapping, revenueUnit: _unit } }
+            callFastAPI(cube, _mapping, _unit)
+          } catch { setError('Please try re-uploading your file.'); setRunning(false) }
+        } else {
+          setError('Session expired. Please re-upload your file.')
+          setRunning(false)
         }
-        vals.push(cur.trim())
-        return vals.map(v => v.replace(/^["']|["']$/g, ''))
+      } else {
+        setError(`⏳ Analysis server warming up — retrying in ${secondsLeft}s`)
       }
-
-      const lines   = csvText.split('\n').filter(l => l.trim())
-      const headers = splitLine(lines[0])
-      const MAX_ROWS = 10000
-
-      const rawRows = lines.slice(1, MAX_ROWS + 1).map(line => {
-        const vals = splitLine(line)
-        const rowObj: Record<string, string> = {}
-        headers.forEach((h, idx) => { rowObj[h] = vals[idx] || '' })
-        return rowObj
-      })
-
-      const qtyColMapped = !!mapping.quantity
-
-      const mapped = rawRows.map((rawRow: Record<string, string>) => ({
-        customer:      String(rawRow[mapping.customer]      || ''),
-        product:       String(rawRow[mapping.product]       || 'N/A'),
-        channel:       String(rawRow[mapping.channel]       || 'N/A'),
-        region:        String(rawRow[mapping.region]        || 'N/A'),
-        contractStart: String(rawRow[mapping.contractStart] || ''),
-        contractEnd:   String(rawRow[mapping.contractEnd]   || ''),
-        tcv:           parseFloat(String(rawRow[mapping.tcv] || 0).replace(/[,$]/g, '')) || 0,
-        quantity:      parseFloat(String(rawRow[mapping.quantity] || 0)) || 0,
-        revenueUnit:   unit,
-      })).filter((mappedRow: any) => {
-        if (!mappedRow.customer || !mappedRow.contractStart || !mappedRow.contractEnd) return false
-        if (mappedRow.tcv <= 0) return false
-        if (mappedRow.contractStart > mappedRow.contractEnd) return false
-        if (qtyColMapped && mappedRow.tcv > 0 && mappedRow.quantity <= 0) return false
-        return true
-      })
-
-      if (!mapped.length) {
-        setError('No valid contract rows found. Check your field mapping.')
-        setRunning(false)
-        return
-      }
-
-      setError('⚡ Running in browser preview mode (server warming up). First 10K rows shown.')
-      const engineResult = runACVEngine(mapped)
-      setEngineOutput(engineResult)
-
-      const allPeriods = [...new Set(
-        engineResult.bridgeTable
-          .filter((bRow: any) => bRow.monthLookback === 12)
-          .map((bRow: any) => {
-            const yr = bRow.date.getFullYear()
-            const mo = String(bRow.date.getMonth() + 1).padStart(2, '0')
-            return `${yr}-${mo}`
-          })
-      )].sort() as string[]
-
-      if (allPeriods.length) setSelPeriod(allPeriods[allPeriods.length - 1])
-    } catch(browserErr: any) {
-      setError(`Engine error: ${browserErr?.message}. Please try again.`)
-    }
-    setRunning(false)
+    }, 1000)
   }
-
 
 
   // KPIs for selected period
