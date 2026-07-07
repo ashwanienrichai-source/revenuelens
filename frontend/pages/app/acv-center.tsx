@@ -1309,11 +1309,11 @@ export default function ACVCenter() {
         const readyRaw = sessionStorage.getItem('rl_acv_ready')
         if (_csv) {
           // Retry once — server should be warm after 45s
+          // Use promise chain (not await) since setInterval callback is not async
           setRunning(true)
           setError('Retrying analysis...')
-          const retryCube = { csvText: _csv, meta: { mapping: _mapping, revenueUnit: _unit, fileName: 'data.csv', columns: [] } }
-          try {
-            const axios = (await import('axios')).default
+          import('axios').then(mod => {
+            const axiosRetry = mod.default
             const fd = new FormData()
             fd.append('file', new Blob([_csv], { type: 'text/csv' }), 'data.csv')
             fd.append('customer_col',   _mapping.customer      || '')
@@ -1326,18 +1326,23 @@ export default function ACVCenter() {
             if (_mapping.channel)  fd.append('channel_col',  _mapping.channel)
             if (_mapping.region)   fd.append('region_col',   _mapping.region)
             if (_mapping.quantity) fd.append('quantity_col', _mapping.quantity)
-            const { data } = await axios.post(`${API}/api/acv/analyze`, fd, { timeout: 120000 })
-            if (data?.bridge?.length > 0) {
-              // parse bridge and set engineOutput (same as callFastAPI success path)
-              window.location.reload()  // simplest: reload page, acvReady is in sessionStorage
-            } else {
-              setError('Analysis server returned no data. Please re-upload your file.')
-              setRunning(false)
-            }
-          } catch {
-            setError('Analysis server unavailable. Please upgrade Render to Starter ($7/mo) for always-on service, or try again later.')
+            axiosRetry.post(`${API}/api/acv/analyze`, fd, { timeout: 120000 })
+              .then(resp => {
+                if (resp.data?.bridge?.length > 0) {
+                  window.location.reload()
+                } else {
+                  setError('Analysis server returned no data. Please re-upload your file.')
+                  setRunning(false)
+                }
+              })
+              .catch(() => {
+                setError('Analysis server unavailable. Upgrade Render to Starter ($7/mo) for always-on service, or try again later.')
+                setRunning(false)
+              })
+          }).catch(() => {
+            setError('Failed to load retry module. Please refresh the page.')
             setRunning(false)
-          }
+          })
         } else {
           setError('Session expired. Please re-upload your file.')
           setRunning(false)
