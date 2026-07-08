@@ -1218,7 +1218,7 @@ export default function ACVCenter() {
       fd.append('end_col',        mapping.contractEnd   || '')
       fd.append('tcv_col',        mapping.tcv           || '')
       fd.append('revenue_unit',   unit)
-      fd.append('lookbacks',      JSON.stringify([1, 3, 12]))
+      fd.append('lookbacks',      JSON.stringify([12]))  // lb=1,3 computed on demand to reduce memory
       fd.append('n_movers',       '30')
       if (mapping.product)  fd.append('product_col',  mapping.product)
       if (mapping.channel)  fd.append('channel_col',  mapping.channel)
@@ -1321,7 +1321,7 @@ export default function ACVCenter() {
             fd.append('end_col',        _mapping.contractEnd   || '')
             fd.append('tcv_col',        _mapping.tcv           || '')
             fd.append('revenue_unit',   _unit)
-            fd.append('lookbacks',      JSON.stringify([1, 3, 12]))
+            fd.append('lookbacks',      JSON.stringify([12]))
             if (_mapping.product)  fd.append('product_col',  _mapping.product)
             if (_mapping.channel)  fd.append('channel_col',  _mapping.channel)
             if (_mapping.region)   fd.append('region_col',   _mapping.region)
