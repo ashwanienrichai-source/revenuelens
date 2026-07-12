@@ -1228,24 +1228,47 @@ export default function ACVCenter() {
       const { data } = await axios.post(`${API}/api/acv/analyze`, fd, { timeout: 120000 })
       setApiResults(data)
 
-      // ── Convert FastAPI bridge table response → ACVEngineOutput ──────────────
-      // FastAPI returns bridge rows as JSON array — convert to Date objects
-      // matching the format runACVEngine() produces so all tabs work identically
+      // ── Convert pre-aggregated FastAPI response → ACVEngineOutput ─────────────
+      // FastAPI now returns period_summary (aggregated) + customer_bridge
+      // Period summary: {Date, Month Lookback, Bridge Classification, Bridge Value}
+      // This avoids 783K raw rows (786MB) → returns 1,516 aggregated rows (0.1MB)
       if (data?.bridge?.length > 0) {
-        const bridgeTable = data.bridge.map(apiRow => ({
-          customer:             String(apiRow.Customer        || apiRow.customer        || ''),
-          product:              String(apiRow.Product         || apiRow.product         || 'N/A'),
-          channel:              String(apiRow.Channel         || apiRow.channel         || 'N/A'),
-          region:               String(apiRow.Region          || apiRow.region          || 'N/A'),
-          vintage:              new Date(apiRow.Vintage       || apiRow.vintage         || apiRow.Date || apiRow.date),
-          date:                 new Date(apiRow.Date          || apiRow.date),
-          acvNew:               parseFloat(apiRow['ACV New']  || apiRow.acv_new         || apiRow.acvNew   || 0),
-          quantity:             parseFloat(apiRow.Quantity    || apiRow.quantity         || 0),
-          monthLookback:        parseInt(apiRow['Month Lookback'] || apiRow.month_lookback || apiRow.monthLookback || 12),
-          dteNew:               parseFloat(apiRow['DTE New']  || apiRow.dte_new         || apiRow.dteNew   || 0),
-          bridgeClassification: String(apiRow['Bridge Classification'] || apiRow.bridge_classification || apiRow.bridgeClassification || ''),
-          bridgeValue:          parseFloat(apiRow['Bridge Value']      || apiRow.bridge_value          || apiRow.bridgeValue          || 0),
-        })).filter(apiRow => apiRow.customer && !isNaN(apiRow.date.getTime()) && apiRow.bridgeClassification)
+        // Build period-level bridge table from aggregated summary
+        const periodBridge = data.bridge.map((apiRow: any) => ({
+          customer:             '',
+          product:              'N/A',
+          channel:              'N/A',
+          region:               'N/A',
+          vintage:              new Date(apiRow.Date || apiRow.date),
+          date:                 new Date(apiRow.Date || apiRow.date),
+          acvNew:               0,
+          quantity:             0,
+          monthLookback:        parseInt(apiRow['Month Lookback'] || apiRow.month_lookback || 12),
+          dteNew:               0,
+          bridgeClassification: String(apiRow['Bridge Classification'] || apiRow.bridge_classification || ''),
+          bridgeValue:          parseFloat(apiRow['Bridge Value'] || apiRow.bridge_value || 0),
+        })).filter((r: any) => !isNaN(r.date.getTime()) && r.bridgeClassification)
+
+        // Build customer-level bridge for Top Movers + Account 360
+        const customerBridge = (data.customer_bridge || []).map((apiRow: any) => ({
+          customer:             String(apiRow.Customer || apiRow.customer || ''),
+          product:              String(apiRow.Product  || apiRow.product  || 'N/A'),
+          channel:              String(apiRow.Channel  || apiRow.channel  || 'N/A'),
+          region:               String(apiRow.Region   || apiRow.region   || 'N/A'),
+          vintage:              new Date(apiRow.Vintage || apiRow.vintage || apiRow.Date),
+          date:                 new Date(apiRow.Date || apiRow.date),
+          acvNew:               0,
+          quantity:             0,
+          monthLookback:        12,
+          dteNew:               0,
+          bridgeClassification: String(apiRow['Bridge Classification'] || apiRow.bridge_classification || ''),
+          bridgeValue:          parseFloat(apiRow['Bridge Value'] || apiRow.bridge_value || 0),
+        })).filter((r: any) => r.customer && !isNaN(r.date.getTime()))
+
+        // Combine: period bridge + customer bridge = full bridgeTable
+        // Period bridge handles: Summary, Historical, Renewal, Expiry, Bookings
+        // Customer bridge handles: Top Movers, Account 360, Cohort
+        const bridgeTable = [...periodBridge, ...customerBridge]
 
         if (bridgeTable.length > 0) {
           // Build QC from API response or compute locally
