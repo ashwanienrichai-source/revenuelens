@@ -427,7 +427,8 @@ function ACVTopMovers({ bridgeTable, lb, period, T }) {
   const movers = useMemo(() => {
     if (!bridgeTable.length || !period) return []
     return bridgeTable
-      .filter(r => r.monthLookback === lb &&
+      .filter(r => r.customer &&   // exclude period-level total rows (customer === '')
+        r.monthLookback === lb &&
         `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}` === period &&
         r.bridgeClassification === view)
       .sort((a, b) => Math.abs(b.bridgeValue) - Math.abs(a.bridgeValue))
@@ -770,11 +771,18 @@ function CohortAnalysis({ bridgeTable, T }) {
   const channels = useMemo(() => ['', ...new Set(bridgeTable.map(r => r.channel).filter(Boolean))].sort(), [bridgeTable])
   const regions  = useMemo(() => ['', ...new Set(bridgeTable.map(r => r.region).filter(Boolean))].sort(), [bridgeTable])
 
-  const rows = useMemo(() => buildCohortGrid(bridgeTable, cohortGrain, {
+  // Exclude period-level total rows (customer === '') before cohort grouping.
+  // Those rows also carry Bridge Classification === 'Ending ACV' (what
+  // buildCohortGrid filters on) but their `vintage` is set equal to their own
+  // `date`, so without this filter every period total would show up as its
+  // own fake single-month cohort, corrupting the grid.
+  const customerBridgeOnly = useMemo(() => bridgeTable.filter(r => r.customer), [bridgeTable])
+
+  const rows = useMemo(() => buildCohortGrid(customerBridgeOnly, cohortGrain, {
     product: filterProduct || undefined,
     channel: filterChannel || undefined,
     region:  filterRegion  || undefined,
-  }), [bridgeTable, cohortGrain, filterProduct, filterChannel, filterRegion])
+  }), [customerBridgeOnly, cohortGrain, filterProduct, filterChannel, filterRegion])
 
   // All column offsets (months since vintage), sorted
   const offsets = useMemo(() => {
@@ -987,7 +995,7 @@ function CohortAnalysis({ bridgeTable, T }) {
 // ─── Account 360 (ACV) ────────────────────────────────────────────────────────
 function Account360({ bridgeTable, bookingsTable, T }) {
   const customers = useMemo(() =>
-    [...new Set(bridgeTable.map(r => r.customer))].sort(), [bridgeTable])
+    [...new Set(bridgeTable.map(r => r.customer).filter(Boolean))].sort(), [bridgeTable])
   const [sel, setSel] = useState('')
   const [open, setOpen] = useState(false)
 
@@ -1300,10 +1308,29 @@ export default function ACVCenter() {
             qc3Pass: rawQc.qc3 ?? true, qc3Detail: rawQc.qc3_detail || 'Computed by FastAPI',
             qc4Pass: rawQc.qc4 ?? true, qc4Detail: rawQc.qc4_detail || 'No unclassified rows',
           }
+          // FIX: backend returns bookings rows with Title-Case keys
+          // (Customer, Start, End, TCV, ACV, InScope) but BookingsWalk and
+          // Account360 read camelCase (customer, contractStart, contractEnd,
+          // tcv, acv, inScope). Previously passed straight through, so every
+          // field read by those two tabs was undefined.
+          const bookingsTable = (data.bookings || []).map((row: any) => ({
+            customer:         String(row.Customer || row.customer || ''),
+            product:          String(row.Product  || row.product  || 'N/A'),
+            channel:          String(row.Channel  || row.channel  || 'N/A'),
+            region:           String(row.Region   || row.region   || 'N/A'),
+            contractStart:    new Date(row.Start || row.contractStart),
+            contractEnd:      new Date(row.End   || row.contractEnd),
+            tcv:              parseFloat(row.TCV || row.tcv || 0),
+            acv:              parseFloat(row.ACV || row.acv || 0),
+            quantity:         parseFloat(row.Quantity || row.quantity || 0),
+            inScope:          Boolean(row.InScope ?? row.inScope),
+            outOfScopeReason: row.OutOfScopeReason || row.outOfScopeReason || '',
+          }))
+
           const apiOutput = {
             bridgeTable,
             acvTable:      data.acv_table || [],
-            bookingsTable: data.bookings  || [],
+            bookingsTable,
             qc,
             mode:          unit,
             periodsCount:  new Set(bridgeTable.filter(pcRow => pcRow.monthLookback === 12 && pcRow.bridgeClassification === 'Prior ACV').map(pcRow => `${pcRow.date.getFullYear()}-${pcRow.date.getMonth()}`)).size,
