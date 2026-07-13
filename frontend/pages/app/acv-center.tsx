@@ -6,6 +6,19 @@
 // ENGINE:   ../lib/acvEngine (acvEngine.ts)
 // ROUTE:    /app/acv-center
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// FIX LOG (this version):
+//   - callFastAPI(): QC object from the backend uses keys qc1/qc2/qc3/qc4 and
+//     qc1_detail/qc2_detail/qc3_detail/qc4_detail. This was being passed
+//     straight through as `data.qc`, but QCBanner (and the rest of the UI)
+//     expects qc1Pass/qc1Detail/qc2Pass/... (camelCase, "Pass" suffix).
+//     Since data.qc always exists, the old `data.qc || {...camelCase fallback}`
+//     never actually used the fallback's correct key names — it silently
+//     passed through the mismatched raw object, so qc.qc1Pass was always
+//     undefined (falsy), making the QC banner show "WARNING" on every load
+//     even when all four checks genuinely passed on the backend.
+//     Fixed by explicitly mapping rawQc -> the camelCase shape everywhere else.
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/router'
@@ -783,7 +796,7 @@ function CohortAnalysis({ bridgeTable, T }) {
       case 'acvPerCust': {
         const a = row.values[offset]  || 0
         const custCount = row.custCnt[offset] || 0
-        return c > 0 ? a / c : 0
+        return custCount > 0 ? a / custCount : 0
       }
     }
   }
@@ -1271,12 +1284,21 @@ export default function ACVCenter() {
         const bridgeTable = [...periodBridge, ...customerBridge]
 
         if (bridgeTable.length > 0) {
-          // Build QC from API response or compute locally
-          const qc = data.qc || {
-            qc1Pass: true, qc1Detail: 'Computed by FastAPI',
-            qc2Pass: true, qc2Detail: 'Computed by FastAPI',
-            qc3Pass: true, qc3Detail: 'Computed by FastAPI',
-            qc4Pass: true, qc4Detail: 'No unclassified rows',
+          // ── Build QC from API response ─────────────────────────────────────
+          // FIX: the backend engine returns qc1/qc2/qc3/qc4 + qc1_detail/... —
+          // NOT qc1Pass/qc1Detail/... which is what QCBanner (and this whole
+          // file) expects. Because `data.qc` always exists, the previous
+          // `data.qc || {...camelCase fallback}` never actually used the
+          // correctly-named fallback object — it silently passed through the
+          // mismatched raw shape, so qc.qc1Pass was always undefined (falsy),
+          // making the QC banner show "WARNING" even when every check
+          // genuinely passed on the backend. This explicit mapping fixes that.
+          const rawQc = data.qc || {}
+          const qc = {
+            qc1Pass: rawQc.qc1 ?? true, qc1Detail: rawQc.qc1_detail || 'Computed by FastAPI',
+            qc2Pass: rawQc.qc2 ?? true, qc2Detail: rawQc.qc2_detail || 'Computed by FastAPI',
+            qc3Pass: rawQc.qc3 ?? true, qc3Detail: rawQc.qc3_detail || 'Computed by FastAPI',
+            qc4Pass: rawQc.qc4 ?? true, qc4Detail: rawQc.qc4_detail || 'No unclassified rows',
           }
           const apiOutput = {
             bridgeTable,
