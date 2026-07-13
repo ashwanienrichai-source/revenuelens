@@ -20,6 +20,21 @@
 // THREE LOOKBACKS RUN IN PARALLEL: lb = 1, 3, 12
 // FOUR QC CHECKS: all must pass before UI renders
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// FIX LOG (this version):
+//   - calcACVKPIs, buildACVWaterfall, buildExpiryPool, buildRenewalRateTrend,
+//     calcCustomerKPIs: fixed "ReferenceError: cohortRow is not defined" —
+//     several functions referenced an undefined `cohortRow` variable instead
+//     of their actual loop parameter (`r`). This crashed the Summary tab
+//     (calcACVKPIs + buildACVWaterfall run on load) and Cohort Analysis tab
+//     the moment they executed.
+//   - buildCohortGrid: fixed `filterseriesRow` (undefined) -> `filters`
+//     (the actual parameter name) in the product/channel/region filter.
+//   - runACVEngine STEP 5: fixed `serieseriesRow`/`seriesRow` typos in the
+//     reference date maps loop. This code path is currently unreachable
+//     (all computation now runs server-side via FastAPI per the frontend's
+//     "Browser engine removed" comment) but is fixed for correctness.
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -539,6 +554,8 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
 
   // ── STEP 5: Reference date maps (min/max for classification) ──────────────
   // Only from rows where acv > 0 (active months)
+  // FIX: `serieseriesRow` / `seriesRow` typos replaced with the actual loop
+  // variable `series` throughout this block.
 
   const unitMin = new Map<string, Date>()
   const unitMax = new Map<string, Date>()
@@ -548,17 +565,17 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
   const cpMax   = new Map<string, Date>()
 
   for (const series of allSeries) {
-    if (serieseriesRow.acv <= 0) continue
+    if (series.acv <= 0) continue
     const uk  = uKey(series)
-    const ck  = serieseriesRow.customer
-    const cpk = `${serieseriesRow.customer}|||${serieseriesRow.product}`
+    const ck  = series.customer
+    const cpk = `${series.customer}|||${series.product}`
 
-    if (!unitMin.has(uk) || serieseriesRow.date < unitMin.get(uk)!) unitMin.set(uk, serieseriesRow.date)
-    if (!unitMax.has(uk) || serieseriesRow.date > unitMax.get(uk)!) unitMax.set(uk, serieseriesRow.date)
-    if (!custMin.has(ck) || serieseriesRow.date < custMin.get(ck)!) custMin.set(ck, serieseriesRow.date)
-    if (!custMax.has(ck) || serieseriesRow.date > custMax.get(ck)!) custMax.set(ck, serieseriesRow.date)
-    if (!cpMin.has(cpk)  || serieseriesRow.date < cpMin.get(cpk)!)  cpMin.set(cpk, serieseriesRow.date)
-    if (!cpMax.has(cpk)  || seriesRow.date > cpMax.get(cpk)!)  cpMax.set(cpk, seriesRow.date)
+    if (!unitMin.has(uk) || series.date < unitMin.get(uk)!) unitMin.set(uk, series.date)
+    if (!unitMax.has(uk) || series.date > unitMax.get(uk)!) unitMax.set(uk, series.date)
+    if (!custMin.has(ck) || series.date < custMin.get(ck)!) custMin.set(ck, series.date)
+    if (!custMax.has(ck) || series.date > custMax.get(ck)!) custMax.set(ck, series.date)
+    if (!cpMin.has(cpk)  || series.date < cpMin.get(cpk)!)  cpMin.set(cpk, series.date)
+    if (!cpMax.has(cpk)  || series.date > cpMax.get(cpk)!)  cpMax.set(cpk, series.date)
   }
 
   // Vintage = customer first-ever ACV date
@@ -764,14 +781,16 @@ export function runACVEngine(rawRows: ACVInputRow[]): ACVEngineOutput {
 }
 
 // ── KPI Calculator ────────────────────────────────────────────────────────────
+// FIX: `dk(cohortRow.date)` -> `dk(r.date)` (cohortRow was never defined in
+// this function's scope — the loop/map parameter here is `r`).
 
 export function calcACVKPIs(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period?: string) {
   const rows    = bridgeTable.filter(r => r.monthLookback === lb)
-  const periods = [...new Set(rows.map(r => dk(cohortRow.date)))].sort()
+  const periods = [...new Set(rows.map(r => dk(r.date)))].sort()
   const sel     = period || periods[periods.length - 1]
   if (!sel) return null
 
-  const pr = rows.filter(r => dk(cohortRow.date) === sel)
+  const pr = rows.filter(r => dk(r.date) === sel)
   const sumCls = (cls: string[]) => pr.filter(prRow => cls.includes(prRow.bridgeClassification)).reduce((tot, prRow2) => tot + prRow2.bridgeValue, 0)
 
   const priorACV     = sumCls([CLS.PRIOR])
@@ -823,9 +842,10 @@ export function calcACVKPIs(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period?: st
 }
 
 // ── Waterfall Builder ─────────────────────────────────────────────────────────
+// FIX: `dk(cohortRow.date)` -> `dk(r.date)`.
 
 export function buildACVWaterfall(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period: string) {
-  const rows   = bridgeTable.filter(r => r.monthLookback === lb && dk(cohortRow.date) === period)
+  const rows   = bridgeTable.filter(r => r.monthLookback === lb && dk(r.date) === period)
   const totals: Record<string, number> = {}
   for (const wfRow of rows) totals[wfRow.bridgeClassification] = (totals[wfRow.bridgeClassification] || 0) + wfRow.bridgeValue
 
@@ -843,10 +863,11 @@ export function buildACVWaterfall(bridgeTable: ACVBridgeRow[], lb: 1|3|12, perio
 }
 
 // ── Expiry Pool Timeline ──────────────────────────────────────────────────────
+// FIX: `dk(cohortRow.date)` -> `dk(r.date)`.
 
 export function buildExpiryPool(bridgeTable: ACVBridgeRow[], asOfPeriod?: string) {
   const all     = bridgeTable.filter(r => r.monthLookback === 12 && r.bridgeClassification === CLS.EXPIRY)
-  const periods = [...new Set(all.map(r => dk(cohortRow.date)))].sort()
+  const periods = [...new Set(all.map(r => dk(r.date)))].sort()
   const from    = asOfPeriod || periods[periods.length - 1] || ''
   const byP     = new Map<string, number>()
   for (const epRow of all) {
@@ -856,9 +877,10 @@ export function buildExpiryPool(bridgeTable: ACVBridgeRow[], asOfPeriod?: string
 }
 
 // ── Renewal Rate Trend ────────────────────────────────────────────────────────
+// FIX: `dk(cohortRow.date)` -> `dk(r.date)`.
 
 export function buildRenewalRateTrend(bridgeTable: ACVBridgeRow[], lb: 1|3|12) {
-  const periods = [...new Set(bridgeTable.filter(r => r.monthLookback === lb).map(r => dk(cohortRow.date)))].sort()
+  const periods = [...new Set(bridgeTable.filter(r => r.monthLookback === lb).map(r => dk(r.date)))].sort()
   return periods
     .map(period => {
       const kpiResult = calcACVKPIs(bridgeTable, lb, period)
@@ -878,6 +900,12 @@ export function buildRenewalRateTrend(bridgeTable: ACVBridgeRow[], lb: 1|3|12) {
 // Returns yearly and quarterly cohort grids from bridge table
 // Columns = months since customer's first contract (vintage date), in 3M steps
 // Values = Ending ACV at each time interval
+//
+// FIX: the filter callback used `filterseriesRow` (undefined — should be the
+// actual parameter `filters`) and `cohortRow` (undefined — should be the
+// actual filter callback's own parameter `r`). The loop further down that
+// legitimately declares `for (const cohortRow of lb12)` was already correct
+// and is unchanged.
 
 export interface CohortRow {
   label:    string           // '2018' or '2018Q1'
@@ -893,9 +921,9 @@ export function buildCohortGrid(
   const lb12 = bridgeTable.filter(r =>
     r.monthLookback === 12 &&
     r.bridgeClassification === 'Ending ACV' &&
-    (!filterseriesRow.product  || cohortRow.product  === filterseriesRow.product)  &&
-    (!filterseriesRow.channel  || cohortRow.channel  === filterseriesRow.channel)  &&
-    (!filterseriesRow.region   || cohortRow.region   === filterseriesRow.region)
+    (!filters.product  || r.product  === filters.product)  &&
+    (!filters.channel  || r.channel  === filters.channel)  &&
+    (!filters.region   || r.region   === filters.region)
   )
 
   if (!lb12.length) return []
@@ -941,20 +969,23 @@ export function buildCohortGrid(
 }
 
 // ── Customer Count KPIs ───────────────────────────────────────────────────────
+// FIX: `dk(cohortRow.date)`, `cohortRow.customer`, `cohortRow.bridgeValue`
+// (x2) -> `dk(r.date)`, `r.customer`, `r.bridgeValue` — cohortRow was never
+// defined in this function's scope.
 
 export function calcCustomerKPIs(bridgeTable: ACVBridgeRow[], lb: 1|3|12, period: string) {
   const rows = bridgeTable.filter(r =>
     r.monthLookback === lb &&
-    dk(cohortRow.date) === period
+    dk(r.date) === period
   )
-  const byClass = (cls: string) => new Set(rows.filter(r => r.bridgeClassification === cls).map(r => cohortRow.customer))
+  const byClass = (cls: string) => new Set(rows.filter(r => r.bridgeClassification === cls).map(r => r.customer))
 
   const priorCustomers   = byClass('Prior ACV').size
   const endingCustomers  = byClass('Ending ACV').size
   const churnedCustomers = byClass('Churn').size + byClass('Churn Partial').size
   const newCustomers     = byClass('New Logo').size
-  const endingACV        = rows.filter(r => r.bridgeClassification === 'Ending ACV').reduce((s,r) => s + cohortRow.bridgeValue, 0)
-  const priorACV         = rows.filter(r => r.bridgeClassification === 'Prior ACV').reduce((s,r) => s + cohortRow.bridgeValue, 0)
+  const endingACV        = rows.filter(r => r.bridgeClassification === 'Ending ACV').reduce((s,r) => s + r.bridgeValue, 0)
+  const priorACV         = rows.filter(r => r.bridgeClassification === 'Prior ACV').reduce((s,r) => s + r.bridgeValue, 0)
 
   return {
     priorCustomers,
