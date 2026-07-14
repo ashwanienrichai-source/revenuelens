@@ -470,117 +470,206 @@ function RiskOpportunityCard({ row, isRisk, rank, T }) {
   )
 }
 
-function ACVTopMovers({ riskOpportunity, T }) {
-  const rows = riskOpportunity || []
+// ─── Classification Browser — restored from the original per-category
+// customer-movement view (New Logo / Upsell / Churn / etc.), sourced
+// directly from bridgeTable/customer_bridge, unchanged logic from before.
+// Sits alongside (not instead of) the Risk & Opportunity composite cards:
+// composite = "who needs attention and why, scored"; this browser =
+// "show me everyone who moved in category X this period", raw and literal.
+function ACVClassificationBrowser({ bridgeTable, lb, period, T }) {
+  const [view, setView] = useState('Churn')
+  const VIEWS = ['New Logo', 'Upsell', 'Add on', 'Churn', 'Downsell', 'Lapsed']
+  const isNeg = ['Churn', 'Downsell', 'Lapsed'].includes(view)
 
-  const RISK_LABELS = new Set(['Elevated', 'Critical'])
-  const OPP_LABELS  = new Set(['Good', 'High'])
+  const movers = useMemo(() => {
+    if (!bridgeTable.length || !period) return []
+    return bridgeTable
+      .filter(r => r.customer &&   // exclude period-level total rows (customer === '')
+        r.monthLookback === lb &&
+        `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}` === period &&
+        r.bridgeClassification === view)
+      .sort((a, b) => Math.abs(b.bridgeValue) - Math.abs(a.bridgeValue))
+      .slice(0, 15)
+  }, [bridgeTable, lb, period, view])
+
+  const BC = getACVBridgeColor(T)
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+        {VIEWS.map(v => (
+          <button key={v} onClick={() => setView(v)} style={{
+            padding: '5px 12px', borderRadius: 20, border: `1px solid ${view === v ? BC[v] || T.brandPrimary : T.borderDefault}`,
+            background: view === v ? `${BC[v] || T.brandPrimary}15` : 'transparent',
+            color: view === v ? BC[v] || T.brandPrimary : T.textTertiary,
+            fontSize: 11, fontWeight: view === v ? 700 : 400, cursor: 'pointer',
+          }}>{v}</button>
+        ))}
+      </div>
+      {movers.length === 0
+        ? <div style={{ padding: 32, textAlign: 'center', color: T.textMuted, fontSize: 12 }}>No {view} movements in this period</div>
+        : movers.map((r, i) => {
+          const abs = Math.abs(r.bridgeValue)
+          const letter = String(r.customer || '?')[0].toUpperCase()
+          const color = isNeg ? T.decline : T.growth
+          return (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '12px 14px', borderRadius: 8, marginBottom: 6,
+              background: T.bgSurface, border: `1px solid ${color}20`,
+            }}>
+              <div style={{ width: 32, height: 32, borderRadius: 6, background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, color, flexShrink: 0 }}>{letter}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.customer}</div>
+                <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 2 }}>{r.product !== 'N/A' ? r.product : ''} {r.region !== 'N/A' ? `· ${r.region}` : ''}</div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontFamily: T.mono, fontSize: 13, fontWeight: 700, color }}>{isNeg ? '▼' : '▲'} {fmt(abs)}</div>
+                <div style={{ fontSize: 9, color: T.textMuted, marginTop: 2 }}>#{i+1}</div>
+              </div>
+            </div>
+          )
+        })
+      }
+    </div>
+  )
+}
+
+function ACVTopMovers({ riskOpportunitySummary, riskOpportunityDetail, bridgeTable, lb, period, T }) {
+  const summaryRow = useMemo(() =>
+    (riskOpportunitySummary || []).find(r => r.period === period) || null
+  , [riskOpportunitySummary, period])
+
+  const detailRows = useMemo(() =>
+    (riskOpportunityDetail || []).filter(r => r.period === period)
+  , [riskOpportunityDetail, period])
 
   const riskList = useMemo(() =>
-    rows.filter(r => RISK_LABELS.has(r.riskLabel))
+    detailRows.filter(r => ['Elevated', 'Critical'].includes(r.riskLabel))
       .sort((a, b) => b.riskScore - a.riskScore)
-  , [rows])
+  , [detailRows])
 
   const expansionList = useMemo(() =>
-    rows.filter(r => OPP_LABELS.has(r.expansionLabel))
+    detailRows.filter(r => ['Good', 'High'].includes(r.expansionLabel))
       .sort((a, b) => b.expansionScore - a.expansionScore)
-  , [rows])
+  , [detailRows])
 
-  const totalRiskACV = riskList.reduce((s, r) => s + (r.endingACV || 0), 0)
-  const totalExpACV  = expansionList.reduce((s, r) => s + (r.endingACV || 0), 0)
+  // Header stats come from the FULL-population summary (never capped),
+  // not from the capped detail list — so these numbers stay accurate even
+  // though only the top N customers are shown as cards below.
+  const riskCount = summaryRow?.riskCount ?? riskList.length
+  const expCount  = summaryRow?.expansionCount ?? expansionList.length
+  const riskACV   = summaryRow?.riskACV ?? riskList.reduce((s, r) => s + (r.endingACV || 0), 0)
+  const expACV    = summaryRow?.expansionACV ?? expansionList.reduce((s, r) => s + (r.endingACV || 0), 0)
 
-  const ratio = riskList.length > 0 ? (expansionList.length / riskList.length) : (expansionList.length > 0 ? Infinity : 0)
+  const ratio = riskCount > 0 ? (expCount / riskCount) : (expCount > 0 ? Infinity : 0)
   const ratioLabel = ratio === Infinity ? '∞' : ratio.toFixed(1)
   const ratioWinning = ratio >= 1
 
-  if (!rows.length) return (
-    <div style={{ padding: 40, textAlign: 'center', color: T.textMuted, fontSize: 12 }}>
-      No risk/opportunity data available for this dataset
-    </div>
-  )
+  const hasAnyData = (riskOpportunitySummary && riskOpportunitySummary.length > 0)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* ── Summary bar ─────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '10px 16px', background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-        <div>
-          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.textMuted }}>Expansion Opportunity</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: T.growth, fontFamily: T.mono, marginLeft: 8 }}>{fmt(totalExpACV)}</span>
-          <span style={{ fontSize: 11, color: T.textMuted, marginLeft: 4 }}>({expansionList.length} accounts)</span>
+      {!hasAnyData ? (
+        <div style={{ padding: 40, textAlign: 'center', color: T.textMuted, fontSize: 12 }}>
+          No risk/opportunity data available for this dataset
         </div>
-        <div style={{ width: 1, height: 16, background: T.borderStrong }} />
-        <div>
-          <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.textMuted }}>Churn Risk</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: T.decline, fontFamily: T.mono, marginLeft: 8 }}>{fmt(totalRiskACV)}</span>
-          <span style={{ fontSize: 11, color: T.textMuted, marginLeft: 4 }}>({riskList.length} accounts)</span>
-        </div>
-      </div>
-
-      {/* ── Movement Intelligence banner — deterministic, not an LLM call ── */}
-      <div style={{ background: T.bgSurface, border: `1px solid ${ratioWinning ? T.growth : T.decline}30`, borderLeft: `3px solid ${ratioWinning ? T.growth : T.decline}`, borderRadius: 6, padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Sparkles size={11} color={ratioWinning ? T.growth : T.decline} style={{ flexShrink: 0 }} />
-        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: ratioWinning ? T.growth : T.decline, flexShrink: 0 }}>Movement Intelligence</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary }}>
-          Opportunity-to-Risk ratio: {ratioLabel}x — {ratioWinning ? 'expansion winning' : 'risk dominating'}
-        </span>
-      </div>
-
-      {/* ── Two-column: Expansion | Churn Risk ─────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-
-        {/* Expansion Opportunities */}
-        <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: `1px solid ${T.borderDefault}`, background: T.bgRaised }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 6, background: `${T.growth}14`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <TrendingUp size={13} color={T.growth} />
-              </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.growth }}>Expansion Opportunities</div>
-                <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.textSecondary }}>High upsell potential</div>
-              </div>
+      ) : (
+        <>
+          {/* ── Summary bar — full population counts, not capped ──────── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '10px 16px', background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+            <div>
+              <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.textMuted }}>Expansion Opportunity</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.growth, fontFamily: T.mono, marginLeft: 8 }}>{fmt(expACV)}</span>
+              <span style={{ fontSize: 11, color: T.textMuted, marginLeft: 4 }}>({expCount} accounts)</span>
             </div>
-            <span style={{ fontSize: 11, fontWeight: 700, background: `${T.growth}14`, color: T.growth, border: `1px solid ${T.borderDefault}`, padding: '3px 10px', borderRadius: 20 }}>
-              {expansionList.length} accounts
+            <div style={{ width: 1, height: 16, background: T.borderStrong }} />
+            <div>
+              <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.textMuted }}>Churn Risk</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.decline, fontFamily: T.mono, marginLeft: 8 }}>{fmt(riskACV)}</span>
+              <span style={{ fontSize: 11, color: T.textMuted, marginLeft: 4 }}>({riskCount} accounts)</span>
+            </div>
+            {detailRows.length < (riskCount + expCount) && (
+              <div style={{ marginLeft: 'auto', fontSize: 10, color: T.textMuted }}>
+                Showing top {Math.min(riskList.length, 50)} risk · top {Math.min(expansionList.length, 50)} opportunity
+              </div>
+            )}
+          </div>
+
+          {/* ── Movement Intelligence banner — deterministic ───────────── */}
+          <div style={{ background: T.bgSurface, border: `1px solid ${ratioWinning ? T.growth : T.decline}30`, borderLeft: `3px solid ${ratioWinning ? T.growth : T.decline}`, borderRadius: 6, padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Sparkles size={11} color={ratioWinning ? T.growth : T.decline} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: ratioWinning ? T.growth : T.decline, flexShrink: 0 }}>Movement Intelligence</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary }}>
+              Opportunity-to-Risk ratio: {ratioLabel}x — {ratioWinning ? 'expansion winning' : 'risk dominating'}
             </span>
           </div>
-          <div style={{ padding: 12, maxHeight: 520, overflowY: 'auto' }}>
-            {expansionList.length
-              ? expansionList.slice(0, 25).map((row, i) => <RiskOpportunityCard key={i} row={row} isRisk={false} rank={i} T={T} />)
-              : <div style={{ textAlign: 'center', color: T.textSecondary, fontSize: 13, padding: 32 }}>No expansion opportunities detected</div>
-            }
-          </div>
-        </div>
 
-        {/* Churn Risk */}
-        <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: `1px solid ${T.borderDefault}`, background: T.bgRaised }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 6, background: `${T.decline}0F`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <TrendingDown size={13} color={T.decline} />
+          {/* ── Two-column: Expansion | Churn Risk ─────────────────────── */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: `1px solid ${T.borderDefault}`, background: T.bgRaised }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 6, background: `${T.growth}14`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <TrendingUp size={13} color={T.growth} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.growth }}>Expansion Opportunities</div>
+                    <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.textSecondary }}>High upsell potential</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, background: `${T.growth}14`, color: T.growth, border: `1px solid ${T.borderDefault}`, padding: '3px 10px', borderRadius: 20 }}>
+                  {expCount} accounts
+                </span>
               </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.decline }}>Churn Risk</div>
-                <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.textSecondary }}>Priority interventions</div>
+              <div style={{ padding: 12, maxHeight: 520, overflowY: 'auto' }}>
+                {expansionList.length
+                  ? expansionList.map((row, i) => <RiskOpportunityCard key={i} row={row} isRisk={false} rank={i} T={T} />)
+                  : <div style={{ textAlign: 'center', color: T.textSecondary, fontSize: 13, padding: 32 }}>No expansion opportunities detected for {period || 'this period'}</div>
+                }
               </div>
             </div>
-            <span style={{ fontSize: 11, fontWeight: 700, background: `${T.decline}0F`, color: T.decline, border: `1px solid ${T.borderDefault}`, padding: '3px 10px', borderRadius: 20 }}>
-              {riskList.length} accounts
-            </span>
+
+            <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: `1px solid ${T.borderDefault}`, background: T.bgRaised }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 6, background: `${T.decline}0F`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <TrendingDown size={13} color={T.decline} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.decline }}>Churn Risk</div>
+                    <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.textSecondary }}>Priority interventions</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, background: `${T.decline}0F`, color: T.decline, border: `1px solid ${T.borderDefault}`, padding: '3px 10px', borderRadius: 20 }}>
+                  {riskCount} accounts
+                </span>
+              </div>
+              <div style={{ padding: 12, maxHeight: 520, overflowY: 'auto' }}>
+                {riskList.length
+                  ? riskList.map((row, i) => <RiskOpportunityCard key={i} row={row} isRisk={true} rank={i} T={T} />)
+                  : <div style={{ textAlign: 'center', color: T.textSecondary, fontSize: 13, padding: 32 }}>No accounts at elevated risk for {period || 'this period'}</div>
+                }
+              </div>
+            </div>
           </div>
-          <div style={{ padding: 12, maxHeight: 520, overflowY: 'auto' }}>
-            {riskList.length
-              ? riskList.slice(0, 25).map((row, i) => <RiskOpportunityCard key={i} row={row} isRisk={true} rank={i} T={T} />)
-              : <div style={{ textAlign: 'center', color: T.textSecondary, fontSize: 13, padding: 32 }}>No accounts at elevated risk</div>
-            }
-          </div>
-        </div>
+        </>
+      )}
+
+      {/* ── Classification Browser — restored, sits below the composite
+           cards. Uses raw bridge classifications for this period, exactly
+           as it worked before the Risk & Opportunity rebuild. ──────────── */}
+      <div style={{ borderTop: `1px solid ${T.borderDefault}`, paddingTop: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>All Movements by Classification</div>
+        <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 16 }}>Raw bridge movements for {period || 'this period'} — largest first</div>
+        <ACVClassificationBrowser bridgeTable={bridgeTable} lb={lb} period={period} T={T} />
       </div>
     </div>
   )
 }
 
+// ─── Historical Performance (ACV) ─────────────────────────────────────────────
 // ─── Historical Performance (ACV) ─────────────────────────────────────────────
 // Visual design matches MRR/ARR's "Historical Revenue Performance" tab exactly
 // (KPI strip, Retention Dynamics chart, Predictive Insight + Seasonality panel,
@@ -1445,31 +1534,55 @@ export default function ACVCenter() {
             outOfScopeReason: row.OutOfScopeReason || row.outOfScopeReason || '',
           }))
 
-          // Risk & Opportunity — deterministic composite scores computed
-          // server-side on the FULL customer set (not subject to the
-          // customer_bridge top-N cap). Backend returns Title-Case /
-          // snake_case fields (Customer, RiskScore, RiskLabel, RiskReasons,
-          // ExpansionScore, ExpansionLabel, ExpansionReasons, PriorACV,
-          // EndingACV, Date) — mapped to camelCase here, same convention
-          // as bridgeTable/bookingsTable above.
-          const riskOpportunity = (data.risk_opportunity || []).map((row: any) => ({
-            customer:          String(row.Customer || row.customer || ''),
-            date:              new Date(row.Date || row.date),
-            priorACV:          parseFloat(row.PriorACV || row.prior_acv || 0),
-            endingACV:         parseFloat(row.EndingACV || row.ending_acv || 0),
-            riskScore:         parseFloat(row.RiskScore || row.risk_score || 0),
-            riskLabel:         String(row.RiskLabel || row.risk_label || 'Low'),
-            riskReasons:       Array.isArray(row.RiskReasons || row.risk_reasons) ? (row.RiskReasons || row.risk_reasons) : [],
-            expansionScore:    parseFloat(row.ExpansionScore || row.expansion_score || 0),
-            expansionLabel:    String(row.ExpansionLabel || row.expansion_label || 'Low'),
-            expansionReasons:  Array.isArray(row.ExpansionReasons || row.expansion_reasons) ? (row.ExpansionReasons || row.expansion_reasons) : [],
-          })).filter((r: any) => r.customer)
+          // Risk & Opportunity — deterministic composite scores, now
+          // computed for EVERY period (not one auto-picked snapshot).
+          // Backend returns TWO arrays:
+          //   risk_opportunity_summary — FULL population counts/ACV per
+          //     period, never capped — used for the header stats bar so
+          //     those numbers stay honest even though the detail list below
+          //     is capped to top-N per period.
+          //   risk_opportunity_detail  — top-N customers per period per
+          //     side (capped, same principle as customer_bridge's own cap),
+          //     with full traceable RiskReasons/ExpansionReasons.
+          // Both are keyed by `period` ('YYYY-MM') matching the same
+          // convention bridgeTable/customer_bridge already use, so the
+          // existing Period selector filters this the same way as every
+          // other tab.
+          const periodKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+
+          const riskOpportunitySummary = (data.risk_opportunity_summary || []).map((row: any) => {
+            const d = new Date(row.Date || row.date)
+            return {
+              period:          periodKey(d),
+              riskCount:       parseInt(row.RiskCount ?? row.risk_count ?? 0),
+              riskACV:         parseFloat(row.RiskACV ?? row.risk_acv ?? 0),
+              expansionCount:  parseInt(row.ExpansionCount ?? row.expansion_count ?? 0),
+              expansionACV:    parseFloat(row.ExpansionACV ?? row.expansion_acv ?? 0),
+            }
+          }).filter((r: any) => !isNaN(new Date(r.period + '-01').getTime()) && r.period !== 'NaN-NaN')
+
+          const riskOpportunityDetail = (data.risk_opportunity_detail || []).map((row: any) => {
+            const d = new Date(row.Date || row.date)
+            return {
+              customer:          String(row.Customer || row.customer || ''),
+              period:            periodKey(d),
+              priorACV:          parseFloat(row.PriorACV || row.prior_acv || 0),
+              endingACV:         parseFloat(row.EndingACV || row.ending_acv || 0),
+              riskScore:         parseFloat(row.RiskScore || row.risk_score || 0),
+              riskLabel:         String(row.RiskLabel || row.risk_label || 'Low'),
+              riskReasons:       Array.isArray(row.RiskReasons || row.risk_reasons) ? (row.RiskReasons || row.risk_reasons) : [],
+              expansionScore:    parseFloat(row.ExpansionScore || row.expansion_score || 0),
+              expansionLabel:    String(row.ExpansionLabel || row.expansion_label || 'Low'),
+              expansionReasons:  Array.isArray(row.ExpansionReasons || row.expansion_reasons) ? (row.ExpansionReasons || row.expansion_reasons) : [],
+            }
+          }).filter((r: any) => r.customer)
 
           const apiOutput = {
             bridgeTable,
             acvTable:      data.acv_table || [],
             bookingsTable,
-            riskOpportunity,
+            riskOpportunitySummary,
+            riskOpportunityDetail,
             qc,
             mode:          unit,
             periodsCount:  new Set(bridgeTable.filter(pcRow => pcRow.monthLookback === 12 && pcRow.bridgeClassification === 'Prior ACV').map(pcRow => `${pcRow.date.getFullYear()}-${pcRow.date.getMonth()}`)).size,
@@ -1947,8 +2060,15 @@ export default function ACVCenter() {
             {tab === 'movers' && (
               <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Top Movers — Risk &amp; Opportunity</div>
-                <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Deterministic composite scoring across your full customer base — every score decomposes into named, traceable reasons</div>
-                <ACVTopMovers riskOpportunity={engineOutput.riskOpportunity} T={T} />
+                <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Deterministic composite scoring for {fmtPeriod(selPeriod)} — every score decomposes into named, traceable reasons. Change the period above to see how risk and opportunity shift over time.</div>
+                <ACVTopMovers
+                  riskOpportunitySummary={engineOutput.riskOpportunitySummary}
+                  riskOpportunityDetail={engineOutput.riskOpportunityDetail}
+                  bridgeTable={engineOutput.bridgeTable}
+                  lb={lb}
+                  period={selPeriod}
+                  T={T}
+                />
               </div>
             )}
 
