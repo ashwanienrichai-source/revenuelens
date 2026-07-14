@@ -1348,6 +1348,247 @@ const TABS = [
 ]
 
 // ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Executive Sidebar (ACV) ──────────────────────────────────────────────────
+// Pure UI/UX layout addition — no new calculations, no API changes. Every
+// number displayed here is read from `kpis` (calcACVKPIs, already computed
+// elsewhere in this file) or `riskOpportunitySummary` (already computed
+// server-side). This section only adds presentation, not logic.
+
+// Narrative text — EXTRACTED from the Summary tab's existing AI-narrative
+// block (not new logic, not an LLM call — same deterministic template-string
+// construction that already existed inline in the Summary tab). Moved here
+// so it can live in the sidebar per the executive-layout brief, and kept as
+// a standalone function so both the sidebar and (if ever needed) other
+// tabs can call it without duplicating the string-building logic.
+function buildContractNarrative(kpis) {
+  if (!kpis) return ''
+  const gr = kpis.grossRenewal, nr = kpis.netRenewal
+  let s = `ACV moved from ${fmt(kpis.priorACV)} to ${fmt(kpis.endingACV)} (${kpis.netChange >= 0 ? '+' : ''}${fmt(kpis.netChange)}).`
+  if (gr != null) s += ` Gross renewal rate of ${fmtPct(gr)} — ${gr >= 0.9 ? 'strong retention' : gr >= 0.8 ? 'moderate retention' : 'retention needs attention'}.`
+  if (nr != null) s += ` Net renewal rate of ${fmtPct(nr)} — ${nr >= 1 ? 'expansion outpacing churn' : 'net contraction'}.`
+  if (kpis.expiryPool > 0) s += ` Expiry pool of ${fmt(kpis.expiryPool)} due for renewal.`
+  if (kpis.addOn > 0) s += ` ${fmt(kpis.addOn)} in Add-on ACV from mid-term expansions.`
+  if (kpis.churn < 0) s += ` Churn of ${fmt(Math.abs(kpis.churn))} — ${Math.abs(kpis.churn) / kpis.expiryPool > 0.1 ? 'above 10% threshold, investigate' : 'controlled'}.`
+  return s
+}
+
+// Portfolio Health Score — deterministic average of GRR + NRR, both of
+// which already exist in `kpis`. Bands chosen to match language already
+// used elsewhere in this file (KpiCard's "Healthy"/"Needs attention" for
+// Gross Retention). No new calculation invented, just a simple average of
+// two numbers already trusted and shown elsewhere on this page.
+function computeHealthScore(kpis) {
+  if (!kpis || kpis.grossRetention == null || kpis.netRetention == null) return null
+  const score = ((kpis.grossRetention + kpis.netRetention) / 2) * 100
+  let band, color
+  if (score >= 100)      { band = 'Excellent';       }
+  else if (score >= 85)  { band = 'Good';            }
+  else                   { band = 'Needs Attention'; }
+  return { score: Math.max(0, Math.min(140, score)), band }
+}
+
+function HealthScoreRing({ kpis, T }) {
+  const h = computeHealthScore(kpis)
+  if (!h) return null
+
+  const size = 108, stroke = 9, r = (size - stroke) / 2, c = 2 * Math.PI * r
+  // Normalize display: 100 = full ring, values above just show as full+badge
+  const pct = Math.min(h.score / 100, 1)
+  const dash = c * pct
+  const color = h.band === 'Excellent' ? T.growth : h.band === 'Good' ? T.warning : T.decline
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0' }}>
+      <div style={{ position: 'relative', width: size, height: size }}>
+        <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={T.borderDefault} strokeWidth={stroke} />
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+            strokeDasharray={`${dash} ${c - dash}`} strokeLinecap="round"
+            style={{ transition: 'stroke-dasharray 0.6s ease' }} />
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ fontFamily: T.mono, fontSize: 22, fontWeight: 700, color: T.textPrimary, lineHeight: 1 }}>{h.score.toFixed(0)}</div>
+          <div style={{ fontSize: 8, color: T.textMuted, marginTop: 2 }}>/ 100</div>
+        </div>
+      </div>
+      <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color, padding: '3px 10px', borderRadius: 20, background: `${color}15` }}>
+        {h.band}
+      </div>
+    </div>
+  )
+}
+
+// Key Alerts — deterministic threshold rules on numbers already computed
+// (kpis for GRR/NRR/Renewal Exposure, riskOpportunitySummary for full-
+// population risk/expansion counts). No new backend logic — pure UI read
+// of existing values against fixed thresholds.
+function KeyAlerts({ kpis, riskSummaryRow, T }) {
+  if (!kpis) return null
+
+  const alerts = []
+  if (riskSummaryRow && riskSummaryRow.riskCount > 0) {
+    alerts.push({ label: 'High Churn Risk', detail: `${riskSummaryRow.riskCount} account(s) at elevated/critical risk`, color: T.decline, icon: AlertCircle })
+  }
+  if (kpis.grossRetention != null && kpis.grossRetention < 0.80) {
+    alerts.push({ label: 'Low Retention', detail: `Gross retention at ${fmtPct(kpis.grossRetention)}`, color: T.decline, icon: TrendingDown })
+  }
+  const renewalExposure = kpis.endingACV > 0 ? kpis.expiryPool / kpis.endingACV : null
+  if (renewalExposure != null && renewalExposure >= 0.30) {
+    alerts.push({ label: 'Upcoming Renewals', detail: `${fmtPct(renewalExposure)} of Ending ACV due for renewal`, color: T.warning, icon: Clock })
+  }
+  if (riskSummaryRow && riskSummaryRow.expansionCount > 0) {
+    alerts.push({ label: 'Pipeline Opportunity', detail: `${riskSummaryRow.expansionCount} account(s) showing expansion signal`, color: T.growth, icon: TrendingUp })
+  }
+
+  if (!alerts.length) return (
+    <div style={{ fontSize: 11, color: T.textMuted, padding: '10px 0' }}>No active alerts for this period</div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {alerts.map((a, i) => {
+        const Icon = a.icon
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, background: `${a.color}0C`, border: `1px solid ${a.color}25` }}>
+            <Icon size={12} color={a.color} style={{ flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: a.color }}>{a.label}</div>
+              <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 1 }}>{a.detail}</div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Executive KPI Summary — compact list rendering of the same 11 KPIs
+// already shown as cards in the Summary tab. Same values, same
+// calculations, different (denser) presentation for the sidebar.
+const EXEC_KPI_ROWS = [
+  { key: 'priorACV',   label: 'Prior ACV',        icon: DollarSign },
+  { key: 'endingACV',  label: 'Ending ACV',       icon: DollarSign },
+  { key: 'grossRetention', label: 'Gross Retention', icon: Shield, pct: true },
+  { key: 'netRetention',   label: 'Net Retention',   icon: Shield, pct: true },
+  { key: 'expiryPool', label: 'Renewal Pool',     icon: Clock },
+  { key: 'newLogo',    label: 'New Logo',         icon: TrendingUp },
+  { key: 'upsell',     label: 'Upsell',           icon: TrendingUp },
+  { key: 'downsell',   label: 'Downsell',         icon: TrendingDown },
+  { key: 'churn',      label: 'Churn',            icon: TrendingDown },
+  { key: 'lapsed',     label: 'Lapsed',           icon: TrendingDown },
+  { key: 'addOn',      label: 'Bookings (Add-on)', icon: DollarSign },
+]
+
+function ExecutiveKpiList({ kpis, T }) {
+  if (!kpis) return null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      {EXEC_KPI_ROWS.map(row => {
+        const val = kpis[row.key]
+        const Icon = row.icon
+        const isNeg = ['downsell', 'churn', 'lapsed'].includes(row.key)
+        const display = row.pct ? fmtPct(val) : fmt(val)
+        const valColor = val == null ? T.textMuted
+          : isNeg ? (val === 0 ? T.textSecondary : T.decline)
+          : row.pct ? (val >= (row.key === 'netRetention' ? 1.0 : 0.85) ? T.growth : T.decline)
+          : T.textPrimary
+        return (
+          <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 2px', borderBottom: `1px solid ${T.borderSubtle}` }}>
+            <Icon size={12} color={T.textMuted} style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1, fontSize: 11, color: T.textSecondary }}>{row.label}</div>
+            <div style={{ fontFamily: T.mono, fontSize: 12, fontWeight: 700, color: valColor }}>{display}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Quick Navigation — since ACV Center is tab-based (not a single
+// scrollable page), "scroll to section" is adapted to "switch tab",
+// which is the natural equivalent in this UI. Same destinations as the
+// brief's requested nav items, mapped onto existing tabs.
+const QUICK_NAV_ITEMS = [
+  { tab: 'bridge',     label: 'Bridge',       icon: TrendingUp },
+  { tab: 'expiry',     label: 'Expiry Pool',  icon: Clock },
+  { tab: 'movers',     label: 'Customers',    icon: Users },
+  { tab: 'renewal',    label: 'Renewal Rates', icon: Shield },
+  { tab: 'historical', label: 'Historical',   icon: Layers },
+  { tab: 'cohort',     label: 'Cohorts',      icon: Users },
+  { tab: 'account360', label: 'Account 360',  icon: Users },
+]
+
+function QuickNav({ activeTab, setTab, T }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {QUICK_NAV_ITEMS.map(item => {
+        const Icon = item.icon
+        const active = activeTab === item.tab
+        return (
+          <button key={item.tab} onClick={() => setTab(item.tab)} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6,
+            border: 'none', background: active ? T.brandSoft : 'transparent',
+            color: active ? T.brandPrimary : T.textSecondary,
+            fontSize: 11, fontWeight: active ? 700 : 500, cursor: 'pointer', textAlign: 'left',
+          }}>
+            <Icon size={12} />
+            {item.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function SidebarSection({ title, children, T }) {
+  return (
+    <div style={{ padding: '16px 18px', borderBottom: `1px solid ${T.borderDefault}` }}>
+      <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.textMuted, marginBottom: 12 }}>{title}</div>
+      {children}
+    </div>
+  )
+}
+
+function ExecutiveSidebar({ kpis, riskOpportunitySummary, selPeriod, activeTab, setTab, T }) {
+  const riskSummaryRow = useMemo(() =>
+    (riskOpportunitySummary || []).find(r => r.period === selPeriod) || null
+  , [riskOpportunitySummary, selPeriod])
+
+  const narrative = useMemo(() => buildContractNarrative(kpis), [kpis])
+
+  if (!kpis) return null
+
+  return (
+    <aside style={{
+      width: 340, flexShrink: 0, alignSelf: 'flex-start',
+      position: 'sticky', top: 76, maxHeight: 'calc(100vh - 92px)', overflowY: 'auto',
+      background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 12,
+      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+    }}>
+      <SidebarSection title="Executive KPI Summary" T={T}>
+        <ExecutiveKpiList kpis={kpis} T={T} />
+      </SidebarSection>
+
+      <SidebarSection title="RevenueLens AI — Executive Summary" T={T}>
+        <div style={{ fontSize: 12, color: T.textPrimary, lineHeight: 1.65 }}>{narrative}</div>
+      </SidebarSection>
+
+      <SidebarSection title="Portfolio Health" T={T}>
+        <HealthScoreRing kpis={kpis} T={T} />
+      </SidebarSection>
+
+      <SidebarSection title="Key Alerts" T={T}>
+        <KeyAlerts kpis={kpis} riskSummaryRow={riskSummaryRow} T={T} />
+      </SidebarSection>
+
+      <div style={{ padding: '16px 18px' }}>
+        <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.textMuted, marginBottom: 12 }}>Quick Navigation</div>
+        <QuickNav activeTab={activeTab} setTab={setTab} T={T} />
+      </div>
+    </aside>
+  )
+}
+
 export default function ACVCenter() {
   const router = useRouter()
 
@@ -1837,8 +2078,23 @@ export default function ACVCenter() {
         </div>
       </div>
 
-      {/* ── Main layout ─────────────────────────────────────────────────────── */}
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 24px' }}>
+      {/* ── Main layout — two-column executive layout: sticky sidebar +
+           existing content, unchanged. Sidebar only renders once real
+           data/KPIs exist. ─────────────────────────────────────────── */}
+      <div style={{ maxWidth: 1660, margin: '0 auto', padding: '24px 24px', display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+
+        {engineOutput && kpis && (
+          <ExecutiveSidebar
+            kpis={kpis}
+            riskOpportunitySummary={engineOutput.riskOpportunitySummary}
+            selPeriod={selPeriod}
+            activeTab={tab}
+            setTab={setTab}
+            T={T}
+          />
+        )}
+
+        <div style={{ flex: 1, minWidth: 0 }}>
 
         {/* Empty state — only when no data in store AND no pre-computed context */}
         {!engineOutput && !running && !error && !apiResults && !hasStoredData && (
@@ -1959,24 +2215,9 @@ export default function ACVCenter() {
                   <KpiCard label="Lapsed"      value={fmt(kpis.lapsed)}    subGood={kpis.lapsed === 0}  T={T} />
                 </div>
 
-                {/* AI narrative */}
-                {kpis && (
-                  <div style={{ padding: '14px 18px', borderRadius: 10, background: T.brandSoft, border: `1px solid ${T.brandBorder}`, marginBottom: 24 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: T.brandPrimary, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>✦ RevenueLens AI — Contract Summary</div>
-                    <div style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.7 }}>
-                      {(() => {
-                        const gr = kpis.grossRenewal, nr = kpis.netRenewal
-                        let s = `ACV moved from ${fmt(kpis.priorACV)} to ${fmt(kpis.endingACV)} (${kpis.netChange >= 0 ? '+' : ''}${fmt(kpis.netChange)}).`
-                        if (gr != null) s += ` Gross renewal rate of ${fmtPct(gr)} — ${gr >= 0.9 ? 'strong retention' : gr >= 0.8 ? 'moderate retention' : 'retention needs attention'}.`
-                        if (nr != null) s += ` Net renewal rate of ${fmtPct(nr)} — ${nr >= 1 ? 'expansion outpacing churn' : 'net contraction'}.`
-                        if (kpis.expiryPool > 0) s += ` Expiry pool of ${fmt(kpis.expiryPool)} due for renewal.`
-                        if (kpis.addOn > 0) s += ` ${fmt(kpis.addOn)} in Add-on ACV from mid-term expansions.`
-                        if (kpis.churn < 0) s += ` Churn of ${fmt(Math.abs(kpis.churn))} — ${Math.abs(kpis.churn) / kpis.expiryPool > 0.1 ? 'above 10% threshold, investigate' : 'controlled'}.`
-                        return s
-                      })()}
-                    </div>
-                  </div>
-                )}
+                {/* AI narrative — relocated to the Executive Sidebar's
+                    "RevenueLens AI — Executive Summary" section, using the
+                    same buildContractNarrative() logic, not duplicated here. */}
 
                 {/* Mini waterfall preview */}
                 <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
@@ -2103,6 +2344,7 @@ export default function ACVCenter() {
 
           </>
         )}
+        </div>
       </div>
 
       <style>{`
