@@ -1948,9 +1948,29 @@ export default function ACVCenter() {
     return `${first.date.getFullYear()}-${String(first.date.getMonth()+1).padStart(2,'0')}`
   }, [engineOutput])
 
+  // Mirror of materialStart, scanning from the END of the timeline instead
+  // of the start. Without this, "Latest" defaulted to the literal last
+  // calendar period in the dataset — which can land on a near-empty tail
+  // where the book has already wound down (Ending ACV ≈ 0), even though
+  // that's a real calendar month with data rows. Same root cause as the
+  // backend's _find_material_latest_period fix in risk_opportunity.py —
+  // this closes the equivalent gap on the frontend's own default period
+  // selection, which drives Summary, the sidebar, and every other tab.
+  const materialEnd = useMemo(() => {
+    if (!engineOutput?.bridgeTable?.length) return ''
+    const lb12 = engineOutput.bridgeTable.filter(r => r.monthLookback === 12 && r.bridgeClassification === 'Ending ACV')
+    if (!lb12.length) return ''
+    const peak = lb12.reduce((m, r) => r.bridgeValue > m ? r.bridgeValue : m, 0)
+    const threshold = peak * 0.01
+    const sorted = lb12.slice().sort((matA, matB) => matB.date - matA.date)  // descending — scan from the end
+    const last = sorted.find(matRow => matRow.bridgeValue >= threshold)
+    if (!last) return ''
+    return `${last.date.getFullYear()}-${String(last.date.getMonth()+1).padStart(2,'0')}`
+  }, [engineOutput])
+
   // Effective range (auto or user-set)
   const effectiveStart = rangeStart || materialStart
-  const effectiveEnd   = rangeEnd   || (periods.length ? periods[periods.length - 1] : '')
+  const effectiveEnd   = rangeEnd   || materialEnd || (periods.length ? periods[periods.length - 1] : '')
 
   // Periods filtered to selected range
   const rangePeriods = useMemo(() =>
