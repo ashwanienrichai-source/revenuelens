@@ -30,7 +30,7 @@ import {
 import {
   TrendingUp, TrendingDown, FileText, AlertCircle, CheckCircle,
   Download, RefreshCw, ChevronDown, ChevronUp, ArrowUp, ArrowDown,
-  Calendar, Shield, Zap, Layers, Target, DollarSign, Clock, Users
+  Calendar, Shield, Zap, Layers, Target, DollarSign, Clock, Users, Sparkles
 } from 'lucide-react'
 import axios from 'axios'
 import { supabase } from '../../lib/supabase'
