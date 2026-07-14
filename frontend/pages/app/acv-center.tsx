@@ -1462,48 +1462,6 @@ function KeyAlerts({ kpis, riskSummaryRow, T }) {
   )
 }
 
-// Executive KPI Summary — compact list rendering of the same 11 KPIs
-// already shown as cards in the Summary tab. Same values, same
-// calculations, different (denser) presentation for the sidebar.
-const EXEC_KPI_ROWS = [
-  { key: 'priorACV',   label: 'Prior ACV',        icon: DollarSign },
-  { key: 'endingACV',  label: 'Ending ACV',       icon: DollarSign },
-  { key: 'grossRetention', label: 'Gross Retention', icon: Shield, pct: true },
-  { key: 'netRetention',   label: 'Net Retention',   icon: Shield, pct: true },
-  { key: 'expiryPool', label: 'Renewal Pool',     icon: Clock },
-  { key: 'newLogo',    label: 'New Logo',         icon: TrendingUp },
-  { key: 'upsell',     label: 'Upsell',           icon: TrendingUp },
-  { key: 'downsell',   label: 'Downsell',         icon: TrendingDown },
-  { key: 'churn',      label: 'Churn',            icon: TrendingDown },
-  { key: 'lapsed',     label: 'Lapsed',           icon: TrendingDown },
-  { key: 'addOn',      label: 'Bookings (Add-on)', icon: DollarSign },
-]
-
-function ExecutiveKpiList({ kpis, T }) {
-  if (!kpis) return null
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      {EXEC_KPI_ROWS.map(row => {
-        const val = kpis[row.key]
-        const Icon = row.icon
-        const isNeg = ['downsell', 'churn', 'lapsed'].includes(row.key)
-        const display = row.pct ? fmtPct(val) : fmt(val)
-        const valColor = val == null ? T.textMuted
-          : isNeg ? (val === 0 ? T.textSecondary : T.decline)
-          : row.pct ? (val >= (row.key === 'netRetention' ? 1.0 : 0.85) ? T.growth : T.decline)
-          : T.textPrimary
-        return (
-          <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 2px', borderBottom: `1px solid ${T.borderSubtle}` }}>
-            <Icon size={12} color={T.textMuted} style={{ flexShrink: 0 }} />
-            <div style={{ flex: 1, fontSize: 11, color: T.textSecondary }}>{row.label}</div>
-            <div style={{ fontFamily: T.mono, fontSize: 12, fontWeight: 700, color: valColor }}>{display}</div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 // Quick Navigation — since ACV Center is tab-based (not a single
 // scrollable page), "scroll to section" is adapted to "switch tab",
 // which is the natural equivalent in this UI. Same destinations as the
@@ -1554,8 +1512,6 @@ function ExecutiveSidebar({ kpis, riskOpportunitySummary, selPeriod, activeTab, 
     (riskOpportunitySummary || []).find(r => r.period === selPeriod) || null
   , [riskOpportunitySummary, selPeriod])
 
-  const narrative = useMemo(() => buildContractNarrative(kpis), [kpis])
-
   if (!kpis) return null
 
   return (
@@ -1570,14 +1526,12 @@ function ExecutiveSidebar({ kpis, riskOpportunitySummary, selPeriod, activeTab, 
           separate elements, or content visually bleeds past the outer
           rounded border while scrolling (the artifact seen in testing). */}
       <div style={{ maxHeight: 'calc(100vh - 92px)', overflowY: 'auto' }}>
-        <SidebarSection title="Executive KPI Summary" T={T}>
-          <ExecutiveKpiList kpis={kpis} T={T} />
-        </SidebarSection>
-
-        <SidebarSection title="RevenueLens AI — Executive Summary" T={T}>
-          <div style={{ fontSize: 12, color: T.textPrimary, lineHeight: 1.65 }}>{narrative}</div>
-        </SidebarSection>
-
+        {/* Executive KPI list and AI narrative REMOVED from here — they
+            already exist as full detail in Main Content's Summary tab
+            (KPI cards row + AI narrative block), so keeping them here too
+            was pure duplication of the same numbers. Sidebar now holds only
+            what's NOT already shown elsewhere: Portfolio Health, Key
+            Alerts, and Quick Navigation. */}
         <SidebarSection title="Portfolio Health" T={T}>
           <HealthScoreRing kpis={kpis} T={T} />
         </SidebarSection>
@@ -2241,9 +2195,17 @@ export default function ACVCenter() {
                   <KpiCard label="Lapsed"      value={fmt(kpis.lapsed)}    subGood={kpis.lapsed === 0}  T={T} />
                 </div>
 
-                {/* AI narrative — relocated to the Executive Sidebar's
-                    "RevenueLens AI — Executive Summary" section, using the
-                    same buildContractNarrative() logic, not duplicated here. */}
+                {/* AI narrative — lives here in Main Content only (not in
+                    the sidebar, which would duplicate it). Uses the shared
+                    buildContractNarrative() helper so the string-building
+                    logic itself isn't duplicated even though it's only
+                    rendered from this one place. */}
+                {kpis && (
+                  <div style={{ padding: '14px 18px', borderRadius: 10, background: T.brandSoft, border: `1px solid ${T.brandBorder}`, marginBottom: 24 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: T.brandPrimary, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>✦ RevenueLens AI — Contract Summary</div>
+                    <div style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.7 }}>{buildContractNarrative(kpis)}</div>
+                  </div>
+                )}
 
                 {/* Mini waterfall preview */}
                 <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
