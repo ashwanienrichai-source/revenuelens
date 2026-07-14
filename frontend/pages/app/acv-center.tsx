@@ -1561,29 +1561,35 @@ function ExecutiveSidebar({ kpis, riskOpportunitySummary, selPeriod, activeTab, 
   return (
     <aside style={{
       width: 340, flexShrink: 0, alignSelf: 'flex-start',
-      position: 'sticky', top: 76, maxHeight: 'calc(100vh - 92px)', overflowY: 'auto',
+      position: 'sticky', top: 76, maxHeight: 'calc(100vh - 92px)',
+      overflow: 'hidden',   // clips to rounded corners — no scrolling on THIS element
       background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 12,
       boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
     }}>
-      <SidebarSection title="Executive KPI Summary" T={T}>
-        <ExecutiveKpiList kpis={kpis} T={T} />
-      </SidebarSection>
+      {/* Inner scroll container — sticky + overflow-scroll must be on
+          separate elements, or content visually bleeds past the outer
+          rounded border while scrolling (the artifact seen in testing). */}
+      <div style={{ maxHeight: 'calc(100vh - 92px)', overflowY: 'auto' }}>
+        <SidebarSection title="Executive KPI Summary" T={T}>
+          <ExecutiveKpiList kpis={kpis} T={T} />
+        </SidebarSection>
 
-      <SidebarSection title="RevenueLens AI — Executive Summary" T={T}>
-        <div style={{ fontSize: 12, color: T.textPrimary, lineHeight: 1.65 }}>{narrative}</div>
-      </SidebarSection>
+        <SidebarSection title="RevenueLens AI — Executive Summary" T={T}>
+          <div style={{ fontSize: 12, color: T.textPrimary, lineHeight: 1.65 }}>{narrative}</div>
+        </SidebarSection>
 
-      <SidebarSection title="Portfolio Health" T={T}>
-        <HealthScoreRing kpis={kpis} T={T} />
-      </SidebarSection>
+        <SidebarSection title="Portfolio Health" T={T}>
+          <HealthScoreRing kpis={kpis} T={T} />
+        </SidebarSection>
 
-      <SidebarSection title="Key Alerts" T={T}>
-        <KeyAlerts kpis={kpis} riskSummaryRow={riskSummaryRow} T={T} />
-      </SidebarSection>
+        <SidebarSection title="Key Alerts" T={T}>
+          <KeyAlerts kpis={kpis} riskSummaryRow={riskSummaryRow} T={T} />
+        </SidebarSection>
 
-      <div style={{ padding: '16px 18px' }}>
-        <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.textMuted, marginBottom: 12 }}>Quick Navigation</div>
-        <QuickNav activeTab={activeTab} setTab={setTab} T={T} />
+        <div style={{ padding: '16px 18px' }}>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.textMuted, marginBottom: 12 }}>Quick Navigation</div>
+          <QuickNav activeTab={activeTab} setTab={setTab} T={T} />
+        </div>
       </div>
     </aside>
   )
