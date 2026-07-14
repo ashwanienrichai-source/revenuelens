@@ -478,36 +478,25 @@ function ACVTopMovers({ bridgeTable, lb, period, T }) {
   )
 }
 
-// ─── Historical ACV — Bridge Table + Charts ──────────────────────────────────
-const BRIDGE_ROWS = [
-  { key: 'expiryPool',    cls: 'Expiry Pool',    label: 'Expiry Pool',         sign:  1, bold: false, indent: false },
-  { key: 'rob',           cls: 'RoB',            label: 'Not Up for Renewal',  sign:  1, bold: false, indent: true  },
-  { key: 'priorACV',      cls: 'Prior ACV',      label: 'Prior ACV',           sign:  1, bold: true,  indent: false },
-  { key: 'churn',         cls: 'Churn',          label: 'Churn',               sign: -1, bold: false, indent: true  },
-  { key: 'churnPartial',  cls: 'Churn Partial',  label: 'Churn Partial',       sign: -1, bold: false, indent: true  },
-  { key: 'downsell',      cls: 'Downsell',       label: 'Downsell',            sign: -1, bold: false, indent: true  },
-  { key: 'upsell',        cls: 'Upsell',         label: 'Upsell',              sign:  1, bold: false, indent: true  },
-  { key: 'addOn',         cls: 'Add on',         label: 'Add on',              sign:  1, bold: false, indent: true  },
-  { key: 'crossSell',     cls: 'Cross-sell',     label: 'Cross-sell',          sign:  1, bold: false, indent: true  },
-  { key: 'newLogo',       cls: 'New Logo',       label: 'New Logo',            sign:  1, bold: false, indent: true  },
-  { key: 'lapsed',        cls: 'Lapsed',         label: 'Lapsed',              sign: -1, bold: false, indent: true  },
-  { key: 'returning',     cls: 'Returning',      label: 'Returning',           sign:  1, bold: false, indent: true  },
-  { key: 'otherIn',       cls: 'Other In',       label: 'Other In',            sign:  1, bold: false, indent: true  },
-  { key: 'otherOut',      cls: 'Other Out',      label: 'Other Out',           sign: -1, bold: false, indent: true  },
-  { key: 'endingACV',     cls: 'Ending ACV',     label: 'Ending ACV',          sign:  1, bold: true,  indent: false },
-]
+// ─── Historical Performance (ACV) ─────────────────────────────────────────────
+// Visual design matches MRR/ARR's "Historical Revenue Performance" tab exactly
+// (KPI strip, Retention Dynamics chart, Predictive Insight + Seasonality panel,
+// Monthly Growth Audit table) — but every number here is computed from ACV's
+// own bridge classifications (Prior/Ending ACV, Expiry Pool, Churn, Upsell,
+// etc.), not ported from MRR's data model.
+//
+// 4th KPI card: "Renewal Exposure %" (Expiry Pool / Ending ACV) replaces MRR's
+// "LTV Proxy" — chosen because it's a real, already-computed ACV-native number
+// (no new math invented) and more meaningful for contract-based revenue than
+// forcing MRR's NRR/Churn-Rate formula onto ACV.
+//
+// Predictive Insight and Seasonality panels are DETERMINISTIC template
+// sentences built from real trend numbers — same as MRR's — not an LLM call.
 
-const METRIC_ROWS = [
-  { key: 'grr', label: 'Gross Retention Rate', fmt: 'pct', good: 0.85, desc: '(Prior - Churn - ChurnP - Downsell) / Prior' },
-  { key: 'nrr', label: 'Net Retention Rate',   fmt: 'pct', good: 1.00, desc: '(Prior - Churn - ChurnP - Downsell + Upsell + AddOn + CrossSell) / Prior' },
-  { key: 'gnr', label: 'Gross Renewal Rate',   fmt: 'pct', good: 0.70, desc: '(Expiry - Churn - ChurnP - Downsell) / Expiry' },
-  { key: 'nnr', label: 'Net Renewal Rate',     fmt: 'pct', good: 0.85, desc: '(Expiry - Churn - ChurnP - Downsell + Upsell) / Expiry' },
-]
+function ACVHistoricalPerformance({ bridgeTable, T, rangeStart='', rangeEnd='', selPeriod='' }) {
+  const [chartWindow, setChartWindow] = useState(12)
 
-function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='', selPeriod='' }) {
-  const [viewMode, setViewMode] = useState('annual')   // 'annual' | 'quarterly'
-  const [dispMode, setDispMode] = useState('dollar')   // 'dollar' | 'pct'
-
+  // ── Per-period metrics from the real bridge table (lb=12 basis) ───────────
   const { periods, byPeriod } = useMemo(() => {
     const all = [...new Set(
       bridgeTable.filter(r => r.monthLookback === 12)
@@ -516,245 +505,271 @@ function HistoricalACV({ bridgeTable, T, rangeStart='', rangeEnd='', selPeriod='
 
     const byPeriod = {}
     for (const p of all) {
-      const rows  = bridgeTable.filter(r => r.monthLookback === 12 &&
+      const rows = bridgeTable.filter(r => r.monthLookback === 12 &&
         `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}` === p)
-      const sum   = cls => rows.filter(r => r.bridgeClassification === cls).reduce((s,r) => s+r.bridgeValue, 0)
-      const ep    = sum('Expiry Pool')
-      const ch    = sum('Churn'); const cp = sum('Churn Partial'); const la = sum('Lapsed')
-      const up    = sum('Upsell'); const dn = sum('Downsell')
-      const prior = sum('Prior ACV'); const ending = sum('Ending ACV')
+      const sum = cls => rows.filter(r => r.bridgeClassification === cls).reduce((s,r) => s+r.bridgeValue, 0)
+
+      const ep      = sum('Expiry Pool')
+      const ch      = sum('Churn')
+      const cp      = sum('Churn Partial')
+      const dn      = sum('Downsell')
+      const up      = sum('Upsell')
+      const prior   = sum('Prior ACV')
+      const ending  = sum('Ending ACV')
+      const addOn   = sum('Add on')
+      const crossS  = sum('Cross-sell')
+      const newLogo = sum('New Logo')
+      const lapsed  = sum('Lapsed')
+      const returning = sum('Returning')
+      const otherIn  = sum('Other In')
+      const otherOut = sum('Other Out')
+
+      const expansion   = newLogo + crossS + up + addOn + returning + Math.max(otherIn, 0)
+      const contraction = ch + cp + dn + lapsed + Math.min(otherOut, 0)
+
       byPeriod[p] = {
-        expiryPool:   ep,
-        rob:          sum('RoB'),          // Not Up for Renewal — real classification
-        priorACV:     prior,
-        churn:        ch, churnPartial: cp, downsell: dn,
-        upsell:       up, addOn: sum('Add on'),
-        crossSell:    sum('Cross-sell'), newLogo: sum('New Logo'),
-        lapsed:       la, returning: sum('Returning'),
-        otherIn:      sum('Other In'), otherOut: sum('Other Out'),
-        endingACV:    ending,
-        // GRR = (EP - Churn - ChurnP) / EP  [verified: Dec-2018 = 60.1%]
-        grr:  ep > 0 ? (ep + ch + cp)           / ep : null,
-        // NRR = (EP - Churn - ChurnP - Downsell + Upsell) / EP  [verified: Dec-2018 = 59.8%]
-        nrr:  ep > 0 ? (ep + ch + cp + dn + up) / ep : null,
-        // GNR = (EP - Churn - ChurnP - Downsell) / EP
-        gnr:  ep > 0 ? (ep + ch + cp + dn)      / ep : null,
-        // NNR = (EP - Churn - ChurnP - Downsell + Upsell) / EP
-        nnr:  ep > 0 ? (ep + ch + cp + dn + up) / ep : null,
+        priorACV: prior, endingACV: ending, expiryPool: ep,
+        churn: ch, churnPartial: cp, downsell: dn, upsell: up,
+        addOn, crossSell: crossS, newLogo, lapsed, returning,
+        expansion, contraction,
+        netExpansion: expansion + contraction,
+        // GRR = (EP - Churn - ChurnP - Downsell) / EP
+        grr: ep > 0 ? (ep + ch + cp + dn) / ep : null,
+        // NRR = (EP - Churn - ChurnP - Downsell + Upsell) / EP
+        nrr: ep > 0 ? (ep + ch + cp + dn + up) / ep : null,
+        // Renewal Exposure % = Expiry Pool / Ending ACV
+        renewalExposure: ending > 0 ? ep / ending : null,
       }
     }
     return { periods: all, byPeriod }
   }, [bridgeTable, rangeStart, rangeEnd])
 
-  // Build display columns based on viewMode and selPeriod
-  // 'yearly'    → same month as selPeriod, one column per year
-  //              e.g. selPeriod=Dec-2019 → Dec-16, Dec-17, Dec-18, Dec-19
-  //              lb=12 guarantees: Ending(Dec-N) = Prior(Dec-N+1) — no override needed
-  // 'quarterly' → quarter-end months (Mar/Jun/Sep/Dec) across all years in range
-  const cols = useMemo(() => {
-    if (!periods.length) return []
-    const selMo = selPeriod ? selPeriod.slice(5,7) : null  // '12' for Dec
+  // ── Selected-period metrics ─────────────────────────────────────────────
+  const selData = byPeriod[selPeriod] || null
+  const nrr = selData?.nrr != null ? selData.nrr * 100 : 0
+  const grr = selData?.grr != null ? selData.grr * 100 : 0
+  const renewalExp = selData?.renewalExposure != null ? selData.renewalExposure * 100 : null
+  const netExpansion = selData?.netExpansion || 0
+  const priorACV = selData?.priorACV || 0
+  const nrrGrowth = nrr - 100
 
-    if (viewMode === 'annual') {
-      // Same month as selected period, one per year
-      const matchPeriods = selMo
-        ? periods.filter(p => p.slice(5,7) === selMo)
-        : periods.filter(p => p.endsWith('-12'))   // fallback to December
-      return matchPeriods.map(p => {
-        const [yr, mo] = p.split('-').map(Number)
-        const mon = new Date(yr, mo-1).toLocaleString('en-US', { month: 'short' })
-        return { label: `${mon}-${String(yr).slice(2)}`, period: p }
-      })
-    } else {
-      // Quarterly: Mar/Jun/Sep/Dec of each year in range
-      const quarterEnd = new Set(['03','06','09','12'])
-      const qCols = periods
-        .filter(p => quarterEnd.has(p.slice(5,7)))
-        .map(p => {
-          const [yr, mo] = p.split('-').map(Number)
-          return { label: `${String(yr).slice(2)}Q${Math.ceil(mo/3)}`, period: p }
-        })
-      return qCols.length ? qCols : periods.map(p => {
-        const [yr, mo] = p.split('-').map(Number)
-        return { label: `${String(yr).slice(2)}Q${Math.ceil(mo/3)}`, period: p }
-      })
+  // ── Time series, sorted chronologically ────────────────────────────────
+  const allSorted = periods
+
+  // ── Chart window: last N periods up to selPeriod (or all) ─────────────
+  const selIdx = selPeriod ? allSorted.indexOf(selPeriod) : allSorted.length - 1
+  const anchor = selIdx >= 0 ? selIdx : allSorted.length - 1
+  const windows = [{label:'3M',n:3},{label:'6M',n:6},{label:'12M',n:12},{label:'24M',n:24}]
+  const windowStart = Math.max(0, anchor - chartWindow + 1)
+  const chartData = allSorted.slice(windowStart, anchor + 1).map(p => {
+    const m = byPeriod[p]
+    if (!m) return null
+    return {
+      period: p,
+      nrr:    m.nrr != null ? parseFloat((m.nrr*100).toFixed(1)) : null,
+      grr:    m.grr != null ? parseFloat((m.grr*100).toFixed(1)) : null,
+      churnPct: m.priorACV > 0 ? parseFloat((Math.abs(m.churn + m.churnPartial)/m.priorACV*100).toFixed(1)) : null,
+      expansionPct: m.priorACV > 0 ? parseFloat((m.expansion/m.priorACV*100).toFixed(1)) : null,
     }
-  }, [periods, viewMode, selPeriod])
+  }).filter(Boolean)
 
-  const fmtCell = (val, key, priorACV) => {
-    if (val === null || val === undefined) return '—'
-    if (dispMode === 'pct') {
-      // % of Prior ACV
-      if (key === 'grr' || key === 'nrr' || key === 'gnr' || key === 'nnr') {
-        return val !== null ? `${(val * 100).toFixed(1)}%` : '—'
-      }
-      if (!priorACV) return '—'
-      return `${((val / priorACV) * 100).toFixed(1)}%`
-    }
-    return fmt(val)
-  }
+  // ── Monthly Growth Audit: all periods up to selPeriod, most recent first ──
+  const auditRows = allSorted.slice(0, anchor + 1).reverse().map(p => ({ period: p, ...byPeriod[p] }))
 
-  const fmtMetric = (val) => val !== null && val !== undefined ? `${(val * 100).toFixed(1)}%` : '—'
+  // ── Seasonality: best and worst month by expansion% ────────────────────
+  const byMonth = {}
+  allSorted.forEach(p => {
+    const mon = p.split('-')[1]
+    const m = byPeriod[p]
+    if (!mon || !m || !m.priorACV) return
+    if (!byMonth[mon]) byMonth[mon] = []
+    byMonth[mon].push(m.expansion / m.priorACV * 100)
+  })
+  const MONTH_NAMES = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const monthAvg = Object.entries(byMonth).map(([mon,vals]) => ({
+    mon: MONTH_NAMES[parseInt(mon,10)] || mon,
+    avg: vals.reduce((s,v) => s+v, 0) / vals.length,
+  }))
+  monthAvg.sort((a,b) => b.avg - a.avg)
+  const bestMon = monthAvg[0]
+  const worstMon = monthAvg[monthAvg.length - 1]
 
-  const negColor = T.chartContraction
-  const posColor = T.chartExpansion
-  const neuColor = T.textTertiary
+  const fmtPctSigned = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%'
 
-  const cellColor = (key, val) => {
-    if (val === 0 || val === null) return neuColor
-    const row = BRIDGE_ROWS.find(r => r.key === key)
-    if (!row) return neuColor
-    if (row.bold) return T.textPrimary
-    return (row.sign * (val || 0)) < 0 ? negColor : posColor
-  }
-
-  if (!cols.length) return (
+  if (!periods.length) return (
     <div style={{ padding: 40, textAlign: 'center', color: T.textMuted, fontSize: 12 }}>
       No data in selected range
     </div>
   )
 
-  // Chart data (always monthly from periods)
-  const chartData = periods.map(p => ({
-    label: new Date(p + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-    ...byPeriod[p],
-    churnAbs: Math.abs(byPeriod[p]?.churn || 0),
-  }))
-
-  const tdStyle = (bold=false, isNeg=false, isPos=false) => ({
-    padding: '5px 10px', fontSize: 11, fontWeight: bold ? 700 : 400,
-    color: isNeg ? negColor : isPos ? posColor : T.textPrimary,
-    textAlign: 'right', borderBottom: `1px solid ${T.borderSubtle}`,
-    fontFamily: T.mono, whiteSpace: 'nowrap', letterSpacing: '-0.01em',
-  })
-  const thStyle = { padding: '6px 10px', fontSize: 10, fontWeight: 700,
-    color: T.textMuted, textAlign: 'right',
-    background: T.bgRaised,
-    borderBottom: `2px solid ${T.borderDefault}`,
-    whiteSpace: 'nowrap', fontFamily: T.mono, letterSpacing: '0.04em' }
-  const labelStyle = (bold=false, indent=false) => ({
-    padding: '5px 12px', paddingLeft: indent ? 28 : 12,
-    fontSize: 11, fontWeight: bold ? 700 : 400,
-    color: bold ? T.textPrimary : T.textSecondary,
-    borderBottom: `1px solid ${T.borderSubtle}`,
-    whiteSpace: 'nowrap', textAlign: 'left',
-    borderLeft: bold ? `3px solid ${T.brandPrimary}` : '3px solid transparent',
-  })
-
   return (
-    <div>
-      {/* Controls — aligned to brand toggle style */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 3, background: T.bgRaised, padding: 3, borderRadius: 8, border: `1px solid ${T.borderSubtle}` }}>
-          {[['annual','Yearly'],['quarterly','Quarterly']].map(([v,l]) => (
-            <button key={v} onClick={() => setViewMode(v)} style={{
-              padding: '4px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11,
-              background: viewMode === v ? T.brandPrimary : 'transparent',
-              color: viewMode === v ? '#fff' : T.textMuted,
-              fontWeight: viewMode === v ? 700 : 400, transition: 'all 0.15s',
-            }}>{l}</button>
-          ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: T.textPrimary, letterSpacing: '-0.02em' }}>Historical Revenue Performance</div>
+        <div style={{ fontSize: 12, color: T.textMuted, marginTop: 3 }}>Longitudinal view of net retention and growth indicators · {selPeriod || '—'}</div>
+      </div>
+
+      {/* ── KPI Strip ──────────────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        {[
+          { label: 'NRR', value: nrr.toFixed(1)+'%', sub: fmtPctSigned(nrrGrowth)+' vs 100%', subGood: nrrGrowth >= 0, accent: nrr >= 100 ? T.growth : T.decline },
+          { label: 'GRR', value: grr.toFixed(1)+'%', sub: grr >= 80 ? 'Stable' : 'At Risk', subGood: grr >= 80, accent: grr >= 80 ? T.growth : T.decline },
+          { label: 'Net Expansion', value: fmt(netExpansion), sub: priorACV > 0 ? fmtPctSigned(netExpansion/priorACV*100) : null, subGood: netExpansion >= 0, accent: T.brandPrimary },
+          { label: 'Renewal Exposure', value: renewalExp != null ? renewalExp.toFixed(1)+'%' : '—', sub: 'Expiry Pool / Ending ACV', subGood: renewalExp != null && renewalExp < 50, accent: T.brandPrimary },
+        ].map(k => (
+          <div key={k.label} style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderTop: `2px solid ${k.accent}`, borderRadius: 6, padding: '14px 16px' }}>
+            <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.textMuted, marginBottom: 8 }}>{k.label}</div>
+            <div style={{ fontFamily: T.mono, fontSize: 22, fontWeight: 700, color: k.accent, letterSpacing: '-0.02em' }}>{k.value}</div>
+            {k.sub && <div style={{ marginTop: 4, fontSize: 10, color: k.subGood ? T.growth : T.decline }}>{k.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Main content: Chart + Seasonality ────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 16 }}>
+
+        {/* Retention Dynamics chart */}
+        <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: '18px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary }}>Retention Dynamics</div>
+              <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>NRR, GRR, Churn %, Expansion % over time</div>
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {windows.map(w => (
+                <button key={w.label} onClick={() => setChartWindow(w.n)} style={{
+                  padding: '3px 10px', fontSize: 10, fontWeight: chartWindow === w.n ? 700 : 400, borderRadius: 4,
+                  border: `1px solid ${chartWindow === w.n ? T.brandPrimary : T.borderDefault}`,
+                  background: chartWindow === w.n ? T.bgRaised : 'transparent',
+                  color: chartWindow === w.n ? T.brandPrimary : T.textMuted, cursor: 'pointer',
+                }}>{w.label}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ height: 240 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ left: 0, right: 8, bottom: 4, top: 4 }}>
+                <XAxis dataKey="period" tick={{ fontSize: 9, fill: T.textTertiary }} interval="preserveStartEnd" axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={v => `${v}%`} tick={{ fontSize: 9, fill: T.textTertiary }} width={42} axisLine={false} tickLine={false} domain={['dataMin - 5','dataMax + 5']} />
+                <ReferenceLine y={100} stroke={T.borderStrong} strokeDasharray="4 3" />
+                <Tooltip
+                  contentStyle={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 4, fontSize: 11 }}
+                  labelStyle={{ color: T.textTertiary, fontSize: 10, marginBottom: 4 }}
+                  formatter={(v,n) => [v != null ? `${v.toFixed(1)}%` : '—', n]} />
+                <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: 10, color: T.textSecondary, paddingTop: 8 }} />
+                <Line type="monotone" dataKey="nrr" stroke={T.growth} strokeWidth={2} dot={false} activeDot={{ r: 3 }} name="NRR" connectNulls />
+                <Line type="monotone" dataKey="grr" stroke={T.textSecondary} strokeWidth={1.5} dot={false} activeDot={{ r: 3 }} name="GRR" connectNulls strokeDasharray="4 2" />
+                <Line type="monotone" dataKey="churnPct" stroke={T.decline} strokeWidth={1.5} dot={false} activeDot={{ r: 3 }} name="Churn %" connectNulls />
+                <Line type="monotone" dataKey="expansionPct" stroke={T.chartExpansion} strokeWidth={1.5} dot={false} activeDot={{ r: 3 }} name="Expansion %" connectNulls strokeDasharray="2 2" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 3, background: T.bgRaised, padding: 3, borderRadius: 8, border: `1px solid ${T.borderSubtle}` }}>
-          {[['dollar','$ Bridge'],['pct','% of Prior ACV']].map(([v,l]) => (
-            <button key={v} onClick={() => setDispMode(v)} style={{
-              padding: '4px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11,
-              background: dispMode === v ? T.brandPrimary : 'transparent',
-              color: dispMode === v ? '#fff' : T.textMuted,
-              fontWeight: dispMode === v ? 700 : 400, transition: 'all 0.15s',
-            }}>{l}</button>
-          ))}
+
+        {/* Seasonality + Predictive Insight panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Predictive Insight — deterministic, built from real trend numbers, NOT an LLM call */}
+          <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 6, padding: '14px 16px', flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              <Sparkles size={11} color={T.textTertiary} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: T.brandPrimary }}>Predictive Insight</span>
+            </div>
+            {chartData.length >= 3 ? (() => {
+              const recent = chartData.slice(-3).map(d => d.nrr || 0)
+              const trend  = recent[2] - recent[0]
+              const dir    = trend > 0 ? 'improved' : 'declined'
+              const proj   = (recent[2] || 0) + trend * 2
+              return (
+                <div style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.7 }}>
+                  NRR has {dir} <strong style={{ color: trend > 0 ? T.growth : T.decline }}>{Math.abs(trend).toFixed(1)} pts</strong> over {chartData.length} periods.
+                  {trend > 0 && proj > 100 && <> At this rate, projected NRR: <strong style={{ color: T.growth }}>{proj.toFixed(0)}%</strong>.</>}
+                  {trend <= 0 && <> Focus on expansion to reverse contraction trend.</>}
+                </div>
+              )
+            })() : <div style={{ fontSize: 12, color: T.textMuted }}>Need more periods for trend analysis.</div>}
+          </div>
+
+          {/* Seasonality */}
+          <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: '14px 16px' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: T.brandPrimary, marginBottom: 12 }}>Seasonality Impact</div>
+            {bestMon && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
+                  <span style={{ color: T.textSecondary }}>{bestMon.mon} Expansion</span>
+                  <span style={{ color: T.growth, fontWeight: 600 }}>+{bestMon.avg.toFixed(1)}%</span>
+                </div>
+                <div style={{ height: 4, background: T.borderDefault, borderRadius: 2 }}>
+                  <div style={{ height: '100%', background: T.growth, borderRadius: 2, width: `${Math.min(bestMon.avg*4,100)}%` }} />
+                </div>
+              </div>
+            )}
+            {worstMon && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
+                  <span style={{ color: T.textSecondary }}>{worstMon.mon} Risk</span>
+                  <span style={{ color: T.decline, fontWeight: 600 }}>{worstMon.avg.toFixed(1)}%</span>
+                </div>
+                <div style={{ height: 4, background: T.borderDefault, borderRadius: 2 }}>
+                  <div style={{ height: '100%', background: T.decline, borderRadius: 2, width: `${Math.min(Math.abs(worstMon.avg)*4,100)}%` }} />
+                </div>
+                <div style={{ fontSize: 10, color: T.chartBaseline, marginTop: 6, lineHeight: 1.5 }}>
+                  {worstMon.mon} historically shows lowest expansion. Plan renewal campaigns accordingly.
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Bridge Table */}
-      <div style={{ overflowX: 'auto', borderRadius: 10, border: `1px solid ${T.borderDefault}`, marginBottom: 24, boxShadow: `0 1px 4px rgba(0,0,0,0.04)` }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: cols.length * 90 + 180 }}>
-          <thead>
-            <tr>
-              <th style={{ ...thStyle, textAlign: 'left', minWidth: 160 }}>Classification</th>
-              {cols.map(col => <th key={col.label} style={thStyle}>{col.label}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {BRIDGE_ROWS.map(row => (
-              <tr key={row.key} style={{ background: row.bold ? T.brandSoft : 'transparent' }}>
-                <td style={labelStyle(row.bold, row.indent)}>{row.label}</td>
-                {cols.map(col => {
-                  const colData = byPeriod[col.period]
-                  const val  = colData?.[row.key]
-                  const pACV = colData?.priorACV || 0
-                  const isNeg = row.sign * (val || 0) < 0 && !row.bold
-                  const isPos = row.sign * (val || 0) > 0 && !row.bold
-                  return (
-                    <td key={col.label} style={tdStyle(row.bold, isNeg && !row.bold, isPos && !row.bold)}>
-                      {fmtCell(val, row.key, pACV)}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-
-            {/* Spacer */}
-            <tr><td colSpan={cols.length + 1} style={{ padding: 4, background: T.bgRaised }} /></tr>
-
-            {/* Metric rows */}
-            {METRIC_ROWS.map(row => (
-              <tr key={row.key}>
-                <td style={{ ...labelStyle(false, false), color: T.brandPrimary, fontStyle: 'italic', fontSize: 10, fontWeight: 600 }}>{row.label}</td>
-                {cols.map(col => {
-                  const val = byPeriod[col.period]?.[row.key]
-                  const isGood = val !== null && val >= (row.good ?? 0.85)
-                  return (
-                    <td key={col.label} style={{ ...tdStyle(false), color: val === null ? T.textMuted : isGood ? posColor : negColor }}>
-                      {fmtMetric(val)}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Charts — Ending ACV trend + Movement Mix */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: T.brandPrimary, marginBottom: 12, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Ending ACV Trend</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={chartData} margin={{ top: 5, right: 10, bottom: 30, left: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={T.chartGrid} />
-              <XAxis dataKey="label" tick={{ fill: T.chartAxis, fontSize: 8 }} angle={-35} textAnchor="end" interval="preserveStartEnd" />
-              <YAxis tick={{ fill: T.chartAxis, fontSize: 9 }} tickFormatter={v => fmt(v)} width={50} />
-              <Tooltip formatter={v => [fmt(v)]} contentStyle={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 6, fontSize: 10 }} />
-              <Line type="monotone" dataKey="endingACV"  name="Ending ACV"  stroke={T.chartBaseline}    strokeWidth={2} dot={{ r: 2 }} />
-              <Line type="monotone" dataKey="expiryPool" name="Expiry Pool" stroke={T.chartNeutral}     strokeWidth={1.5} dot={{ r: 2 }} strokeDasharray="4 2" />
-              <Line type="monotone" dataKey="newLogo"    name="New Logo"    stroke={T.chartExpansion}   strokeWidth={1.5} dot={{ r: 2 }} />
-              <Line type="monotone" dataKey="churnAbs"   name="Churn"       stroke={T.chartContraction} strokeWidth={1.5} dot={{ r: 2 }} />
-              <Legend wrapperStyle={{ fontSize: 9, color: T.textSecondary }} />
-            </LineChart>
-          </ResponsiveContainer>
+      {/* ── Monthly Growth Audit ────────────────────────────────────────── */}
+      <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: `1px solid ${T.borderDefault}` }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary }}>Monthly Growth Audit</div>
+            <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>Expansion = New Logo + Cross-sell + Upsell + Add-on + Returning · Contraction = Churn + Churn Partial + Downsell + Lapsed · All figures from bridge classification</div>
+          </div>
         </div>
-        <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: T.brandPrimary, marginBottom: 12, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Movement Mix (lb=12)</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartData} margin={{ top: 5, right: 10, bottom: 30, left: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={T.chartGrid} vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: T.chartAxis, fontSize: 8 }} angle={-35} textAnchor="end" interval="preserveStartEnd" />
-              <YAxis tick={{ fill: T.chartAxis, fontSize: 9 }} tickFormatter={v => fmt(v)} width={50} />
-              <Tooltip formatter={v => [fmt(v)]} contentStyle={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 6, fontSize: 10 }} />
-              <Bar dataKey="newLogo"   name="New Logo" stackId="pos" fill={T.chartExpansion} />
-              <Bar dataKey="upsell"    name="Upsell"   stackId="pos" fill={`${T.chartExpansion}88`} />
-              <Bar dataKey="addOn"     name="Add on"   stackId="pos" fill={`${T.chartExpansion}55`} />
-              <Bar dataKey="churnAbs"  name="Churn"    stackId="neg" fill={T.chartContraction} />
-              <Legend wrapperStyle={{ fontSize: 9, color: T.textSecondary }} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: T.bgRaised, borderBottom: `1px solid ${T.borderDefault}` }}>
+                {['Fiscal Month','Net Retention','Gross Retention','Expansion ACV','Contraction ACV','Momentum'].map((h,i) => (
+                  <th key={h} style={{ padding: '10px 16px', textAlign: i === 0 ? 'left' : 'right', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: T.textMuted, whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {auditRows.slice(0, 24).map((row, i) => {
+                const isSel = row.period === selPeriod
+                const nrrPct = row.nrr != null ? row.nrr * 100 : null
+                const grrPct = row.grr != null ? row.grr * 100 : null
+                const momScore = nrrPct != null ? (nrrPct >= 110 ? 3 : nrrPct >= 100 ? 2 : 1) : 0
+                const momColor = momScore === 3 ? T.growth : momScore === 2 ? T.brandPrimary : T.decline
+                return (
+                  <tr key={i} style={{ borderBottom: `1px solid ${T.borderDefault}`, background: isSel ? T.bgRaised : 'transparent' }}>
+                    <td style={{ padding: '11px 16px', fontWeight: isSel ? 700 : 500, color: isSel ? T.textPrimary : T.textSecondary, fontFamily: T.mono }}>{row.period}</td>
+                    <td style={{ padding: '11px 16px', textAlign: 'right', fontFamily: T.mono, fontWeight: 700, color: nrrPct >= 100 ? T.growth : nrrPct >= 80 ? T.warning : T.decline }}>{nrrPct != null ? nrrPct.toFixed(1)+'%' : '—'}</td>
+                    <td style={{ padding: '11px 16px', textAlign: 'right', fontFamily: T.mono, fontWeight: 600, color: grrPct >= 80 ? T.growth : T.decline }}>{grrPct != null ? grrPct.toFixed(1)+'%' : '—'}</td>
+                    <td style={{ padding: '11px 16px', textAlign: 'right', fontFamily: T.mono, fontWeight: 600, color: T.growth }}>{row.expansion > 0 ? '+'+fmt(row.expansion) : '—'}</td>
+                    <td style={{ padding: '11px 16px', textAlign: 'right', fontFamily: T.mono, fontWeight: 600, color: T.decline }}>{row.contraction < 0 ? fmt(row.contraction) : '—'}</td>
+                    <td style={{ padding: '11px 16px', textAlign: 'right' }}>
+                      <span style={{ display: 'inline-flex', gap: 2 }}>
+                        {[1,2,3].map(n => <span key={n} style={{ width: 5, height: 14, borderRadius: 1, background: n <= momScore ? momColor : T.borderDefault, display: 'inline-block' }} />)}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   )
 }
+
 
 
 // ─── Cohort Analysis ─────────────────────────────────────────────────────────
@@ -1818,7 +1833,7 @@ export default function ACVCenter() {
               <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Historical ACV Performance</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Multi-period ACV trend — lb=12 basis</div>
-                <HistoricalACV bridgeTable={engineOutput.bridgeTable} T={T} rangeStart={effectiveStart} rangeEnd={effectiveEnd} selPeriod={selPeriod} />
+                <ACVHistoricalPerformance bridgeTable={engineOutput.bridgeTable} T={T} rangeStart={effectiveStart} rangeEnd={effectiveEnd} selPeriod={selPeriod} />
               </div>
             )}
 
