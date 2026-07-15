@@ -159,20 +159,32 @@ const fmtNum = v => v != null ? Math.round(v).toLocaleString() : '—'
 function KpiCard({ label, value, sub, subGood, accent, T }) {
   const subColor = subGood === true ? T.growth : subGood === false ? T.decline : T.textTertiary
   return (
-    <div style={{
-      background: T.bgSurface,
-      border: `1px solid ${T.borderDefault}`,
-      borderTop: accent ? `2px solid ${T.brandPrimary}` : `1px solid ${T.borderDefault}`,
-      borderRadius: 8, padding: '14px 16px',
-    }}>
-      <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.textMuted, marginBottom: 8 }}>
+    <div
+      style={{
+        background: T.bgSurface,
+        border: `1px solid ${T.borderDefault}`,
+        borderTop: accent ? `2px solid ${T.brandPrimary}` : `1px solid ${T.borderDefault}`,
+        borderRadius: 16, padding: '24px',
+        boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)',
+        transition: 'box-shadow 0.18s ease, transform 0.18s ease',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.boxShadow = '0 4px 12px rgba(16,24,40,0.08), 0 2px 4px rgba(16,24,40,0.04)'
+        e.currentTarget.style.transform = 'translateY(-1px)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.boxShadow = '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)'
+        e.currentTarget.style.transform = 'translateY(0)'
+      }}
+    >
+      <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.textMuted, marginBottom: 10 }}>
         {label}
       </div>
-      <div style={{ fontFamily: T.mono, fontSize: 20, fontWeight: 700, color: T.textPrimary, letterSpacing: '-0.02em', lineHeight: 1 }}>
+      <div style={{ fontFamily: T.mono, fontSize: 22, fontWeight: 700, color: T.textPrimary, letterSpacing: '-0.02em', lineHeight: 1 }}>
         {value}
       </div>
       {sub != null && (
-        <div style={{ marginTop: 5, fontSize: 10, fontWeight: 500, color: subColor }}>
+        <div style={{ marginTop: 7, fontSize: 10, fontWeight: 500, color: subColor }}>
           {subGood === true ? '↑ ' : subGood === false ? '↓ ' : ''}{sub}
         </div>
       )}
@@ -1466,15 +1478,13 @@ function KeyAlerts({ kpis, riskSummaryRow, T }) {
 // scrollable page), "scroll to section" is adapted to "switch tab",
 // which is the natural equivalent in this UI. Same destinations as the
 // brief's requested nav items, mapped onto existing tabs.
-const QUICK_NAV_ITEMS = [
-  { tab: 'bridge',     label: 'Bridge',       icon: TrendingUp },
-  { tab: 'expiry',     label: 'Expiry Pool',  icon: Clock },
-  { tab: 'movers',     label: 'Customers',    icon: Users },
-  { tab: 'renewal',    label: 'Renewal Rates', icon: Shield },
-  { tab: 'historical', label: 'Historical',   icon: Layers },
-  { tab: 'cohort',     label: 'Cohorts',      icon: Users },
-  { tab: 'account360', label: 'Account 360',  icon: Users },
-]
+// Quick Navigation now derives directly from TABS (the same source used by
+// the old top tab bar), guaranteeing all 9 destinations are always reachable
+// from the sidebar — no separately-maintained list that can silently drift
+// out of sync (which is exactly what happened: this list originally named
+// only 7 of 9 tabs, omitting Summary and Bookings Walk, before the top tab
+// bar was removed).
+const QUICK_NAV_ITEMS = TABS.map(t => ({ tab: t.id, label: t.label, icon: t.icon }))
 
 function QuickNav({ activeTab, setTab, T }) {
   return (
@@ -2151,25 +2161,9 @@ export default function ACVCenter() {
               </div>
             )}
 
-            {/* Tab bar */}
-            <div style={{ display: 'flex', gap: 2, overflowX: 'auto', borderBottom: `1px solid ${T.borderDefault}`, marginBottom: 24, scrollbarWidth: 'none' }}>
-              {TABS.map(t => {
-                const Icon = t.icon
-                return (
-                  <button key={t.id} onClick={() => setTab(t.id)} style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '10px 16px', border: 'none', background: 'transparent',
-                    borderBottom: tab === t.id ? `2px solid ${T.brandPrimary}` : '2px solid transparent',
-                    marginBottom: -1, cursor: 'pointer', whiteSpace: 'nowrap',
-                    color: tab === t.id ? T.brandPrimary : T.textTertiary,
-                    fontSize: 12, fontWeight: tab === t.id ? 700 : 400,
-                  }}>
-                    <Icon size={12} />
-                    {t.label}
-                  </button>
-                )
-              })}
-            </div>
+            {/* Tab bar removed — navigation now lives solely in the
+                sidebar's Quick Navigation (which covers all 9 tabs and
+                highlights the active one the same way this bar did). */}
 
             {/* ── SUMMARY TAB ─────────────────────────────────────────────── */}
             {tab === 'summary' && kpis && (
@@ -2208,7 +2202,7 @@ export default function ACVCenter() {
                 )}
 
                 {/* Mini waterfall preview */}
-                <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
+                <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)' }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, marginBottom: 16 }}>
                     ACV Bridge — {fmtPeriod(selPeriod)} · {lb}M Lookback
                   </div>
@@ -2219,7 +2213,7 @@ export default function ACVCenter() {
 
             {/* ── ACV BRIDGE TAB ──────────────────────────────────────────── */}
             {tab === 'bridge' && (
-              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
+              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>ACV Bridge Waterfall</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>
                   {fmtPeriod(selPeriod)} · {lb}-Month Lookback · {revenueUnit} basis → ACV normalised
@@ -2260,7 +2254,7 @@ export default function ACVCenter() {
 
             {/* ── EXPIRY POOL TAB ─────────────────────────────────────────── */}
             {tab === 'expiry' && (
-              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
+              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Expiry Pool Analysis</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Contracts due for renewal by month — forward-looking view</div>
                 <ExpiryTimeline bridgeTable={engineOutput.bridgeTable} selPeriod={selPeriod} T={T} rangeStart={effectiveStart} rangeEnd={effectiveEnd} />
@@ -2269,7 +2263,7 @@ export default function ACVCenter() {
 
             {/* ── RENEWAL RATES TAB ───────────────────────────────────────── */}
             {tab === 'renewal' && (
-              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
+              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Renewal Rate Intelligence</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Gross Renewal = (Expiry Pool − Churn − Churn-Partial) / Expiry Pool · Net Renewal adds Upsell − Downsell</div>
                 <RenewalRateTrend bridgeTable={engineOutput.bridgeTable} lb={lb} T={T} rangeStart={effectiveStart} rangeEnd={effectiveEnd} />
@@ -2278,7 +2272,7 @@ export default function ACVCenter() {
 
             {/* ── BOOKINGS WALK TAB ───────────────────────────────────────── */}
             {tab === 'bookings' && (
-              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
+              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Bookings-to-ACV Walk</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>PE-grade reconciliation from source TCV bookings to recognised Ending ACV</div>
                 <BookingsWalk bookingsTable={engineOutput.bookingsTable} bridgeTable={engineOutput.bridgeTable} lb={lb} period={selPeriod} T={T} />
@@ -2287,7 +2281,7 @@ export default function ACVCenter() {
 
             {/* ── TOP MOVERS TAB ──────────────────────────────────────────── */}
             {tab === 'movers' && (
-              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
+              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Top Movers — Risk &amp; Opportunity</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Deterministic composite scoring for {fmtPeriod(selPeriod)} — every score decomposes into named, traceable reasons. Change the period above to see how risk and opportunity shift over time.</div>
                 <ACVTopMovers
@@ -2303,7 +2297,7 @@ export default function ACVCenter() {
 
             {/* ── HISTORICAL TAB ──────────────────────────────────────────── */}
             {tab === 'historical' && (
-              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
+              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Historical ACV Performance</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Multi-period ACV trend — lb=12 basis</div>
                 <ACVHistoricalPerformance bridgeTable={engineOutput.bridgeTable} T={T} rangeStart={effectiveStart} rangeEnd={effectiveEnd} selPeriod={selPeriod} />
@@ -2312,7 +2306,7 @@ export default function ACVCenter() {
 
             {/* ── COHORT ANALYSIS TAB ─────────────────────────────────── */}
             {tab === 'cohort' && (
-              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
+              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Cohort Analysis</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>
                   Retention by vintage cohort — how ACV evolves from each customer's first contract date
@@ -2323,7 +2317,7 @@ export default function ACVCenter() {
 
             {/* ── ACCOUNT 360 TAB ─────────────────────────────────────────── */}
             {tab === 'account360' && (
-              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 10, padding: 20 }}>
+              <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Account 360</div>
                 <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 20 }}>Full contract timeline, renewal history and bridge movements per customer</div>
                 <Account360 bridgeTable={engineOutput.bridgeTable} bookingsTable={engineOutput.bookingsTable} T={T} />
