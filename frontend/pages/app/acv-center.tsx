@@ -241,24 +241,60 @@ function ACVWaterfall({ bridgeTable, lb, period, T }) {
     // Display name mapping: RoB → 'Not Up for Renewal' for bar labels
     const DISPLAY = { 'RoB': 'Not Up for Renewal' }
 
-    let running = 0
+    // TRUE cumulative/floating waterfall — same principle as a standard
+    // Excel bridge chart: Prior ACV is the starting point the running total
+    // is SEEDED with (not zero), each movement bar floats between the
+    // running total BEFORE and AFTER it (using min/max so negative moves
+    // correctly extend downward, not upward), and Ending ACV is the final
+    // anchor. Expiry Pool / RoB stay as separate informational bars from
+    // zero since they aren't part of the Prior→Ending flow.
+    //
+    // PREVIOUS BUG: `running` was never seeded with Prior ACV's value (it
+    // started at 0 and only accumulated from movement rows), so Prior ACV
+    // and Ending ACV rendered as two disconnected full-height bars from
+    // zero while the movements formed their own tiny, unrelated sequence
+    // near zero — never visually bridging between the two real ACV levels.
+    let running = totals['Prior ACV'] || 0
     const wf = []
+
     for (const name of ACV_WATERFALL_ORDER) {
       const val = totals[name] || 0
       if (val === 0) continue
       const isAnchor  = name === 'Prior ACV' || name === 'Ending ACV'
       const isInfoBar = name === 'Expiry Pool' || name === 'RoB'
-      const base = (isAnchor || isInfoBar) ? 0 : running
+
+      let barStart, barEnd, isNeg = false
+      if (isAnchor) {
+        // Prior ACV / Ending ACV: full bar from zero to the real level
+        barStart = 0
+        barEnd   = name === 'Prior ACV' ? val : running
+      } else if (isInfoBar) {
+        // Informational overlay — full bar from zero, not part of the flow
+        barStart = 0
+        barEnd   = val
+      } else {
+        // Movement — floats between running total before/after. min/max
+        // (not always-upward stacking) is what correctly handles negative
+        // deltas: a churn of -$3M with running=$50M produces barStart=$47M,
+        // barEnd=$50M — a downward step — instead of incorrectly stacking
+        // upward from an unrelated zero-based running total.
+        const before = running
+        const after  = running + val
+        barStart = Math.min(before, after)
+        barEnd   = Math.max(before, after)
+        isNeg    = val < 0
+        running  = after
+      }
+
       wf.push({
         name:   DISPLAY[name] || name,
-        base,
-        value:  Math.abs(val),
+        base:   barStart,
+        value:  barEnd - barStart,
         fill:   BC[name] || T.chartNeutral,
-        isNeg:  !isAnchor && !isInfoBar && val < 0,
+        isNeg,
         rawVal: val,
         isInfo: isInfoBar,
       })
-      if (!isAnchor && !isInfoBar) running += val
     }
     return wf
   }, [bridgeTable, lb, period, T])
@@ -281,6 +317,131 @@ function ACVWaterfall({ bridgeTable, lb, period, T }) {
         </Bar>
       </ComposedChart>
     </ResponsiveContainer>
+  )
+}
+
+// ─── ACV Waterfall Table — same calendar month across all years ──────────────
+// Modeled on MRR's "ARR Waterfall: Mon across all years" table (Summary tab)
+// — same structural idea (one column per year, same month, full bridge rows
+// down to Ending ACV + retention rates) — but every number here comes from
+// ACV's own bridge classifications, not ported from MRR's data model.
+const ACV_TABLE_ROWS = [
+  { key: 'Prior ACV',      label: 'Prior ACV',      bold: true  },
+  { key: 'Churn',          label: 'Churn',          bold: false },
+  { key: 'Churn Partial',  label: 'Churn Partial',  bold: false },
+  { key: 'Downsell',       label: 'Downsell',       bold: false },
+  { key: 'Upsell',         label: 'Upsell',         bold: false },
+  { key: 'Cross-sell',     label: 'Cross-sell',     bold: false },
+  { key: 'New Logo',       label: 'New Logo',       bold: false },
+  { key: 'Lapsed',         label: 'Lapsed',         bold: false },
+  { key: 'Returning',      label: 'Returning',      bold: false },
+  { key: 'Add on',         label: 'Add on',         bold: false },
+  { key: 'Other In',       label: 'Other In',       bold: false },
+  { key: 'Other Out',      label: 'Other Out',      bold: false },
+  { key: 'Ending ACV',     label: 'Ending ACV',     bold: true  },
+]
+
+function ACVWaterfallTable({ bridgeTable, lb, selPeriod, T }) {
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+  const { monthCols, byPeriod } = useMemo(() => {
+    if (!bridgeTable.length || !selPeriod) return { monthCols: [], byPeriod: {} }
+    const selMonth = selPeriod.split('-')[1]   // 'MM' from 'YYYY-MM'
+    if (!selMonth) return { monthCols: [], byPeriod: {} }
+
+    const rows12 = bridgeTable.filter(r => r.monthLookback === lb)
+    const allPeriodsSameMonth = [...new Set(
+      rows12
+        .map(r => `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`)
+        .filter(p => p.split('-')[1] === selMonth)
+    )].sort()
+
+    const byPeriod = {}
+    for (const p of allPeriodsSameMonth) {
+      const rows = rows12.filter(r => `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}` === p)
+      const sum = cls => rows.filter(r => r.bridgeClassification === cls).reduce((s,r) => s + r.bridgeValue, 0)
+      const entry = {}
+      for (const row of ACV_TABLE_ROWS) entry[row.key] = sum(row.key)
+      const ep = sum('Expiry Pool'), ch = sum('Churn'), cp = sum('Churn Partial'), dn = sum('Downsell'), up = sum('Upsell')
+      entry._grr = ep > 0 ? (ep + ch + cp + dn) / ep : null
+      entry._nrr = ep > 0 ? (ep + ch + cp + dn + up) / ep : null
+      byPeriod[p] = entry
+    }
+    return { monthCols: allPeriodsSameMonth, byPeriod }
+  }, [bridgeTable, lb, selPeriod])
+
+  if (!monthCols.length) return null
+
+  const selMonth = selPeriod.split('-')[1]
+  const monthLabel = MONTH_NAMES[parseInt(selMonth, 10) - 1] || selMonth
+
+  const fmtCell = v => (v == null || v === 0) ? '—' : (v > 0 ? '+' : '') + fmt(v)
+  const fmtPctCell = v => v == null ? '—' : `${(v * 100).toFixed(1)}%`
+
+  return (
+    <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 16, boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden', marginBottom: 24 }}>
+      <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.borderDefault}` }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }}>ACV Waterfall</div>
+        <div style={{ fontSize: 10, color: T.textMuted, marginTop: 2 }}>{monthLabel} across all years · {lb}M Lookback</div>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12, minWidth: Math.max(monthCols.length * 100 + 180, 480) }}>
+          <thead>
+            <tr style={{ background: T.bgRaised, borderBottom: `1px solid ${T.borderDefault}` }}>
+              <th style={{ textAlign: 'left', padding: '9px 16px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.textMuted, position: 'sticky', left: 0, background: T.bgRaised, minWidth: 160 }}>Bridge</th>
+              {monthCols.map(p => {
+                const isSel = p === selPeriod
+                return (
+                  <th key={p} style={{ textAlign: 'right', padding: '9px 14px', fontSize: 10, fontWeight: isSel ? 700 : 500, color: isSel ? T.brandPrimary : T.textMuted, whiteSpace: 'nowrap', background: isSel ? T.brandSoft : T.bgRaised }}>
+                    {p}
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {ACV_TABLE_ROWS.map((row, ri) => {
+              const hasAny = monthCols.some(p => byPeriod[p]?.[row.key])
+              if (!hasAny) return null
+              const BC = getACVBridgeColor(T)
+              return (
+                <tr key={row.key} style={{ borderBottom: `1px solid ${T.borderDefault}`, background: row.bold ? T.bgRaised : (ri % 2 === 0 ? 'transparent' : T.bgMuted) }}>
+                  <td style={{ padding: '9px 16px', fontWeight: row.bold ? 700 : 500, color: row.bold ? T.textPrimary : T.textSecondary, position: 'sticky', left: 0, background: row.bold ? T.bgRaised : (ri % 2 === 0 ? T.bgSurface : T.bgMuted), display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                    {!row.bold && <span style={{ width: 6, height: 6, borderRadius: '50%', background: BC[row.key] || T.textTertiary, flexShrink: 0 }} />}
+                    {row.label}
+                  </td>
+                  {monthCols.map(p => {
+                    const v = byPeriod[p]?.[row.key]
+                    const isSel = p === selPeriod
+                    return (
+                      <td key={p} style={{ textAlign: 'right', padding: '9px 14px', fontFamily: T.mono, fontSize: 11, fontWeight: row.bold || isSel ? 700 : 400, color: row.bold ? T.textPrimary : (v > 0 ? T.growth : v < 0 ? T.decline : T.textMuted), background: isSel ? T.brandSoft : 'transparent' }}>
+                        {fmtCell(v)}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+            <tr style={{ borderTop: `1px solid ${T.borderStrong}`, background: T.bgMuted }}>
+              <td style={{ padding: '8px 16px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: T.textMuted, position: 'sticky', left: 0, background: T.bgMuted }}>Net Retention</td>
+              {monthCols.map(p => {
+                const nrr = byPeriod[p]?._nrr
+                const isSel = p === selPeriod
+                return <td key={p} style={{ textAlign: 'right', padding: '8px 14px', fontFamily: T.mono, fontSize: 11, fontWeight: 900, color: nrr >= 1 ? T.growth : T.decline, background: isSel ? T.brandSoft : 'transparent' }}>{fmtPctCell(nrr)}</td>
+              })}
+            </tr>
+            <tr style={{ borderTop: `1px solid ${T.borderDefault}`, background: T.bgMuted }}>
+              <td style={{ padding: '8px 16px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: T.textMuted, position: 'sticky', left: 0, background: T.bgMuted }}>Gross Retention</td>
+              {monthCols.map(p => {
+                const grr = byPeriod[p]?._grr
+                const isSel = p === selPeriod
+                return <td key={p} style={{ textAlign: 'right', padding: '8px 14px', fontFamily: T.mono, fontSize: 11, fontWeight: 900, color: grr >= 0.8 ? T.growth : T.decline, background: isSel ? T.brandSoft : 'transparent' }}>{fmtPctCell(grr)}</td>
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
@@ -2268,6 +2429,12 @@ export default function ACVCenter() {
                     ACV Bridge — {fmtPeriod(selPeriod)} · {lb}M Lookback
                   </div>
                   <ACVWaterfall bridgeTable={engineOutput.bridgeTable} lb={lb} period={selPeriod} T={T} />
+                </div>
+
+                {/* Same-month-across-years table — equivalent to MRR's
+                    "ARR Waterfall: Mon across all years" table. */}
+                <div style={{ marginTop: 24 }}>
+                  <ACVWaterfallTable bridgeTable={engineOutput.bridgeTable} lb={lb} selPeriod={selPeriod} T={T} />
                 </div>
               </div>
             )}
