@@ -1372,107 +1372,194 @@ const TABS = [
 // so it can live in the sidebar per the executive-layout brief, and kept as
 // a standalone function so both the sidebar and (if ever needed) other
 // tabs can call it without duplicating the string-building logic.
-function buildContractNarrative(kpis) {
+// Narrative split into two parts (WHAT CHANGED / WHY) instead of one long
+// paragraph — same underlying computation as before, just structured to
+// match the executive-summary layout. No new numbers, same source data.
+function buildWhatChanged(kpis) {
+  if (!kpis) return ''
+  return `ACV moved from ${fmt(kpis.priorACV)} to ${fmt(kpis.endingACV)} (${kpis.netChange >= 0 ? '+' : ''}${fmt(kpis.netChange)}).`
+}
+
+function buildWhyText(kpis) {
   if (!kpis) return ''
   const gr = kpis.grossRenewal, nr = kpis.netRenewal
-  let s = `ACV moved from ${fmt(kpis.priorACV)} to ${fmt(kpis.endingACV)} (${kpis.netChange >= 0 ? '+' : ''}${fmt(kpis.netChange)}).`
-  if (gr != null) s += ` Gross renewal rate of ${fmtPct(gr)} — ${gr >= 0.9 ? 'strong retention' : gr >= 0.8 ? 'moderate retention' : 'retention needs attention'}.`
-  if (nr != null) s += ` Net renewal rate of ${fmtPct(nr)} — ${nr >= 1 ? 'expansion outpacing churn' : 'net contraction'}.`
-  if (kpis.expiryPool > 0) s += ` Expiry pool of ${fmt(kpis.expiryPool)} due for renewal.`
-  if (kpis.addOn > 0) s += ` ${fmt(kpis.addOn)} in Add-on ACV from mid-term expansions.`
-  if (kpis.churn < 0) s += ` Churn of ${fmt(Math.abs(kpis.churn))} — ${Math.abs(kpis.churn) / kpis.expiryPool > 0.1 ? 'above 10% threshold, investigate' : 'controlled'}.`
-  return s
+  let s = ''
+  if (gr != null) s += `Gross renewal rate of ${fmtPct(gr)} — ${gr >= 0.9 ? 'strong retention' : gr >= 0.8 ? 'moderate retention' : 'retention needs attention'}. `
+  if (nr != null) s += `Net renewal rate of ${fmtPct(nr)} — ${nr >= 1 ? 'expansion outpacing churn' : 'net contraction'}. `
+  if (kpis.expiryPool > 0) s += `Expiry pool of ${fmt(kpis.expiryPool)} due for renewal. `
+  if (kpis.addOn > 0) s += `${fmt(kpis.addOn)} in Add-on ACV from mid-term expansions. `
+  if (kpis.churn < 0) s += `Churn of ${fmt(Math.abs(kpis.churn))} — ${Math.abs(kpis.churn) / kpis.expiryPool > 0.1 ? 'above 10% threshold, investigate' : 'controlled'}.`
+  return s.trim()
 }
 
 // Portfolio Health Score — deterministic average of GRR + NRR, both of
-// which already exist in `kpis`. Bands chosen to match language already
-// used elsewhere in this file (KpiCard's "Healthy"/"Needs attention" for
-// Gross Retention). No new calculation invented, just a simple average of
-// two numbers already trusted and shown elsewhere on this page.
+// which already exist in `kpis`. No new calculation invented.
 function computeHealthScore(kpis) {
   if (!kpis || kpis.grossRetention == null || kpis.netRetention == null) return null
   const score = ((kpis.grossRetention + kpis.netRetention) / 2) * 100
-  let band, color
+  let band
   if (score >= 100)      { band = 'Excellent';       }
   else if (score >= 85)  { band = 'Good';            }
   else                   { band = 'Needs Attention'; }
   return { score: Math.max(0, Math.min(140, score)), band }
 }
 
-function HealthScoreRing({ kpis, T }) {
+// Key Alerts — deterministic threshold rules on numbers already computed
+// (kpis for GRR/NRR/Renewal Exposure, riskOpportunitySummary for full-
+// population risk/expansion counts). Extracted as a plain function (not a
+// component) so the SAME alert list can drive both the RISKS column and
+// the ACTIONS column below — no duplicated threshold logic between them.
+function computeKeyAlerts(kpis, riskSummaryRow, T) {
+  if (!kpis) return []
+  const alerts = []
+  if (riskSummaryRow && riskSummaryRow.riskCount > 0) {
+    alerts.push({ id: 'churn_risk', label: 'High Churn Risk', detail: `${riskSummaryRow.riskCount} account(s) at elevated/critical risk`, color: T.decline, icon: AlertCircle })
+  }
+  if (kpis.grossRetention != null && kpis.grossRetention < 0.80) {
+    alerts.push({ id: 'low_retention', label: 'Low Retention', detail: `Gross retention at ${fmtPct(kpis.grossRetention)}`, color: T.decline, icon: TrendingDown })
+  }
+  const renewalExposure = kpis.endingACV > 0 ? kpis.expiryPool / kpis.endingACV : null
+  if (renewalExposure != null && renewalExposure >= 0.30) {
+    alerts.push({ id: 'upcoming_renewals', label: 'Upcoming Renewals', detail: `${fmtPct(renewalExposure)} of Ending ACV due for renewal`, color: T.warning, icon: Clock })
+  }
+  if (riskSummaryRow && riskSummaryRow.expansionCount > 0) {
+    alerts.push({ id: 'pipeline_opportunity', label: 'Pipeline Opportunity', detail: `${riskSummaryRow.expansionCount} account(s) showing expansion signal`, color: T.growth, icon: TrendingUp })
+  }
+  return alerts
+}
+
+// Deterministic action mapping — one concrete, navigable next-step per
+// alert type. Unlike a generic AI-generated recommendation, these are
+// fixed rules tied directly to real tabs already in this product (clicking
+// jumps straight there) — nothing invented, nothing that requires an LLM.
+const ALERT_ACTIONS = {
+  churn_risk:          { text: 'Review at-risk accounts', tab: 'movers' },
+  low_retention:       { text: 'Investigate drivers in ACV Bridge', tab: 'bridge' },
+  upcoming_renewals:   { text: 'Prioritize outreach via Expiry Pool', tab: 'expiry' },
+  pipeline_opportunity:{ text: 'Explore expansion accounts', tab: 'movers' },
+}
+
+function HealthBadge({ kpis, T, compact }) {
   const h = computeHealthScore(kpis)
   if (!h) return null
-
-  const size = 108, stroke = 9, r = (size - stroke) / 2, c = 2 * Math.PI * r
-  // Normalize display: 100 = full ring, values above just show as full+badge
-  const pct = Math.min(h.score / 100, 1)
-  const dash = c * pct
   const color = h.band === 'Excellent' ? T.growth : h.band === 'Good' ? T.warning : T.decline
 
+  if (compact) {
+    const size = 56, stroke = 6, r = (size - stroke) / 2, c = 2 * Math.PI * r
+    const dash = c * Math.min(h.score / 100, 1)
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{ position: 'relative', width: size, height: size }}>
+          <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={T.borderDefault} strokeWidth={stroke} />
+            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+              strokeDasharray={`${dash} ${c - dash}`} strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.6s ease' }} />
+          </svg>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.mono, fontSize: 14, fontWeight: 700, color: T.textPrimary }}>
+            {h.score.toFixed(0)}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.textMuted }}>Portfolio Health</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color }}>{h.band}</div>
+        </div>
+      </div>
+    )
+  }
+
+  const size = 108, stroke = 9, r = (size - stroke) / 2, c = 2 * Math.PI * r
+  const dash = c * Math.min(h.score / 100, 1)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0' }}>
       <div style={{ position: 'relative', width: size, height: size }}>
         <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
           <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={T.borderDefault} strokeWidth={stroke} />
           <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-            strokeDasharray={`${dash} ${c - dash}`} strokeLinecap="round"
-            style={{ transition: 'stroke-dasharray 0.6s ease' }} />
+            strokeDasharray={`${dash} ${c - dash}`} strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.6s ease' }} />
         </svg>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ fontFamily: T.mono, fontSize: 22, fontWeight: 700, color: T.textPrimary, lineHeight: 1 }}>{h.score.toFixed(0)}</div>
           <div style={{ fontSize: 8, color: T.textMuted, marginTop: 2 }}>/ 100</div>
         </div>
       </div>
-      <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color, padding: '3px 10px', borderRadius: 20, background: `${color}15` }}>
-        {h.band}
+      <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color, padding: '3px 10px', borderRadius: 20, background: `${color}15` }}>{h.band}</div>
+    </div>
+  )
+}
+
+// ─── Unified Executive Summary Card ───────────────────────────────────────
+// Lives in MAIN CONTENT (Summary tab), not the sidebar — combines what were
+// three separate floating sections (narrative, Portfolio Health, Key
+// Alerts) into one cohesive card: header with compact health badge, then a
+// WHAT CHANGED / WHY / RISKS / ACTIONS column layout. Structure takes cues
+// from a reference executive-dashboard design, but every value, color, and
+// alert rule is this product's own real data — nothing fabricated, no
+// invented company names or scenarios like the reference example had.
+function ExecutiveSummaryCard({ kpis, riskSummaryRow, setTab, T }) {
+  if (!kpis) return null
+  const alerts = computeKeyAlerts(kpis, riskSummaryRow, T)
+  const whatChanged = buildWhatChanged(kpis)
+  const whyText = buildWhyText(kpis)
+
+  const colLabel = { fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.textMuted, marginBottom: 10 }
+
+  return (
+    <div style={{ background: T.brandSoft, border: `1px solid ${T.brandBorder}`, borderRadius: 16, padding: 24, marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Sparkles size={14} color={T.brandPrimary} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: T.brandPrimary, textTransform: 'uppercase', letterSpacing: '0.08em' }}>RevenueLens AI — Executive Summary</span>
+        </div>
+        <HealthBadge kpis={kpis} T={T} compact />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20, paddingTop: 16, borderTop: `1px solid ${T.brandBorder}` }}>
+        <div>
+          <div style={colLabel}>What Changed</div>
+          <div style={{ fontSize: 12, color: T.textPrimary, lineHeight: 1.65 }}>{whatChanged}</div>
+        </div>
+        <div>
+          <div style={colLabel}>Why</div>
+          <div style={{ fontSize: 12, color: T.textPrimary, lineHeight: 1.65 }}>{whyText}</div>
+        </div>
+        <div>
+          <div style={colLabel}>Risks</div>
+          {alerts.length ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {alerts.map(a => (
+                <div key={a.id} style={{ fontSize: 11, color: a.color, fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+                  <a.icon size={11} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>{a.label} <span style={{ color: T.textTertiary, fontWeight: 400 }}>— {a.detail}</span></span>
+                </div>
+              ))}
+            </div>
+          ) : <div style={{ fontSize: 11, color: T.textMuted }}>No active alerts</div>}
+        </div>
+        <div>
+          <div style={colLabel}>Actions</div>
+          {alerts.length ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {alerts.map(a => {
+                const action = ALERT_ACTIONS[a.id]
+                if (!action) return null
+                return (
+                  <button key={a.id} onClick={() => setTab(action.tab)} style={{
+                    fontSize: 11, color: T.brandPrimary, fontWeight: 600, textAlign: 'left',
+                    background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}>
+                    {action.text} →
+                  </button>
+                )
+              })}
+            </div>
+          ) : <div style={{ fontSize: 11, color: T.textMuted }}>—</div>}
+        </div>
       </div>
     </div>
   )
 }
 
-// Key Alerts — deterministic threshold rules on numbers already computed
-// (kpis for GRR/NRR/Renewal Exposure, riskOpportunitySummary for full-
-// population risk/expansion counts). No new backend logic — pure UI read
-// of existing values against fixed thresholds.
-function KeyAlerts({ kpis, riskSummaryRow, T }) {
-  if (!kpis) return null
-
-  const alerts = []
-  if (riskSummaryRow && riskSummaryRow.riskCount > 0) {
-    alerts.push({ label: 'High Churn Risk', detail: `${riskSummaryRow.riskCount} account(s) at elevated/critical risk`, color: T.decline, icon: AlertCircle })
-  }
-  if (kpis.grossRetention != null && kpis.grossRetention < 0.80) {
-    alerts.push({ label: 'Low Retention', detail: `Gross retention at ${fmtPct(kpis.grossRetention)}`, color: T.decline, icon: TrendingDown })
-  }
-  const renewalExposure = kpis.endingACV > 0 ? kpis.expiryPool / kpis.endingACV : null
-  if (renewalExposure != null && renewalExposure >= 0.30) {
-    alerts.push({ label: 'Upcoming Renewals', detail: `${fmtPct(renewalExposure)} of Ending ACV due for renewal`, color: T.warning, icon: Clock })
-  }
-  if (riskSummaryRow && riskSummaryRow.expansionCount > 0) {
-    alerts.push({ label: 'Pipeline Opportunity', detail: `${riskSummaryRow.expansionCount} account(s) showing expansion signal`, color: T.growth, icon: TrendingUp })
-  }
-
-  if (!alerts.length) return (
-    <div style={{ fontSize: 11, color: T.textMuted, padding: '10px 0' }}>No active alerts for this period</div>
-  )
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {alerts.map((a, i) => {
-        const Icon = a.icon
-        return (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, background: `${a.color}0C`, border: `1px solid ${a.color}25` }}>
-            <Icon size={12} color={a.color} style={{ flexShrink: 0, marginTop: 1 }} />
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: a.color }}>{a.label}</div>
-              <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 1 }}>{a.detail}</div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 // Quick Navigation — since ACV Center is tab-based (not a single
 // scrollable page), "scroll to section" is adapted to "switch tab",
@@ -1508,25 +1595,12 @@ function QuickNav({ activeTab, setTab, T }) {
   )
 }
 
-function SidebarSection({ title, children, T }) {
-  return (
-    <div style={{ padding: '16px 18px', borderBottom: `1px solid ${T.borderDefault}` }}>
-      <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.textMuted, marginBottom: 12 }}>{title}</div>
-      {children}
-    </div>
-  )
-}
-
-function ExecutiveSidebar({ kpis, riskOpportunitySummary, selPeriod, activeTab, setTab, T }) {
-  const riskSummaryRow = useMemo(() =>
-    (riskOpportunitySummary || []).find(r => r.period === selPeriod) || null
-  , [riskOpportunitySummary, selPeriod])
-
+function ExecutiveSidebar({ kpis, activeTab, setTab, T }) {
   if (!kpis) return null
 
   return (
     <aside style={{
-      width: 340, flexShrink: 0, alignSelf: 'flex-start',
+      width: 260, flexShrink: 0, alignSelf: 'flex-start',
       position: 'sticky', top: 76, maxHeight: 'calc(100vh - 92px)',
       overflow: 'hidden',   // clips to rounded corners — no scrolling on THIS element
       background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 12,
@@ -1536,20 +1610,10 @@ function ExecutiveSidebar({ kpis, riskOpportunitySummary, selPeriod, activeTab, 
           separate elements, or content visually bleeds past the outer
           rounded border while scrolling (the artifact seen in testing). */}
       <div style={{ maxHeight: 'calc(100vh - 92px)', overflowY: 'auto' }}>
-        {/* Executive KPI list and AI narrative REMOVED from here — they
-            already exist as full detail in Main Content's Summary tab
-            (KPI cards row + AI narrative block), so keeping them here too
-            was pure duplication of the same numbers. Sidebar now holds only
-            what's NOT already shown elsewhere: Portfolio Health, Key
-            Alerts, and Quick Navigation. */}
-        <SidebarSection title="Portfolio Health" T={T}>
-          <HealthScoreRing kpis={kpis} T={T} />
-        </SidebarSection>
-
-        <SidebarSection title="Key Alerts" T={T}>
-          <KeyAlerts kpis={kpis} riskSummaryRow={riskSummaryRow} T={T} />
-        </SidebarSection>
-
+        {/* Portfolio Health + Key Alerts moved into the unified Executive
+            Summary card in Main Content's Summary tab — sidebar is now
+            navigation only, per direct product feedback ("left panel
+            should have name only"). */}
         <div style={{ padding: '16px 18px' }}>
           <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.textMuted, marginBottom: 12 }}>Quick Navigation</div>
           <QuickNav activeTab={activeTab} setTab={setTab} T={T} />
@@ -1895,6 +1959,12 @@ export default function ACVCenter() {
     return calcACVKPIs(engineOutput.bridgeTable, lb, selPeriod)
   }, [engineOutput, lb, selPeriod])
 
+  // Full-population risk/expansion counts for the selected period — used
+  // by the unified Executive Summary card's Risks/Actions columns.
+  const riskSummaryRow = useMemo(() =>
+    (engineOutput?.riskOpportunitySummary || []).find(r => r.period === selPeriod) || null
+  , [engineOutput, selPeriod])
+
   // All available periods (full)
   const periods = useMemo(() => {
     if (!engineOutput?.bridgeTable?.length) return []
@@ -2076,8 +2146,6 @@ export default function ACVCenter() {
         {engineOutput && kpis && (
           <ExecutiveSidebar
             kpis={kpis}
-            riskOpportunitySummary={engineOutput.riskOpportunitySummary}
-            selPeriod={selPeriod}
             activeTab={tab}
             setTab={setTab}
             T={T}
@@ -2189,17 +2257,10 @@ export default function ACVCenter() {
                   <KpiCard label="Lapsed"      value={fmt(kpis.lapsed)}    subGood={kpis.lapsed === 0}  T={T} />
                 </div>
 
-                {/* AI narrative — lives here in Main Content only (not in
-                    the sidebar, which would duplicate it). Uses the shared
-                    buildContractNarrative() helper so the string-building
-                    logic itself isn't duplicated even though it's only
-                    rendered from this one place. */}
-                {kpis && (
-                  <div style={{ padding: '14px 18px', borderRadius: 10, background: T.brandSoft, border: `1px solid ${T.brandBorder}`, marginBottom: 24 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: T.brandPrimary, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>✦ RevenueLens AI — Contract Summary</div>
-                    <div style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.7 }}>{buildContractNarrative(kpis)}</div>
-                  </div>
-                )}
+                {/* Unified Executive Summary — combines narrative, Portfolio
+                    Health, and Key Alerts (previously three separate
+                    floating pieces) into one card in Main Content. */}
+                <ExecutiveSummaryCard kpis={kpis} riskSummaryRow={riskSummaryRow} setTab={setTab} T={T} />
 
                 {/* Mini waterfall preview */}
                 <div style={{ background: T.bgSurface, border: `1px solid ${T.borderDefault}`, borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)' }}>
