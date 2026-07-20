@@ -43,6 +43,42 @@ const STEPS = [
   { id: 'review',   label: 'Review' },
 ]
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTO-DETECT COLUMN MAPPING — matches by header NAME PATTERN, not position.
+// Runs once when entering the Map step; pre-fills the dropdowns as a
+// SUGGESTION only — every field remains fully editable, nothing is silent.
+// ═══════════════════════════════════════════════════════════════════════════
+const AUTO_MAP_PATTERNS = {
+  customer:      [/^customer/i, /^client/i, /^account.?name/i, /^company/i],
+  date:          [/^date$/i, /^period/i, /^month/i, /^activity.?date/i],
+  revenue:       [/^revenue/i, /^mrr/i, /^arr/i, /^amount/i],
+  contractStart: [/^(contract.?)?start/i, /^begin/i, /^signing.?date/i],
+  contractEnd:   [/^(contract.?)?end/i, /^expir/i],
+  tcv:           [/^tcv/i, /^acv/i, /^contract.?value/i, /^deal.?value/i],
+  product:       [/^product/i, /^sku/i, /^plan/i],
+  channel:       [/^channel/i, /^sales.?channel/i, /^segment/i],
+  region:        [/^region/i, /^geo/i, /^territory/i, /^country/i],
+  fiscal:        [/^fiscal/i, /^fy/i],
+  quantity:      [/^quantity/i, /^qty/i, /^seats/i, /^units/i],
+}
+
+// Sentinel value for "user explicitly chose N/A" — distinct from an
+// unmapped/blank field so the UI can show a deliberate choice, not an
+// ambiguous default. Treated as absent everywhere downstream (same as '').
+const NA_VALUE = '__NA__'
+
+function autoDetectMapping(cols, activeFields) {
+  const result = {}
+  const usedCols = new Set()
+  for (const field of activeFields) {
+    const patterns = AUTO_MAP_PATTERNS[field.key]
+    if (!patterns) continue
+    const match = cols.find(c => !usedCols.has(c) && patterns.some(p => p.test(c.trim())))
+    if (match) { result[field.key] = match; usedCols.add(match) }
+  }
+  return result
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SIX-LAYER FUZZY ENGINE — full port from mapper.js
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -132,9 +168,6 @@ function evalScore(s1, s2) {
 }
 
 function getClean(raw) { return cleanEntity(raw).replace(/[:\-]/g,' ').replace(/\s+/g,' ').trim() }
-
-// ── Match record type ──────────────────────────────────────────────────────────
-// { id, source, canonical, confidence, method, status, userRemoved, count, revenue, candidates[] }
 
 function uid() { return Math.random().toString(36).slice(2,10) }
 
@@ -270,6 +303,7 @@ export default function UploadPage() {
   const [columns, setColumns]         = useState([])
   const [datasetType, setDatasetType] = useState('revenue')
   const [mapping, setMapping]         = useState({})
+  const [autoDetectedFields, setAutoDetectedFields] = useState({}) // {fieldKey: true} — cleared on manual edit
   const [qtyResolution, setQtyResolution] = useState(null) // null | 'exclude' | 'assume_one'
   const [zeroQtyCount,  setZeroQtyCount]  = useState(0)    // TCV>0 AND Qty<=0 row count
   const [error, setError]             = useState('')
@@ -480,7 +514,7 @@ export default function UploadPage() {
   function launchAnalytics(){
     if(!file||!rawRows.length) return
     // If quantity mapped and zero-qty contracts exist, user must choose resolution
-    if(analysisType==='acv_tcv' && mapping.quantity && zeroQtyCount > 0 && !qtyResolution){
+    if(analysisType==='acv_tcv' && mapping.quantity && mapping.quantity!==NA_VALUE && zeroQtyCount > 0 && !qtyResolution){
       // Scroll to review card — resolution required before launch
       document.querySelector('[data-qty-card]')?.scrollIntoView({behavior:'smooth'})
       return
@@ -498,7 +532,7 @@ export default function UploadPage() {
         // Applied unconditionally — not user-configurable — matches Alteryx workflow exactly
         // ── Scope rule (Alteryx 2.2 + user resolution for zero-qty) ──────────
         // Scope helpers — no IIFEs to avoid minification TDZ
-        const qtyColMapped = !!mapping.quantity
+        const qtyColMapped = !!mapping.quantity && mapping.quantity!==NA_VALUE
         const assumeOne    = qtyResolution === 'assume_one'
 
         const getQty = (rawRow) => {
@@ -811,7 +845,21 @@ export default function UploadPage() {
             <div style={{display:'flex',justifyContent:'space-between',marginTop:8}}>
               <button onClick={()=>setStep('upload')} style={S.btnSecondary}>← Back</button>
               <button
-                onClick={()=>setStep('map')}
+                onClick={()=>{
+                  // Auto-detect by header name, merged UNDER any mapping the
+                  // user already set manually (never overwrites a real choice)
+                  const activeFields = analysisType==='acv_tcv' ? ACV_FIELDS : FIELDS
+                  const detected = autoDetectMapping(columns, activeFields)
+                  setAutoDetectedFields(prev => {
+                    const next = {...prev}
+                    for (const key of Object.keys(detected)) {
+                      if (!mapping[key]) next[key] = true
+                    }
+                    return next
+                  })
+                  setMapping(m => ({...detected, ...m}))
+                  setStep('map')
+                }}
                 disabled={!analysisType||!revenueUnit}
                 style={{...S.btnPrimary,opacity:(!analysisType||!revenueUnit)?0.4:1,cursor:(!analysisType||!revenueUnit)?'default':'pointer'}}>
                 Continue to field mapping <ArrowRight size={14}/>
@@ -844,11 +892,23 @@ export default function UploadPage() {
                       {field.required
                         ?<span style={{fontSize:9,fontWeight:700,background:'#EFF6FF',color:'#2563EB',border:'1px solid #BFDBFE',padding:'1px 6px',borderRadius:20}}>Required</span>
                         :<span style={{fontSize:9,color:'#9CA3AF',background:'#F9FAFB',border:'1px solid #E5E7EB',padding:'1px 6px',borderRadius:20}}>Optional</span>}
+                      {autoDetectedFields[field.key] && mapping[field.key] && mapping[field.key]!==NA_VALUE && (
+                        <span style={{fontSize:9,fontWeight:700,background:'#ECFDF5',color:'#059669',border:'1px solid #A7F3D0',padding:'1px 6px',borderRadius:20,display:'flex',alignItems:'center',gap:3}}>
+                          ✦ Auto-detected
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <select value={mapping[field.key]||''} onChange={e=>setMapping(m=>({...m,[field.key]:e.target.value}))}
-                    style={{width:200,padding:'7px 10px',border:'1px solid #E5E7EB',borderRadius:6,fontSize:13,outline:'none',color:'#111827',background:'#fff'}}>
+                  <select value={mapping[field.key]||''} onChange={e=>{
+                      setMapping(m=>({...m,[field.key]:e.target.value}))
+                      setAutoDetectedFields(prev=>{const next={...prev};delete next[field.key];return next})
+                    }}
+                    style={{width:200,padding:'7px 10px',border:`1px solid ${mapping[field.key]===NA_VALUE?'#FCA5A5':'#E5E7EB'}`,borderRadius:6,fontSize:13,outline:'none',color:mapping[field.key]===NA_VALUE?'#9CA3AF':'#111827',background:'#fff',fontStyle:mapping[field.key]===NA_VALUE?'italic':'normal'}}>
                     <option value="">— Select column —</option>
+                    {/* N/A only ever offered for OPTIONAL fields — required
+                        fields (Customer, Dates, TCV/Revenue) never get this
+                        option, so they can never be silently skipped. */}
+                    {!field.required && <option value={NA_VALUE}>— N/A (not applicable) —</option>}
                     {columns.map(c=><option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
@@ -864,7 +924,7 @@ export default function UploadPage() {
                   if(!mapping.customer||!mapping.date||!mapping.revenue){setError('Please map Customer, Date, and Revenue fields.');return}
                 }
                 // Detect zero-quantity contracts when quantity column is mapped
-                if(mapping.quantity){
+                if(mapping.quantity && mapping.quantity!==NA_VALUE){
                   const zeroQty = rawRows.filter(r => {
                     const tcv = parseFloat(String(r[mapping.tcv]||0).replace(/[,$]/g,''))||0
                     const qty = parseFloat(String(r[mapping.quantity]||0))||0
@@ -1158,7 +1218,7 @@ export default function UploadPage() {
             <div style={{display:'flex',gap:10,marginTop:24}}>
               <button onClick={()=>setStep('map')} style={S.btnSecondary}>← Back</button>
               <button onClick={()=>{
-                  if(mapping.quantity && analysisType==='acv_tcv'){
+                  if(mapping.quantity && mapping.quantity!==NA_VALUE && analysisType==='acv_tcv'){
                     const zq=rawRows.filter(r=>{
                       const tcv=parseFloat(String(r[mapping.tcv]||0).replace(/[,$]/g,''))||0
                       const qty=parseFloat(String(r[mapping.quantity]||0))||0
@@ -1185,7 +1245,7 @@ export default function UploadPage() {
                 <div><div style={{fontSize:11,color:'#9CA3AF',marginBottom:2}}>Dataset Type</div><div style={{fontSize:13,fontWeight:600,color:'#111827',textTransform:'capitalize'}}>{datasetType}</div></div>
                 <div><div style={{fontSize:11,color:'#9CA3AF',marginBottom:2}}>Rows</div><div style={{fontSize:13,fontWeight:600,color:'#111827'}}>{rawRows.length.toLocaleString()}</div></div>
                 <div><div style={{fontSize:11,color:'#9CA3AF',marginBottom:2}}>Columns</div><div style={{fontSize:13,fontWeight:600,color:'#111827'}}>{columns.length}</div></div>
-                {Object.entries(mapping).filter(([,v])=>v&&v!=='None').map(([k,v])=>(
+                {Object.entries(mapping).filter(([,v])=>v&&v!=='None'&&v!==NA_VALUE).map(([k,v])=>(
                   <div key={k}><div style={{fontSize:11,color:'#9CA3AF',marginBottom:2,textTransform:'capitalize'}}>{k}</div><div style={{fontSize:13,fontWeight:600,color:'#111827'}}>{v}</div></div>
                 ))}
               </div>
@@ -1204,7 +1264,7 @@ export default function UploadPage() {
               </div>
             </div>
             {/* ── Quantity Resolution Card (shows only when qty col mapped + zero-qty rows exist) ── */}
-            {analysisType==='acv_tcv' && mapping.quantity && zeroQtyCount > 0 && (
+            {analysisType==='acv_tcv' && mapping.quantity && mapping.quantity!==NA_VALUE && zeroQtyCount > 0 && (
               <div data-qty-card="true" style={{...S.card,marginBottom:16,border:'1px solid #FDE68A',background:'#FFFBEB'}}>
                 <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
                   <div style={{fontSize:20,marginTop:2}}>⚠️</div>
